@@ -1,0 +1,12 @@
+fastapi
+gunicorn
+uvicorn
+sqlalchemy
+psycopg2-binary
+python-jose
+passlib[bcrypt]
+python-multipart
+boto3
+alembic
+pydantic-settings
+uuid6
