@@ -1,6 +1,28 @@
+import datetime
+
 from sqlalchemy import or_, and_
 from app.models.ticket import Ticket
 from app.core.utils.dates import start_of_month
+
+from app.models.ticket import Ticket
+
+def save_ticket(db, data, current_user):
+
+    ticket = Ticket(
+        nro_ticket=data.nro_ticket,
+        prioridad="MEDIA",
+        fecha_ticket=datetime.datetime.today().strftime("%d/%m/%Y"),
+        descripcion_ticket=data.descripcion_ticket,
+        estado="ABIERTO",
+        created_at=datetime.datetime.now().isoformat(), # TODO: Inyectar TZ desde entorno
+        created_by=current_user.email
+    )
+
+    db.add(ticket)
+    db.commit()
+    db.refresh(ticket)
+
+    return ticket
 
 def get_visible_tickets(db, current_user, page: int = 1, page_size: int = 50):
 
