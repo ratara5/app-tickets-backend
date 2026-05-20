@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends
 
 from app.api.routes import get_current_user
 from app.core.database import get_db
-from app.services.mantenimiento_service import list_mantenimientos
+from app.services.mantenimiento_service import create_new_mantenimiento, list_mantenimientos
+from app.schemas.mantenimiento import MantenimientoCreate
 
 router = APIRouter(prefix="/mantenimientos")
 
@@ -15,3 +16,16 @@ def get_mantenimientos(
 ):
 
     return list_mantenimientos(db, current_user, page, page_size)
+
+@router.post("")
+def create_mantenimiento(
+    data: MantenimientoCreate,
+    current_user = Depends(get_current_user),
+    db = Depends(get_db)
+):
+
+    return create_new_mantenimiento(
+        db,
+        data,
+        current_user
+    )

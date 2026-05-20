@@ -1,7 +1,23 @@
+import datetime
+
 from sqlalchemy import or_, and_
 from app.models.mantenimiento import Mantenimiento
 from app.models.ticket import Ticket
 from app.core.utils.dates import start_of_month
+
+def save_mantenimiento(db, data, current_user):
+
+    mantenimiento = Mantenimiento(
+        nro_ticket=data.nro_ticket,
+        fecha_trabajo=datetime.datetime.today().strftime("%d/%m/%Y"),
+        created_by=current_user.email
+    )
+
+    db.add(mantenimiento)
+    db.commit()
+    db.refresh(mantenimiento)
+
+    return mantenimiento
 
 def get_visible_mantenimientos(db, current_user, page: int = 1, page_size: int = 50):
 
