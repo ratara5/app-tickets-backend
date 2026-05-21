@@ -6,9 +6,13 @@ from app.core.database import get_db
 from app.services.ticket_service import (create_new_ticket, 
                                          list_tickets, 
                                          assign_ticket, 
-                                         start_ticket)
+                                         start_mantenimiento,
+                                         cancel_ticket,
+                                         pause_ticket)
 
 from app.schemas.ticket import TicketCreate, AssignRequest
+from app.schemas.cancelacion import CancelacionRequest
+from app.schemas.pausa import PausaRequest
 
 router = APIRouter(prefix="/tickets")
 
@@ -48,4 +52,16 @@ def assign(nro_ticket: int,
 def start(nro_ticket: int, 
           current_user = Depends(get_current_user),
           db: Session = Depends(get_db)):
-    return start_ticket(nro_ticket, current_user, db)
+    return start_mantenimiento(nro_ticket, current_user, db)
+
+@router.patch("/{ticket_id}/cancel")
+def cancel(ticket_id: int, payload: CancelacionRequest,
+           db: Session = Depends(get_db),
+           current_user = Depends(get_current_user)):
+    return cancel_ticket(ticket_id, payload, current_user, db)
+
+@router.patch("/{ticket_id}/pause")
+def pause(ticket_id: int, payload: PausaRequest,
+          db: Session = Depends(get_db),
+          current_user = Depends(get_current_user)):
+    return pause_ticket(ticket_id, payload, current_user, db)
