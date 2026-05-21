@@ -23,3 +23,9 @@ class Ticket(Base, AuditMixin):
         back_populates="ticket",
         uselist=False
     )
+
+    cancelacion = relationship(
+        "Cancelacion",
+        back_populates="ticket",
+        uselist=False
+    )

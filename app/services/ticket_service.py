@@ -1,15 +1,20 @@
 from datetime import date
 import holidays
+from types import SimpleNamespace
+
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
-from app.repositories.ticket_repo import save_ticket
-from app.repositories.ticket_repo import get_visible_tickets
-from app.repositories.mantenimiento_repo import create_mantenimiento
+from app.repositories.ticket_repo import save_ticket, get_visible_tickets
 
 from app.models.ticket import Ticket
 from app.models.tecnico import Tecnico
+
 from app.schemas.ticket import AssignRequest
+from app.schemas.cancelacion import CancelacionRequest
+
+from app.services.mantenimiento_service import create_new_mantenimiento
+from app.services.cancelacion_service import create_new_cancelacion
 
 def create_new_ticket(db, data, current_user):
     return save_ticket(db, data, current_user)
@@ -37,7 +42,7 @@ def _validate_transition(current_state: str, new_state: str):
         )
     
 # ── a. Iniciar mantenimiento (EN_PROGRESO) ────────────────────────────────────
-def start_mantenimiento(nro_ticket: int,
+def start_mantenimiento(nro_ticket: int, payload: None,
                  current_user, db: Session):
     ticket = db.query(Ticket).filter(Ticket.nro_ticket == nro_ticket).first()
     if not ticket:
@@ -49,9 +54,10 @@ def start_mantenimiento(nro_ticket: int,
     # Validación festivos/fin de semana: No necesaria
     # ...
 
+    data = SimpleNamespace(nro_ticket=nro_ticket, **payload.model_dump() if payload else {})
     ticket.estado = "EN_PROGRESO"
     db.commit()
-    create_mantenimiento(db, nro_ticket, current_user)
+    create_new_mantenimiento(db, data, current_user)
     return ticket
 
 # ── b. Asignar técnico ────────────────────────────────────────────────────────
@@ -84,4 +90,18 @@ def assign_ticket(nro_ticket: int, payload: AssignRequest,
     db.commit()
     return ticket
 
+# ── c. Cancelar ───────────────────────────────────────────────────────────────
+def cancel_ticket(nro_ticket: int, payload: CancelacionRequest,
+                  current_user, db: Session):
+    ticket = db.query(Ticket).filter(Ticket.nro_ticket == nro_ticket).first()
+    if not ticket:
+        raise HTTPException(404, "Ticket no encontrado")
+    
+    _validate_transition(ticket.estado, "CANCELADO")
 
+    data = SimpleNamespace(nro_ticket=nro_ticket, **payload.model_dump())
+    ticket.estado = "CANCELADO"
+    db.commit()
+    create_new_cancelacion(db, data, current_user)
+    return ticket
+    
