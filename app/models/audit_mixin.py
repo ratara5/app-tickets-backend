@@ -5,13 +5,13 @@ class AuditMixin:
 
     created_at = Column(
         DateTime,
-        server_default=func.now(),
+        server_default=func.now(), # Inyectar TZ desde entorno
         nullable=False
     )
 
     updated_at = Column(
         DateTime,
-        server_default=func.now(),
+        server_default=func.now(), # Inyectar TZ desde entorno
         onupdate=func.now(),
         nullable=False
     )

@@ -10,8 +10,4 @@ class TicketCreate(BaseModel):
 
     descripcion_ticket: str
 
-    estado: str 
-
-    created_at: str
-
-    created_by: str
+    estado: str

@@ -14,7 +14,6 @@ def save_ticket(db, data, current_user):
         fecha_ticket=datetime.datetime.today().strftime("%d/%m/%Y"),
         descripcion_ticket=data.descripcion_ticket,
         estado="ABIERTO",
-        created_at=datetime.datetime.now().isoformat(), # TODO: Inyectar TZ desde entorno
         created_by=current_user.email
     )
 
