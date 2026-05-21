@@ -12,43 +12,24 @@ class Mantenimiento(Base, AuditMixin):
     __tablename__ = "mantenimientos"
 
     id_mantenimiento = Column(Uuid, primary_key=True, default=uuid7)
-
     nro_ticket = Column(Integer, ForeignKey("tickets.nro_ticket"))
-
     fecha_trabajo = Column(DateTime)
-
     descripcion_mantenimiento = Column(String)
-
     tipo_jornada = Column(Integer, ForeignKey("jornadas.id_jornada"))
-
     carpeta_soporte = Column(String)
-
     formato_soporte = Column(String)
-
     archivo_foto_inicio = Column(String)
-
     url_foto_inicio = Column(String)
-
     url_informe_soporte = Column(String)
-
     inicio_mantenimiento = Column(DateTime)
-
     real_marcar_como = Column(String)
-
     observaciones = Column(String)
-
     nombre_recibe = Column(String)
-
     cedula_recibe = Column(Integer)
-
     cargo_recibe = Column(String)
-
     sap_recibe = Column(Integer)
-
     consecutivo_fus = Column(Integer)
-
     firma_recibe = Column(String)
-
     inicio_edicion = Column(DateTime)
 
     ticket = relationship(
