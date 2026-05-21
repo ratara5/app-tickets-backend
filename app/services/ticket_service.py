@@ -12,9 +12,11 @@ from app.models.tecnico import Tecnico
 
 from app.schemas.ticket import AssignRequest
 from app.schemas.cancelacion import CancelacionRequest
+from app.schemas.pausa import PausaRequest
 
 from app.services.mantenimiento_service import create_new_mantenimiento
 from app.services.cancelacion_service import create_new_cancelacion
+from app.services.pausa_service import create_new_pausa
 
 def create_new_ticket(db, data, current_user):
     return save_ticket(db, data, current_user)
@@ -105,3 +107,17 @@ def cancel_ticket(nro_ticket: int, payload: CancelacionRequest,
     create_new_cancelacion(db, data, current_user)
     return ticket
     
+# ── c. Pausar ───────────────────────────────────────────────────────────────
+def pause_ticket(nro_ticket: int, payload: PausaRequest,
+                  current_user, db: Session):
+    ticket = db.query(Ticket).filter(Ticket.nro_ticket == nro_ticket).first()
+    if not ticket:
+        raise HTTPException(404, "Ticket no encontrado")
+    
+    _validate_transition(ticket.estado, "PAUSADO")
+
+    data = SimpleNamespace(nro_ticket=nro_ticket, **payload.model_dump())
+    ticket.estado = "PAUSADO"
+    db.commit()
+    create_new_pausa(db, data, current_user)
+    return ticket
