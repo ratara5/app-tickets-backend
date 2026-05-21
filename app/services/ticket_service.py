@@ -3,9 +3,9 @@ import holidays
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
-from app.repositories.tickets import save_ticket
-from app.repositories.tickets import get_visible_tickets
-from app.repositories.mantenimientos import create_mantenimiento
+from app.repositories.ticket_repo import save_ticket
+from app.repositories.ticket_repo import get_visible_tickets
+from app.repositories.mantenimiento_repo import create_mantenimiento
 
 from app.models.ticket import Ticket
 from app.models.tecnico import Tecnico

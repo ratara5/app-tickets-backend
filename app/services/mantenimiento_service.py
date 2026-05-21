@@ -1,4 +1,4 @@
-from app.repositories.mantenimientos import save_mantenimiento, get_visible_mantenimientos
+from app.repositories.mantenimiento_repo import save_mantenimiento, get_visible_mantenimientos
 
 def create_new_mantenimiento(db, data, current_user):
     return save_mantenimiento(db, data, current_user)
