@@ -5,16 +5,16 @@ from app.models.mantenimiento import Mantenimiento
 from app.models.ticket import Ticket
 from app.core.utils.dates import start_of_month
 
-def save_mantenimiento(db, data, current_user):
+def create_mantenimiento(db, nro_ticket, current_user):
 
     mantenimiento = Mantenimiento(
-        nro_ticket=data.nro_ticket,
-        fecha_trabajo=datetime.datetime.today().strftime("%d/%m/%Y"),
+        nro_ticket=nro_ticket,
+        fecha_trabajo=datetime.date.today(),
         created_by=current_user.email
     )
 
     db.add(mantenimiento)
-    db.commit()
+    db.flush()
     db.refresh(mantenimiento)
 
     return mantenimiento
