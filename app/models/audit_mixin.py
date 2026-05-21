@@ -5,13 +5,13 @@ class AuditMixin:
 
     created_at = Column(
         DateTime,
-        server_default=func.now(), # Inyectar TZ desde entorno
+        server_default=func.now(), # Delega a postgres la generación del timestamp
         nullable=False
     )
 
     updated_at = Column(
         DateTime,
-        server_default=func.now(), # Inyectar TZ desde entorno
+        server_default=func.now(), 
         onupdate=func.now(),
         nullable=False
     )

@@ -9,9 +9,8 @@ from app.models.ticket import Ticket
 def save_ticket(db, data, current_user):
 
     ticket = Ticket(
-        nro_ticket=data.nro_ticket,
         prioridad="MEDIA",
-        fecha_ticket=datetime.datetime.today().strftime("%d/%m/%Y"),
+        fecha_ticket=data.fecha_ticket,
         descripcion_ticket=data.descripcion_ticket,
         estado="ABIERTO",
         created_by=current_user.email

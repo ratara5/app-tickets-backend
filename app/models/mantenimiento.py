@@ -1,5 +1,7 @@
+from datetime import datetime
+
 from sqlalchemy import Uuid, Column, Integer, String, DateTime, ForeignKey
-from sqlalchemy.orm import declarative_base 
+from sqlalchemy.orm import relationship, declarative_base 
 
 import uuid
 from uuid6 import uuid7 
@@ -13,7 +15,7 @@ class Mantenimiento(Base, AuditMixin):
 
     id_mantenimiento = Column(Uuid, primary_key=True, default=uuid7)
     nro_ticket = Column(Integer, ForeignKey("tickets.nro_ticket"))
-    fecha_trabajo = Column(DateTime)
+    fecha_trabajo = Column(DateTime, default=datetime.now().strftime("%d/%m/%Y")) # TODO: Inyectar TZ desde entorno y aplicar datetime.now(tz=ZoneInfo("Continente/Ciudad")).strftime("%d/%m/%Y")
     descripcion_mantenimiento = Column(String)
     tipo_jornada = Column(Integer, ForeignKey("jornadas.id_jornada"))
     carpeta_soporte = Column(String)
@@ -32,7 +34,5 @@ class Mantenimiento(Base, AuditMixin):
     firma_recibe = Column(String)
     inicio_edicion = Column(DateTime)
 
-    ticket = relationship(
-        "Ticket",
-        back_populates="mantenimiento"
-    )
+    ticket = relationship("Ticket", back_populates="mantenimiento")
+    pausas = relationship("Pausa", back_populates="mantenimiento")

@@ -1,8 +1,4 @@
-import datetime
-
 from sqlalchemy import or_, and_
-from app.models.ticket import Ticket
-from app.core.utils.dates import start_of_month
 
 from app.models.cancelacion import Cancelacion
 
@@ -10,7 +6,7 @@ def save_cancelacion(db, data, current_user):
 
     cancelacion = Cancelacion(
         nro_ticket=data.nro_ticket,
-        fecha_cancelacion=datetime.datetime.today().strftime("%d/%m/%Y"),
+        fecha_cancelacion=data.fecha_cancelacion,
         motivo_cancelacion=data.motivo_cancelacion,
         responsable_cancelacion=current_user.email,
         created_by=current_user.email
