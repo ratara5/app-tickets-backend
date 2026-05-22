@@ -25,6 +25,8 @@ class Mantenimiento(Base, AuditMixin):
     url_informe_soporte = Column(String)
     inicio_mantenimiento = Column(DateTime)
     real_marcar_como = Column(String)
+
+    # Campos para la hoja de trabajo
     observaciones = Column(String)
     nombre_recibe = Column(String)
     cedula_recibe = Column(Integer)
