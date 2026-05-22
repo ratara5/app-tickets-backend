@@ -1,14 +1,14 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, UUID7
 from typing import Optional, List
 from datetime import date, datetime
 
 class RepuestoIn(BaseModel):
-    id_mantenimiento: int
+    id_mantenimiento: UUID7
     id_repuesto: int
     cantidad: int
 
 class TecnicoAdicionalIn(BaseModel):
-    id_mantenimiento: int
+    id_mantenimiento: UUID7
     id_tecnico: int
     hora_entrada: datetime 
     hora_salida: datetime
