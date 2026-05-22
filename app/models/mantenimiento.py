@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Uuid, Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Uuid, Column, Integer, Numeric, String, DateTime, Time, PrimaryKeyConstraint, ForeignKey
 from sqlalchemy.orm import relationship, declarative_base 
 
 import uuid
@@ -24,6 +24,7 @@ class Mantenimiento(Base, AuditMixin):
     url_foto_inicio = Column(String)
     url_informe_soporte = Column(String)
     inicio_mantenimiento = Column(DateTime)
+    inicio_edicion = Column(DateTime)
     real_marcar_como = Column(String)
 
     # Campos para la hoja de trabajo
@@ -34,7 +35,24 @@ class Mantenimiento(Base, AuditMixin):
     sap_recibe = Column(Integer)
     consecutivo_fus = Column(Integer)
     firma_recibe = Column(String)
-    inicio_edicion = Column(DateTime)
+    
 
     ticket = relationship("Ticket", back_populates="mantenimiento")
     pausas = relationship("Pausa", back_populates="mantenimiento")
+
+class MantenimientoTecnico(Base, AuditMixin):
+    __tablename__ = "mantenimientos_tecnicos"
+    __table_args__ = (PrimaryKeyConstraint('id_mantenimiento', 'id_tecnico'),)
+
+    id_mantenimiento = Column(Uuid, ForeignKey('mantenimientos.id_mantenimiento'), nullable=False)
+    id_tecnico = Column(Integer, ForeignKey('tecnicos.id_tecnico'), nullable=False)
+    hora_entrada = Column(Time, nullable=False) 
+    hora_salida = Column(Time, nullable=False)
+
+class MantenimientoRepuesto(Base, AuditMixin):
+    __tablename__ = "mantenimientos_repuestos"
+    __table_args__ = (PrimaryKeyConstraint('id_mantenimiento', 'id_repuesto'),)
+
+    id_mantenimiento = Column(Uuid, ForeignKey('mantenimientos.id_mantenimiento'), nullable=False)
+    id_repuesto = Column(Integer, ForeignKey('repuestos.id_repuesto'), nullable=False)
+    cantidad = Column(Numeric(6, 2), nullable=False)
