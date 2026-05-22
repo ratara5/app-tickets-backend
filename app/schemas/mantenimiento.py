@@ -17,17 +17,26 @@ class MantenimientoCreate(BaseModel):
     nro_ticket: int
 
 class MantenimientoUpdate(BaseModel):
-    nro_ticket: int
-    fecha_trabajo: Optional[date] = None
+    nro_ticket: int # Se necesita para validar el ticket y su estado antes de permitir la actualización
+    fecha_trabajo: Optional[date] = None # Se puede o no enviar, igual se asigna automáticamente al guardar si no se envía
+
+    # Campos obligatorios para actualizar el mantenimiento existente
     descripcion_mantenimiento: str
-    tipo_jornada: Optional[int] = None
+    archivo_foto_inicio: str
+
+    # Campos calculados o derivados (en el service)
+    # inicio_mantenimiento: Optional[datetime] = None # O asignar automáticamente al guardar?
+    # inicio_edicion: Optional[datetime] = None
+    # tipo_jornada: Optional[int] = None 
+    # real_marcar_como: Optional[str] = None
+
+    # Campos técnicos (Columnas técnicas)
     carpeta_soporte: Optional[str] = None
     formato_soporte: Optional[str] = None
-    archivo_foto_inicio: Optional[str] = None
     url_foto_inicio: Optional[str] = None
     url_informe_soporte: Optional[str] = None
-    inicio_mantenimiento: Optional[datetime] = None
-    real_marcar_como: Optional[str] = None
+    
+    # Hijas o partes de mantenimiento
     repuestos: Optional[List[RepuestoIn]] = []
     tecnicos_adicionales: Optional[List[TecnicoAdicionalIn]] = []
     foto_ids: Optional[List[int]] = []
@@ -40,4 +49,4 @@ class MantenimientoUpdate(BaseModel):
     sap_recibe: Optional[str] = None
     consecutivo_fus: Optional[str] = None
     firma_recibe: Optional[str] = None
-    inicio_edicion: Optional[datetime] = None
+    
