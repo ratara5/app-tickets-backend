@@ -10,7 +10,7 @@ def save_ticket(db, data, current_user):
 
     ticket = Ticket(
         prioridad="MEDIA",
-        fecha_ticket=data.fecha_ticket,
+        fecha_ticket=data.fecha_ticket or datetime.today().strftime("%d/%m/%Y"), # Inyectar TZ desde entorno y aplicar datetime.now(tz=ZoneInfo("Continente/Ciudad")).strftime("%d/%m/%Y") 
         descripcion_ticket=data.descripcion_ticket,
         estado="ABIERTO",
         created_by=current_user.email

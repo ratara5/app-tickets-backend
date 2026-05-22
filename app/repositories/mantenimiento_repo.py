@@ -5,11 +5,11 @@ from app.models.mantenimiento import Mantenimiento
 from app.models.ticket import Ticket
 from app.core.utils.dates import start_of_month
 
-def create_mantenimiento(db, nro_ticket, current_user):
+def create_mantenimiento(db, data, current_user):
 
     mantenimiento = Mantenimiento(
-        nro_ticket=nro_ticket,
-        fecha_trabajo=datetime.date.today(),
+        nro_ticket=data.nro_ticket,
+        fecha_trabajo=data.fecha_trabajo or datetime.now().strftime("%d/%m/%Y"), # TODO: Inyectar TZ desde entorno y aplicar datetime.now(tz=ZoneInfo("Continente/Ciudad")).strftime("%d/%m/%Y")
         created_by=current_user.email
     )
 

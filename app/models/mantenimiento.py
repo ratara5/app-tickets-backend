@@ -15,7 +15,7 @@ class Mantenimiento(Base, AuditMixin):
 
     id_mantenimiento = Column(Uuid, primary_key=True, default=uuid7)
     nro_ticket = Column(Integer, ForeignKey("tickets.nro_ticket"))
-    fecha_trabajo = Column(DateTime, default=datetime.now().strftime("%d/%m/%Y")) # TODO: Inyectar TZ desde entorno y aplicar datetime.now(tz=ZoneInfo("Continente/Ciudad")).strftime("%d/%m/%Y")
+    fecha_trabajo = Column(DateTime) 
     descripcion_mantenimiento = Column(String)
     tipo_jornada = Column(Integer, ForeignKey("jornadas.id_jornada"))
     carpeta_soporte = Column(String)

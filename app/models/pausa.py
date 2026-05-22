@@ -12,7 +12,7 @@ class Pausa(Base, AuditMixin):
 
     id_pausa = Column(Integer, primary_key=True) # Ya no es del tipo UNIQUEID()
     id_mantenimiento = Column(Uuid, ForeignKey('mantenimientos.id_mantenimiento'), nullable=False)
-    fecha_hora_pausa = Column(DateTime, default=datetime.now()) # Inyectar TZ desde entorno y aplicar # TODO: Inyectar TZ desde entorno y aplicar datetime.now(tz=ZoneInfo("Continente/Ciudad")).strftime("%Y-%m-%d %H:%M:%S+00")
+    fecha_hora_pausa = Column(DateTime) 
     motivo_pausa = Column(String)
 
     mantenimiento = relationship("Mantenimiento", back_populates="pausas")

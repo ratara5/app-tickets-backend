@@ -7,6 +7,7 @@ def save_pausa(db, data, current_user):
     pausa = Pausa(
         id_mantenimiento=data.id_mantenimiento,
         motivo_pausa=data.motivo_pausa,
+        fecha_hora_pausa=datetime.now().strftime("%Y-%m-%d %H:%M:%S+00"), # TODO: Inyectar TZ desde entorno y aplicar datetime.now(tz=ZoneInfo("Continente/Ciudad")).strftime("%Y-%m-%d %H:%M:%S+00")
         created_by=current_user.email
     )
 
