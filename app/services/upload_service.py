@@ -1,11 +1,20 @@
 from datetime import datetime
 from uuid6 import uuid7
-import os, aiofiles, hashlib
+import os, aiofiles, asyncio, hashlib
 
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
-from app.repositories.upload_repo import save_upload_session
+from concurrent.futures import ThreadPoolExecutor
+from app.core.storage import upload_file
+
+from app.repositories.upload_repo import (get_upload_session, 
+                                          save_upload_session, 
+                                          get_chunks_on_disk,
+                                          get_chunks_missing,
+                                          assemble_chunks,
+                                          clean_chunks,
+                                          mark_completed)
 
 from app.models.ticket import Ticket
 from app.models.tecnico import Tecnico
@@ -18,8 +27,10 @@ from app.schemas.upload import UploadInitRequest, UploadInitResponse, ChunkRespo
 
 from app.services.mantenimiento_service import create_new_mantenimiento
 
-CHUNK_DIR = "/tmp/upload_chunks"
-os.makedirs(CHUNK_DIR, exist_ok=True)
+from app.core import settings
+
+chunk_dir = settings.chunk_dir
+os.makedirs(chunk_dir, exist_ok=True)
 
 async def init_upload_service(db: Session, current_user, payload):
     # Aquí iría la lógica para crear una nueva sesión de carga 
@@ -45,11 +56,9 @@ async def init_upload_service(db: Session, current_user, payload):
         next_chunk=0,
     )
 
+
 async def upload_chunk_service(db: Session, current_user, upload_id, chunk_index, chunk, x_chunk_checksum):
-    upload_session = db.query(UploadSession).filter(
-        UploadSession.id == upload_id,
-        UploadSession.usuario_id == current_user.id,
-    ).first()
+    upload_session = get_upload_session(db, upload_id, current_user.email) # Sesion es síncrona, no async, por eso no await
     if not upload_session:
         raise HTTPException(404, "Sesión de upload no encontrada")
     if upload_session.expires_at < datetime.now():
@@ -66,15 +75,12 @@ async def upload_chunk_service(db: Session, current_user, upload_id, chunk_index
             raise HTTPException(422, "Checksum incorrecto — reenvía el chunk")
 
     # Guardar chunk en disco temporal
-    chunk_path = os.path.join(CHUNK_DIR, f"{upload_id}_{chunk_index:04d}")
+    chunk_path = os.path.join(chunk_dir, f"{upload_id}_{chunk_index:04d}")
     async with aiofiles.open(chunk_path, "wb") as f:
         await f.write(chunk_data)
 
     # Actualizar contador (idempotente: si el chunk ya existía, no suma de nuevo)
-    chunks_in_disk = len([
-        f for f in os.listdir(CHUNK_DIR) 
-        if f.startswith(upload_id + "_")
-    ])
+    chunks_in_disk = get_chunks_on_disk(upload_id)
 
     ## Persistir: inútil una función en repo para esto
     upload_session.received_chunks = chunks_in_disk
@@ -86,3 +92,72 @@ async def upload_chunk_service(db: Session, current_user, upload_id, chunk_index
         received_chunks=upload_session.received_chunks,
         total_chunks=upload_session.total_chunks
     )
+
+
+_executor = ThreadPoolExecutor()  # para operaciones síncronas de MinIO
+async def complete_upload_service(db: Session, upload_id: str, current_user):
+    # 1. Validar sesión
+    upload_session = get_upload_session(db, upload_id, current_user.email)
+    if not upload_session:
+        raise HTTPException(404, "Sesión no encontrada")
+    if upload_session.completado:
+        raise HTTPException(409, "Upload ya completado")
+
+    # 2. Verificar chunks
+    chunks_faltantes = get_chunks_missing(upload_id, upload_session.total_chunks)
+    if chunks_faltantes:
+        raise HTTPException(422, detail={
+            "error": "CHUNKS_INCOMPLETOS",
+            "recibidos": upload_session.total_chunks - len(chunks_faltantes),
+            "esperados": upload_session .total_chunks,
+            "chunks_faltantes": chunks_faltantes,
+        })
+
+    # 3. Ensamblar en disco (no en memoria)
+    chunks_en_disco = get_chunks_on_disk(upload_id)
+    assembled_path = await assemble_chunks(upload_id, chunks_en_disco)
+    size_bytes = os.path.getsize(assembled_path)
+
+    # 4. Subir a MinIO en thread (cliente boto3 es síncrono)
+    ##### ANTES #####
+    # s3 = get_minio_client()
+    # bucket = bucket_para_tipo(upload_session.tipo)
+    # key = f"{upload_session.tipo}/{upload_session.nro_ticket}/{upload_id}/{upload_session.filename}"
+
+    # try:
+    #     await asyncio.get_event_loop().run_in_executor(
+    #         _executor,
+    #         lambda: s3.upload_file(assembled_path, bucket, key,
+    #                             ExtraArgs={"ContentType": upload_session.content_type})
+    #     )
+    # except Exception as e:
+    #     raise HTTPException(502, f"Error subiendo a MinIO: {str(e)}")
+    ##################
+    upload_file(
+        file_stream=file_stream,
+        original_filename=original_name,
+        content_type=content_type,
+        full_object_path=full_object_path,
+        job_id=job_id
+    )
+    
+
+    # 5. Persistir en BD — primero, antes de limpiar
+    # Definir el repo según la columna
+    upload_repo.registrar_archivo(db, upload_session, key, size_bytes, current_user.id)
+
+    mark_completed(db, upload_session)  # commit aquí
+
+    # 6. Limpiar chunks — después del commit
+    clean_chunks(upload_id, chunks_en_disco, assembled_path)
+
+    # 7. Presigned URL
+    url = await asyncio.get_event_loop().run_in_executor(
+        _executor,
+        lambda: s3.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=3600,
+        )
+    )
+    return key, size_bytes, url

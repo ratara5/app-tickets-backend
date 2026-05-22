@@ -13,11 +13,23 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # Postgres
     pg_host: str                = Field(..., alias="DB_HOST")
     pg_port: int                = Field(5432, alias="DB_PORT")
     pg_user: str                = Field(..., alias="DB_USER")
     pg_password: str            = Field(..., alias="DB_PASSWORD")
     pg_db: str                  = Field(..., alias="DB_NAME")
+
+    # MinIO
+    minio_endpoint: str         = Field(..., alias="MINIO_ENDPOINT")
+    minio_port: int             = Field(9000, alias="MINIO_PORT")
+    minio_access_key: str       = Field(..., alias="MINIO_ACCESS_KEY")
+    minio_secret_key: str       = Field(..., alias="MINIO_SECRET_KEY")
+    minio_secure: bool          = Field(False, alias="MINIO_SECURE")
+    minio_default_bucket: str   = Field("appsheet-uploads", alias="MINIO_DEFAULT_BUCKET")
+
+    # Disk
+    chunk_dir: str             = Field("/tmp/upload_chunks", alias="CHUNK_DIR")
 
     @property
     def pg_dsn(self):
