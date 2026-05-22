@@ -1,5 +1,6 @@
 from datetime import date
 from dateutil.relativedelta import relativedelta
+import holidays
 
 def start_of_month(n: int = 0) -> date:
     """Primer día del mes actual + n meses."""
@@ -33,3 +34,5 @@ def resolve_date(token: str) -> str:
     if not fn:
         raise ValueError(f"Token de fecha desconocido: '{token}'")
     return fn().isoformat()  # "2025-01-01"
+
+CO_HOLIDAYS = holidays.Colombia() # TODO: Inyectar TZ y país como variables de entorno

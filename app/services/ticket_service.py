@@ -1,5 +1,4 @@
 from datetime import date
-import holidays
 from types import SimpleNamespace
 
 from sqlalchemy.orm import Session
@@ -23,8 +22,6 @@ def create_new_ticket(db, data, current_user):
 
 def list_tickets(db, current_user, page: int = 1, page_size: int = 50):
     return get_visible_tickets(db, current_user, page, page_size)
-
-CO_HOLIDAYS = holidays.Colombia() # TODO: Inyectar TZ y país como variables de entorno
 
 VALID_TRANSITIONS = {
     "ABIERTO": ["ASIGNADO", "CANCELADO"],
