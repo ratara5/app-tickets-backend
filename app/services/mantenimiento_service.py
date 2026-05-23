@@ -1,5 +1,8 @@
-from datetime import datetime
 from types import SimpleNamespace
+from pydantic import UUID7
+
+from datetime import datetime
+import secrets, asyncio, io
 
 from app.core.utils.dates import CO_HOLIDAYS
 from sqlalchemy.orm import Session
@@ -17,6 +20,19 @@ from app.repositories.mantenimiento_repo import (create_mantenimiento,
                                                 add_mantenimiento_repuesto,
                                                 add_mantenimiento_tecnico)
 
+from app.core.storage import upload_file
+from concurrent.futures import ThreadPoolExecutor
+
+_executor = ThreadPoolExecutor()  # para operaciones síncronas de MinIO
+
+EXT_BY_TYPE = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png", 
+    "image/webp": ".webp",
+    "application/pdf": ".pdf",
+    "image/svg+xml": ".svg",
+}
+
 def create_new_mantenimiento(db, data, current_user):
     # Lógica de negocio antes de persistir
     # ...
@@ -28,19 +44,39 @@ def create_new_mantenimiento(db, data, current_user):
 
     return mantenimiento
 
-def update_existing(nro_ticket: int, payload: MantenimientoUpdate, current_user, db: Session):
-    # Verificar que el ticket existe y está EN_PROGRESO o PAUSADO
-    ticket = db.query(Ticket).filter(Ticket.nro_ticket == payload.nro_ticket).first()
+async def update_existing(id_mantenimiento: UUID7, payload: MantenimientoUpdate, current_user, db: Session, files: dict):
+    # Obtener el mantenimiento
+    mantenimiento = db.query(Mantenimiento).filter(Mantenimiento.id == id_mantenimiento).first()
+    # Verificar que el ticket asociado existe y está EN_PROGRESO o PAUSADO
+    ticket = db.query(Ticket).filter(Ticket.nro_ticket == mantenimiento.nro_ticket).first()
     if not ticket:
         raise HTTPException(404, "Ticket no encontrado")
     if ticket.estado not in ("EN_PROGRESO", "PAUSADO"):
         raise HTTPException(
             422, f"No se puede crear mantenimiento: ticket en estado {ticket.estado}"
         )
-    # Obtener el mantenimiento asociado a ese ticket
-    mantenimiento = db.query(Mantenimiento).filter(Mantenimiento.nro_ticket == payload.nro_ticket).first()
+    
     
     # Lógica de negocio antes de persistir
+    ## Subir los archivos del mantenimiento
+    for col_name, upload_file_obj in files.items():
+        if upload_file_obj is None:
+            continue
+        content = await upload_file_obj.read()
+        original_filename, full_object_path = build_object_path(
+            mantenimiento, col_name, upload_file_obj.content_type
+        )
+        result = await asyncio.get_event_loop().run_in_executor(
+            _executor,
+            lambda: upload_file(
+                file_stream=io.BytesIO(content),
+                original_filename=original_filename,
+                content_type=upload_file_obj.content_type,
+                full_object_path=full_object_path,
+                job_id=str(id_mantenimiento),
+            )
+        )
+        setattr(mantenimiento, col_name, result["url_path"]) # result["url_path"] es interna, del tipo /bucket/objeto
     ## Obtener valores de campos calculados o derivados
     ### inicio_mantenimiento
     inicio_mantenimiento = mantenimiento.inicio_mantenimiento or datetime.now().strftime("%Y-%m-%d %H:%M:%S+00") # TODO: Inyectar TZ desde entorno y aplicar datetime.now(tz=ZoneInfo("Continente/Ciudad"))
@@ -86,8 +122,25 @@ def update_existing(nro_ticket: int, payload: MantenimientoUpdate, current_user,
     for t in payload.tecnicos_adicionales:
         add_mantenimiento_tecnico(db, mantenimiento.id, t)
     return mantenimiento
-    ### Fotos
-    # Previamente, implementar lógica de upload de fotos a S3 y obtener URLs para guardar en mantenimiento.url_foto_inicio, mantenimiento.url_informe_soporte, y todas las url_archivo_foto
+    ## Persistir columnas que tienen archivos relacionados # marcar los campos con tipo File y recorrerlos dinámicamente en vez de hardcodear cada uno?
+    ### columna: archivo_foto_inicio
+    #- Lógica de service upload de chunks (no serían necesarias las routes de upload, sino que se haría todo aquí)
+    #- Lógica de upload  S3 ante upload complete 
+    #- Pasar URLs para guardar en mantenimiento.url_foto_inicio, mantenimiento.url_informe_soporte, y todas las url_archivo_foto
+    #- También se requiere fotos_service?
 
 def list_mantenimientos(db, current_user, page: int = 1, page_size: int = 50):
     return get_visible_mantenimientos(db, current_user, page, page_size)
+
+
+
+def build_object_path(mantenimiento, col_name, content_type):
+    fecha_trabajo = mantenimiento.fecha_trabajo
+    mes = fecha_trabajo.strftime("%B")
+    anio = fecha_trabajo.strftime("%Y")
+    serial = secrets.token_hex(4)
+    ext = EXT_BY_TYPE.get(content_type, "")
+
+    original_filename = f"{mantenimiento.id}.{col_name}.{serial}.{ext}"
+    full_object_path = f"Mantenimiento/Correctivos/{anio}/{mes}/{mantenimiento.nro_ticket}/{original_filename}"
+    return original_filename, full_object_path
