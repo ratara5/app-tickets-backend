@@ -3,12 +3,12 @@ from typing import Optional
 
 
 class UploadInitRequest(BaseModel):
-    filename: str
     content_type: str       # "image/jpeg", "application/pdf", etc.
     total_size: int         # bytes totales
     total_chunks: int       # cuántos chunks enviará el cliente
     entity_id: UUID7        # entidad relacionada será el mantenimiento
-    tipo: str               # "foto", "firma", "documento"
+    col_name: str           # "archivo_foto_inicio", "firma_recibe", "archivo_foto", etc.
+    # tipo: str             # El mismo col_name?
 
 class UploadInitResponse(BaseModel):
     upload_id: str          # UUID — el cliente lo guarda para reanudar, por qué no tipo UUID?

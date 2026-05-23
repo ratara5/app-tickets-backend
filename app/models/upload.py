@@ -29,8 +29,7 @@ class UploadSession(Base):
 
     upload_id = Column(Uuid, primary_key=True, default=uuid7),   
     entity_id = Column(Integer), 
-    user_email = Column(String),
-    filename = Column(String),      
+    user_email = Column(String), 
     content_type = Column(String),             
     total_size = Column(Integer),              
     total_chunks = Column(Integer),  
