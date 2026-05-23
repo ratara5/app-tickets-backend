@@ -1,6 +1,6 @@
 from datetime import datetime
 from uuid6 import uuid7
-import os, aiofiles, asyncio, hashlib
+import os, aiofiles, asyncio, hashlib, secrets
 
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
@@ -17,7 +17,7 @@ from app.repositories.upload_repo import (get_upload_session,
                                           mark_completed)
 
 from app.models.ticket import Ticket
-from app.models.tecnico import Tecnico
+from app.models.mantenimiento import Mantenimiento
 from app.models.upload import UploadSession
 
 from app.schemas.ticket import AssignRequest
@@ -32,11 +32,20 @@ from app.core import settings
 chunk_dir = settings.chunk_dir
 os.makedirs(chunk_dir, exist_ok=True)
 
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", 
+                        "application/pdf", "image/svg+xml"}
+
+EXT_BY_TYPE = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png", 
+    "image/webp": ".webp",
+    "application/pdf": ".pdf",
+    "image/svg+xml": ".svg",
+}
+
 async def init_upload_service(db: Session, current_user, payload):
     # Aquí iría la lógica para crear una nueva sesión de carga 
     # 1. Validar el payload (tipo de archivo permitido, tamaño máximo, etc.)
-    ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", 
-                        "application/pdf", "image/svg+xml"}
     if payload.content_type not in ALLOWED_TYPES:
         raise HTTPException(415, f"Tipo no permitido: {payload.content_type}")
     
@@ -133,14 +142,36 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
     # except Exception as e:
     #     raise HTTPException(502, f"Error subiendo a MinIO: {str(e)}")
     ##################
-    upload_file(
-        file_stream=file_stream,
-        original_filename=original_name,
-        content_type=content_type,
-        full_object_path=full_object_path,
-        job_id=job_id
-    )
-    
+    # Construir el original name dependiendo de la tab_name y la col_name
+    mantenimiento = db.query(Mantenimiento).filter(
+        Mantenimiento.id_mantenimiento == upload_session.entity_id
+        ).first()
+
+    fecha_trabajo = mantenimiento.fecha_trabajo
+    mes = fecha_trabajo.strftime("%B")
+    anio = fecha_trabajo.strftime("%Y")
+    serial = secrets.token_hex(4)
+    ext = EXT_BY_TYPE.get(upload_session.content_type, "")
+
+    original_name = f"{upload_session.entity_id}.{upload_session.col_name}.{serial}.{ext}"
+    full_object_path = f"Mantenimiento/Correctivos/{anio}/{mes}/MNT-{mantenimiento.nro_ticket}/{original_name}"
+
+
+    with open(assembled_path, "rb") as file_stream:
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                _executor,
+                lambda: upload_file(
+                    file_stream=file_stream, 
+                    original_filename=original_name,
+                    content_type=upload_session.content_type,
+                    full_object_path=full_object_path,
+                    job_id=upload_id
+                )
+            )
+        except Exception as e:
+            raise HTTPException(502, f"Error subiendo a MinIO: {str(e)}")
+        
 
     # 5. Persistir en BD — primero, antes de limpiar
     # Definir el repo según la columna
