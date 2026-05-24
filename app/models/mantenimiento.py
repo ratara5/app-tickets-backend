@@ -39,6 +39,7 @@ class Mantenimiento(Base, AuditMixin):
 
     ticket = relationship("Ticket", back_populates="mantenimiento")
     pausas = relationship("Pausa", back_populates="mantenimiento")
+    fotos = relationship("Foto", back_populates="mantenimiento")
 
 class MantenimientoTecnico(Base, AuditMixin):
     __tablename__ = "mantenimientos_tecnicos"
@@ -56,3 +57,5 @@ class MantenimientoRepuesto(Base, AuditMixin):
     id_mantenimiento = Column(Uuid, ForeignKey('mantenimientos.id_mantenimiento'), nullable=False)
     id_repuesto = Column(Integer, ForeignKey('repuestos.id_repuesto'), nullable=False)
     cantidad = Column(Numeric(6, 2), nullable=False)
+
+
