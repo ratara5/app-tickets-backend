@@ -11,15 +11,15 @@ Base = declarative_base()
 """
 CREATE TABLE IF NOT EXISTS uploads_sessions (
     upload_id        UUID        PRIMARY KEY DEFAULT uuid_generate_v7(),
-    entity_id        INTEGER     NOT NULL,
+    parent_table     UUID        NOT NULL,
+    parent_id        UUID        NOT NULL,
+    tab_name         TEXT        ,
+    col_name         TEXT        NOT NULL,       
 	user_email       TEXT        NOT NULL,
-    filename         TEXT        NOT NULL,
     content_type     TEXT        NOT NULL,           
     total_size       INTEGER     NOT NULL,          
     total_chunks     INTEGER     NOT NULL,
-    received_chunks  INTEGER     NOT NULL,
-	tab_name         TEXT        ,
-    col_name         TEXT        NOT NULL,                          
+    received_chunks  INTEGER     NOT NULL,                   
     expires_at       TIMESTAMPTZ NOT NULL
 );
 """
