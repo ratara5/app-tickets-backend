@@ -7,10 +7,10 @@ from app.models.foto import Foto
 def save_foto(db, data, current_user):
 
     foto = Foto(
-        id_foto=data.id_foto,
-        id_mantenimiento=data.id_mantenimiento,
-        archivo_foto=data.archivo_foto,
-        url_foto=data.url_foto,
+        id_foto=data.id_file,
+        id_mantenimiento=data.id_parent,
+        archivo_foto=data.archivo_file, # Es un path
+        url_foto=data.url_file,
         created_by=current_user.email
     )
 

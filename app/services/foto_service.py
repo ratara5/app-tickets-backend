@@ -1,6 +1,11 @@
 from app.repositories.foto_repo import save_foto, get_fotos
 
-def create_new_foto(db, data, current_user): # Nombre por consistencia, pero hace referencia al guardado de un registro con la información de una foto
+from app.services.registry import service
+
+from app.schemas.file import FileSave
+
+@service(schema=FileSave) # El param parece redundante acá y en la función abajo
+def create_new_foto(db, data: FileSave, current_user): # Nombre por consistencia, pero hace referencia al guardado de un registro con la información de una foto
     # Lógica de negocio antes de persistir
     # ...
     
