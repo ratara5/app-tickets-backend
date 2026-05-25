@@ -28,14 +28,13 @@ from app.schemas.file import FileSave
 
 from app.services.mantenimiento_service import create_new_mantenimiento
 
-from app.services.registry import _autodiscover, dispatch
+from app.services.registry import _autodiscover, dispatch_service, dispatch_build_path
+from app.models.registry import _autodiscover_models, get_model
 
 from app.core import settings
 
 chunk_dir = settings.chunk_dir
 os.makedirs(chunk_dir, exist_ok=True)
-
-_autodiscover("services")
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", 
                         "application/pdf", "image/svg+xml"}
@@ -109,6 +108,8 @@ async def upload_chunk_service(db: Session, current_user, upload_id, chunk_index
 
 
 _executor = ThreadPoolExecutor()  # para operaciones síncronas de MinIO
+_autodiscover("app.services")
+_autodiscover_models("app.models")
 async def complete_upload_service(db: Session, upload_id: str, current_user):
     # 1. Validar sesión
     upload_session = get_upload_session(db, upload_id, current_user.email)
@@ -133,20 +134,26 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
     size_bytes = os.path.getsize(assembled_path)
 
     # 4. Subir a MinIO en thread (cliente boto3 es síncrono)
-    #- Construir el original_name dependiendo de la col_name (Para generalizar más: uploadsession podría incluir parent_name...
-    mantenimiento = db.query(Mantenimiento).filter( # ...entity = db.query(Entity)... Donde entity se obtiene de uploadsession.parent...
-        Mantenimiento.id_mantenimiento == upload_session.entity_id
+    #- Atributos minio (bucket (más sencillo), original_filename...) según el: parent_id, modelo relacionado de parent_tab, col_name
+    parent_id = upload_session.parent_id
+    parent_tab = upload_session.parent_tab
+    
+    ParentModel = get_model(parent_tab)
+    parent = db.query(ParentModel).filter( 
+        ParentModel.id == parent_id
         ).first()
+    
+    # ANTES #
+    # fecha_trabajo = mantenimiento.fecha_trabajo
+    # mes = fecha_trabajo.strftime("%B")
+    # anio = fecha_trabajo.strftime("%Y")
+    # original_filename = f"{upload_session.entity_id}.{upload_session.col_name}.{serial}{ext}"
+    # full_object_path = f"Mantenimiento/Correctivos/{anio}/{mes}/{mantenimiento.nro_ticket}/{original_filename}" #... ruta sencilla basada en anio y mes actuales y en entity_parent
+    #########
+    serial, original_filename, full_object_path = await dispatch_build_path(parent, 
+                                                                    upload_session.col_name, 
+                                                                    upload_session.content_type)
 
-    id_mantenimiento = mantenimiento.id_mantenimiento
-    fecha_trabajo = mantenimiento.fecha_trabajo
-    mes = fecha_trabajo.strftime("%B")
-    anio = fecha_trabajo.strftime("%Y")
-    serial = secrets.token_hex(4)
-    ext = EXT_BY_TYPE.get(upload_session.content_type, "")
-
-    original_filename = f"{upload_session.entity_id}.{upload_session.col_name}.{serial}{ext}"
-    full_object_path = f"Mantenimiento/Correctivos/{anio}/{mes}/{mantenimiento.nro_ticket}/{original_filename}" #... ruta sencilla basada en anio y mes actuales y en entity_parent
 
     # - Subir a MinIO
     with open(assembled_path, "rb") as file_stream:
@@ -171,11 +178,11 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
     # - La entidad para el registro genérico se construye acá y se hace particular en el repo llamado desde el service
     file = FileSave(
         id_file=serial,
-        id_parent=id_mantenimiento,
+        id_parent=parent_id,
         archivo_file=full_object_path
     )
 
-    result = dispatch(tab_name, db, file, current_user)
+    result = dispatch_service(tab_name, db, file, current_user)
 
     # - Marcar upload como efectivamente completada
     mark_completed(db, upload_session)  # commit aquí

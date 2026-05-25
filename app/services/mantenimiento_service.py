@@ -20,6 +20,8 @@ from app.repositories.mantenimiento_repo import (create_mantenimiento,
                                                 add_mantenimiento_repuesto,
                                                 add_mantenimiento_tecnico)
 
+from app.services.registry import service
+
 from app.core.storage import upload_file
 from concurrent.futures import ThreadPoolExecutor
 
@@ -63,7 +65,7 @@ async def update_existing(id_mantenimiento: UUID7, payload: MantenimientoUpdate,
         if upload_file_obj is None:
             continue
         content = await upload_file_obj.read()
-        original_filename, full_object_path = build_object_path(
+        _, original_filename, full_object_path = build_object_path_mantenimientos(
             mantenimiento, col_name, upload_file_obj.content_type
         )
         result = await asyncio.get_event_loop().run_in_executor(
@@ -76,7 +78,7 @@ async def update_existing(id_mantenimiento: UUID7, payload: MantenimientoUpdate,
                 job_id=str(id_mantenimiento),
             )
         )
-        setattr(mantenimiento, col_name, result["url_path"]) # result["url_path"] es interna, del tipo /bucket/objeto
+        # setattr(mantenimiento, col_name, full_object_path) # result["url_path"] es interna, del tipo /bucket/objeto
     ## Obtener valores de campos calculados o derivados
     ### inicio_mantenimiento
     inicio_mantenimiento = mantenimiento.inicio_mantenimiento or datetime.now().strftime("%Y-%m-%d %H:%M:%S+00") # TODO: Inyectar TZ desde entorno y aplicar datetime.now(tz=ZoneInfo("Continente/Ciudad"))
@@ -108,7 +110,8 @@ async def update_existing(id_mantenimiento: UUID7, payload: MantenimientoUpdate,
                            inicio_mantenimiento=inicio_mantenimiento, 
                            inicio_edicion=inicio_edicion,
                            tipo_jornada=tipo_jornada,
-                           real_marcar_como=real_marcar_como)
+                           real_marcar_como=real_marcar_como,
+                           **files)
 
     # Guardar cambios en mantenimiento (persistir)
     mantenimiento = save_mantenimiento(db, data, current_user)
@@ -134,7 +137,9 @@ def list_mantenimientos(db, current_user, page: int = 1, page_size: int = 50):
 
 
 
-def build_object_path(mantenimiento, col_name, content_type):
+@service(schema=Mantenimiento)
+def build_object_path_mantenimientos(mantenimiento: Mantenimiento, col_name, content_type):
+
     fecha_trabajo = mantenimiento.fecha_trabajo
     mes = fecha_trabajo.strftime("%B")
     anio = fecha_trabajo.strftime("%Y")
@@ -143,4 +148,5 @@ def build_object_path(mantenimiento, col_name, content_type):
 
     original_filename = f"{mantenimiento.id}.{col_name}.{serial}.{ext}"
     full_object_path = f"Mantenimiento/Correctivos/{anio}/{mes}/{mantenimiento.nro_ticket}/{original_filename}"
-    return original_filename, full_object_path
+    
+    return serial, original_filename, full_object_path

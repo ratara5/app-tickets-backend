@@ -20,8 +20,16 @@ def _autodiscover(package: str) -> None:
         if module_name.ends_with("_service"):
             importlib.import_module(f"{package}.{module_name}")
 
-async def dispatch(table: str, *args) -> Any: # y column: str?
+async def dispatch_service(table: str, *args) -> Any: # y column: str?
     key = f"create_new_{table}"
+    entry = REGISTRY.get(key)
+    if entry is None:
+        raise ValueError(f"Sin handler para {key!r}. Disponibles: {list(REGISTRY)}")
+    fn = entry["fn"]
+    return await fn(*args) if iscoroutinefunction(fn) else fn(*args)
+
+async def dispatch_build_path(parent_table: str, *args) -> Any: # y column: str?
+    key = f"build_object_path_{parent_table}"
     entry = REGISTRY.get(key)
     if entry is None:
         raise ValueError(f"Sin handler para {key!r}. Disponibles: {list(REGISTRY)}")
