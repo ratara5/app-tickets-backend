@@ -28,12 +28,15 @@ class UploadSession(Base):
     __tablename__ = "upload_sessions"
 
     upload_id = Column(Uuid, primary_key=True, default=uuid7),   
-    entity_id = Column(Integer), 
+    entity_id = Column(Integer), # El id de la tabla padre # tal vez incluir un campo con el nombre de la tabla padre
     user_email = Column(String), 
     content_type = Column(String),             
     total_size = Column(Integer),              
     total_chunks = Column(Integer),  
     received_chunks = Column(Integer), 
-    tab_name = Column(String),      
-    col_name = Column(String),                                
+    tab_name = Column(String), # El nombre de la tabla     
+    col_name = Column(String), # El nombre de la columna                              
     expires_at  = Column(DateTime)  
+
+    # Por ejemplo, podrían subirse 'fotos', 'pdfs', 'videos' (tablas hijas) de usuarios (tabla padre). O una sola tabla hija 'archivos'  para todo si la cantidad es pequeña. En todo caso, la lógica de guardado y creación de registro de info podría depender de la entidad o de la extensión del archivo (lo mismo?)...
+    # Y cada tipo de archivo (tabla 'hija') tener campos id_'hija', id_'padre', archivo_'hija', url_'hija' (los dos primeros obligatorios)

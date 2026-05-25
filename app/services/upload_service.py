@@ -24,13 +24,18 @@ from app.schemas.ticket import AssignRequest
 from app.schemas.cancelacion import CancelacionRequest
 from app.schemas.pausa import PausaRequest
 from app.schemas.upload import UploadInitRequest, UploadInitResponse, ChunkResponse
+from app.schemas.file import FileSave
 
 from app.services.mantenimiento_service import create_new_mantenimiento
+
+from app.services.registry import _autodiscover, dispatch
 
 from app.core import settings
 
 chunk_dir = settings.chunk_dir
 os.makedirs(chunk_dir, exist_ok=True)
+
+_autodiscover("services")
 
 ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", 
                         "application/pdf", "image/svg+xml"}
@@ -128,42 +133,29 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
     size_bytes = os.path.getsize(assembled_path)
 
     # 4. Subir a MinIO en thread (cliente boto3 es síncrono)
-    ##### ANTES #####
-    # s3 = get_minio_client()
-    # bucket = bucket_para_tipo(upload_session.tipo)
-    # key = f"{upload_session.tipo}/{upload_session.nro_ticket}/{upload_id}/{upload_session.filename}"
-
-    # try:
-    #     await asyncio.get_event_loop().run_in_executor(
-    #         _executor,
-    #         lambda: s3.upload_file(assembled_path, bucket, key,
-    #                             ExtraArgs={"ContentType": upload_session.content_type})
-    #     )
-    # except Exception as e:
-    #     raise HTTPException(502, f"Error subiendo a MinIO: {str(e)}")
-    ##################
-    # Construir el original name dependiendo de la tab_name y la col_name
-    mantenimiento = db.query(Mantenimiento).filter(
+    # - Construir el original_name dependiendo de la col_name (Para generalizar más: uploadsession debería incluir parent_name?)...
+    mantenimiento = db.query(Mantenimiento).filter( # ...entity = db.query(Entity)... Donde entity se obtiene de uploadsession.parent...
         Mantenimiento.id_mantenimiento == upload_session.entity_id
         ).first()
 
+    id_mantenimiento = mantenimiento.id_mantenimiento
     fecha_trabajo = mantenimiento.fecha_trabajo
     mes = fecha_trabajo.strftime("%B")
     anio = fecha_trabajo.strftime("%Y")
     serial = secrets.token_hex(4)
     ext = EXT_BY_TYPE.get(upload_session.content_type, "")
 
-    original_name = f"{upload_session.entity_id}.{upload_session.col_name}.{serial}.{ext}"
-    full_object_path = f"Mantenimiento/Correctivos/{anio}/{mes}/MNT-{mantenimiento.nro_ticket}/{original_name}"
+    original_filename = f"{upload_session.entity_id}.{upload_session.col_name}.{serial}{ext}"
+    full_object_path = f"Mantenimiento/Correctivos/{anio}/{mes}/{mantenimiento.nro_ticket}/{original_filename}" #... ruta sencilla basada en anio y mes actuales y en entity_parent
 
-
+    # - Subir a MinIO
     with open(assembled_path, "rb") as file_stream:
         try:
             result = await asyncio.get_event_loop().run_in_executor(
                 _executor,
                 lambda: upload_file(
                     file_stream=file_stream, 
-                    original_filename=original_name,
+                    original_filename=original_filename,
                     content_type=upload_session.content_type,
                     full_object_path=full_object_path,
                     job_id=upload_id
@@ -173,16 +165,25 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
             raise HTTPException(502, f"Error subiendo a MinIO: {str(e)}")
         
 
-    # 5. Persistir en BD — primero, antes de limpiar
-    # Definir el repo según la columna
-    upload_repo.registrar_archivo(db, upload_session, key, size_bytes, current_user.id)
+    # 5. Persistir registro con info del archivo subido BD 
+    # - Definir el repo según la tabla o según la ext (lo mismo?)
+    tab_name = upload_session.tab_name
+    # - La entidad para el registro genérico se construye acá y se hace particular en el repo llamado desde el service
+    file = FileSave(
+        id_file=serial,
+        id_parent=id_mantenimiento,
+        archivo_file=full_object_path
+    )
 
+    result = dispatch(tab_name, db, file, current_user)
+
+    # - Marcar upload como efectivamente completada
     mark_completed(db, upload_session)  # commit aquí
 
     # 6. Limpiar chunks — después del commit
     clean_chunks(upload_id, chunks_en_disco, assembled_path)
 
-    # 7. Presigned URL
+    # 7. TODO: Presigned URL
     url = await asyncio.get_event_loop().run_in_executor(
         _executor,
         lambda: s3.generate_presigned_url(
