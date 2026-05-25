@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     minio_access_key: str       = Field(..., alias="MINIO_ACCESS_KEY")
     minio_secret_key: str       = Field(..., alias="MINIO_SECRET_KEY")
     minio_secure: bool          = Field(False, alias="MINIO_SECURE")
-    minio_default_bucket: str   = Field("appsheet-uploads", alias="MINIO_DEFAULT_BUCKET")
+    minio_default_bucket: str   = Field("company-uploads", alias="MINIO_DEFAULT_BUCKET")
 
     # Disk
     chunk_dir: str             = Field("/tmp/upload_chunks", alias="CHUNK_DIR")

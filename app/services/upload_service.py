@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
 from concurrent.futures import ThreadPoolExecutor
-from app.core.storage import upload_file
+from app.core.storage import upload_file, get_presigned_url
 
 from app.repositories.upload_repo import (get_upload_session, 
                                           save_upload_session, 
@@ -170,6 +170,8 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
             )
         except Exception as e:
             raise HTTPException(502, f"Error subiendo a MinIO: {str(e)}")
+    # - URL
+    url = get_presigned_url(full_object_path, 1)
         
 
     # 5. Persistir registro con info del archivo subido BD 
@@ -179,7 +181,8 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
     file = FileSave(
         id_file=serial,
         id_parent=parent_id,
-        archivo_file=full_object_path
+        archivo_file=full_object_path,
+        url_file=url
     )
 
     result = dispatch_service(tab_name, db, file, current_user)
@@ -190,13 +193,4 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
     # 6. Limpiar chunks — después del commit
     clean_chunks(upload_id, chunks_en_disco, assembled_path)
 
-    # 7. TODO: Presigned URL
-    url = await asyncio.get_event_loop().run_in_executor(
-        _executor,
-        lambda: s3.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": bucket, "Key": key},
-            ExpiresIn=3600,
-        )
-    )
-    return key, size_bytes, url
+    

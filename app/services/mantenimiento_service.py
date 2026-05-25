@@ -22,7 +22,7 @@ from app.repositories.mantenimiento_repo import (create_mantenimiento,
 
 from app.services.registry import service
 
-from app.core.storage import upload_file
+from app.core.storage import upload_file, get_presigned_url
 from concurrent.futures import ThreadPoolExecutor
 
 _executor = ThreadPoolExecutor()  # para operaciones síncronas de MinIO
@@ -61,6 +61,7 @@ async def update_existing(id_mantenimiento: UUID7, payload: MantenimientoUpdate,
     
     # Lógica de negocio antes de persistir
     ## Subir los archivos del mantenimiento
+    col_val_info = dict[str, str]
     for col_name, upload_file_obj in files.items():
         if upload_file_obj is None:
             continue
@@ -78,6 +79,10 @@ async def update_existing(id_mantenimiento: UUID7, payload: MantenimientoUpdate,
                 job_id=str(id_mantenimiento),
             )
         )
+        url_col = "".join(col_name.split("_")[1:])
+        url = get_presigned_url(full_object_path, 1)
+        col_val_info[col_name] = full_object_path
+        col_val_info[url_col] = url
         # setattr(mantenimiento, col_name, full_object_path) # result["url_path"] es interna, del tipo /bucket/objeto
     ## Obtener valores de campos calculados o derivados
     ### inicio_mantenimiento
@@ -111,7 +116,8 @@ async def update_existing(id_mantenimiento: UUID7, payload: MantenimientoUpdate,
                            inicio_edicion=inicio_edicion,
                            tipo_jornada=tipo_jornada,
                            real_marcar_como=real_marcar_como,
-                           **files)
+                           **col_val_info
+                           )
 
     # Guardar cambios en mantenimiento (persistir)
     mantenimiento = save_mantenimiento(db, data, current_user)
@@ -125,12 +131,6 @@ async def update_existing(id_mantenimiento: UUID7, payload: MantenimientoUpdate,
     for t in payload.tecnicos_adicionales:
         add_mantenimiento_tecnico(db, mantenimiento.id, t)
     return mantenimiento
-    ## Persistir columnas que tienen archivos relacionados # marcar los campos con tipo File y recorrerlos dinámicamente en vez de hardcodear cada uno?
-    ### columna: archivo_foto_inicio
-    #- Lógica de service upload de chunks (no serían necesarias las routes de upload, sino que se haría todo aquí)
-    #- Lógica de upload  S3 ante upload complete 
-    #- Pasar URLs para guardar en mantenimiento.url_foto_inicio, mantenimiento.url_informe_soporte, y todas las url_archivo_foto
-    #- También se requiere fotos_service?
 
 def list_mantenimientos(db, current_user, page: int = 1, page_size: int = 50):
     return get_visible_mantenimientos(db, current_user, page, page_size)
