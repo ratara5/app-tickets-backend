@@ -23,14 +23,15 @@ def get_upload_session(db: Session, upload_id: str, usuario_email) -> UploadSess
 def save_upload_session(db, upload_id, user_email, payload):
     upload_session = UploadSession(
         upload_id=upload_id,
-        entity_id=payload.id_mantenimiento,
+        parent_tab="mantenimientos",
+        parent_id=payload.id_mantenimiento,
+        tab_name=payload.tab_name,
+        col_name=payload.col_name,
         user_email=user_email,
         content_type=payload.content_type,
         total_size=payload.total_size,
         total_chunks=payload.total_chunks,
         received_chunks=0,
-        tab_name=payload.tab_name,
-        col_name=payload.col_name,
         expires_at=datetime.now() + datetime.timedelta(hours=24)
     )
     db.add(upload_session)

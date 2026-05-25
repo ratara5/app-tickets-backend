@@ -27,16 +27,21 @@ CREATE TABLE IF NOT EXISTS uploads_sessions (
 class UploadSession(Base):
     __tablename__ = "upload_sessions"
 
-    upload_id = Column(Uuid, primary_key=True, default=uuid7),   
-    entity_id = Column(Integer), # El id de la tabla padre # tal vez incluir un campo con el nombre de la tabla padre
+    upload_id = Column(Uuid, primary_key=True, default=uuid7),
+    parent_tab = Column (String) # El nombre de la tabla padre
+    parent_id = Column(Uuid), # El id de la tabla padre 
+    tab_name = Column(String), # El nombre de la tabla     
+    col_name = Column(String), # El nombre de la columna   
     user_email = Column(String), 
     content_type = Column(String),             
     total_size = Column(Integer),              
     total_chunks = Column(Integer),  
-    received_chunks = Column(Integer), 
-    tab_name = Column(String), # El nombre de la tabla     
-    col_name = Column(String), # El nombre de la columna                              
+    received_chunks = Column(Integer),                            
     expires_at  = Column(DateTime)  
 
-    # Por ejemplo, podrían subirse 'fotos', 'pdfs', 'videos' (tablas hijas) de usuarios (tabla padre). O una sola tabla hija 'archivos'  para todo si la cantidad es pequeña. En todo caso, la lógica de guardado y creación de registro de info podría depender de la entidad o de la extensión del archivo (lo mismo?)...
+    # Por ejemplo, podrían subirse 'fotos', 'pdfs', 'videos' (tablas hijas) de usuarios (tabla padre). O una sola tabla hija 'archivos'  para todo si la cantidad es pequeña. En todo caso, la lógica de guardado y creación de registro de info podría depender de la tabla hija o de la extensión del archivo (lo mismo?)...
     # Y cada tipo de archivo (tabla 'hija') tener campos id_'hija', id_'padre', archivo_'hija', url_'hija' (los dos primeros obligatorios)
+    
+    # complete_upload_service leerá explícitamente los valores de las tablas parent e hija y determinará:
+    # atributos minio (bucket (más sencillo), nombre del archivo...) según el: parent_id, modelo relacionado de parent_tab (cómo?), col_name
+    # repo a llamar (para escritura en db de la info del archivo guardado en minio) según el: tab_name

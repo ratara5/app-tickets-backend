@@ -3,11 +3,13 @@ from typing import Optional
 
 
 class UploadInitRequest(BaseModel):
+    parent_tab: str       # para esta app la entidad padre será el mantenimiento...
+    parent_id: UUID7        # ...
+    tab_name: str           # "fotos", "pdfs", "videos"... "tablas hijas"
+    col_name: str           # "archivo_foto_inicio", "firma_recibe", "archivo_foto", etc.
     content_type: str       # "image/jpeg", "application/pdf", etc.
     total_size: int         # bytes totales
     total_chunks: int       # cuántos chunks enviará el cliente
-    entity_id: UUID7        # entidad relacionada será el mantenimiento
-    col_name: str           # "archivo_foto_inicio", "firma_recibe", "archivo_foto", etc.
     # tipo: str             # El mismo col_name?
 
 class UploadInitResponse(BaseModel):
