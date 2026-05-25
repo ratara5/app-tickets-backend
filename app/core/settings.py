@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     # Disk
     chunk_dir: str             = Field("/tmp/upload_chunks", alias="CHUNK_DIR")
 
+    #
+    jwt_secret: str            = Field(..., alias="JWT_SECRET")
+
     @property
     def pg_dsn(self):
         return f"postgresql://{self.pg_user}:{self.pg_password}@{self.pg_host}:{self.pg_port}/{self.pg_db}"
