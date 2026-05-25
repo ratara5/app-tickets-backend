@@ -79,7 +79,7 @@ async def update_existing(id_mantenimiento: UUID7, payload: MantenimientoUpdate,
                 job_id=str(id_mantenimiento),
             )
         )
-        url_col = "".join(col_name.split("_")[1:])
+        url_col = "_".join(col_name.split("_")[1:])
         url = get_presigned_url(full_object_path, 1)
         col_val_info[col_name] = full_object_path
         col_val_info[url_col] = url
