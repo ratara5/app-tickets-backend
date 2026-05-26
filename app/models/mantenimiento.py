@@ -40,6 +40,7 @@ class Mantenimiento(Base, AuditMixin):
     ticket = relationship("Ticket", back_populates="mantenimiento")
     pausas = relationship("Pausa", back_populates="mantenimiento")
     fotos = relationship("Foto", back_populates="mantenimiento")
+    worksheet = relationship("Mantenimiento", back_populates="worksheet")
 
 class MantenimientoTecnico(Base, AuditMixin):
     __tablename__ = "mantenimientos_tecnicos"
