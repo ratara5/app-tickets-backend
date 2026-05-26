@@ -6,6 +6,27 @@ from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
 
+"""
+CREATE TABLE IF NOT EXISTS worksheets(
+    worksheet_id INTEGER PRIMARY KEY,
+    id_mantenimiento UUID,
+	
+    receiver_name VARCHAR(150),
+    receiver_doc_id VARCHAR(50),
+    receiver_position VARCHAR (100),
+    receiver_sap VARCHAR(50),
+    receiver_signature TEXT,
+    receiver_signature_date TIMESTAMP WITH TIME ZONE,
+	
+    sheet_number VARCHAR(30) UNIQUE,
+    pdf_url VARCHAR(100),
+    generated_at TIMESTAMP WITH TIME ZONE,
+    closed INTEGER DEFAULT 0,
+
+    FOREIGN KEY (id_mantenimiento) REFERENCES mantenimientos(id_mantenimiento)
+);
+"""
+
 class Worksheet(Base):
     __tablename__ = "worksheets"
 
