@@ -32,12 +32,14 @@ class Tienda(Base):
     ciudad = Column(String)    
     valor_transporte = Column(Numeric(10, 2))
 
+# Catalog
 class Equipo(Base):
     __tablename__ = "equipos"
 
     nro_equipo = Column(Integer, primary_key=True),
     nombre_equipo = Column(String)
 
+# Catalog
 class Jornadas(Base):
     __tablename__ = "jornadas"
 
