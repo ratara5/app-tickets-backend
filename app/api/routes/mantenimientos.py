@@ -1,8 +1,9 @@
 from pydantic import UUID7
+
 from fastapi import Optional, UploadFile, File, APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.routes import get_current_user
+from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.services.mantenimiento_service import create_new_mantenimiento, update_existing, list_mantenimientos
 from app.schemas.mantenimiento import MantenimientoCreate, MantenimientoUpdate
