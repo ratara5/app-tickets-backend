@@ -7,7 +7,7 @@ class RepuestoIn(BaseModel):
     id_repuesto: int
     cantidad: int
 
-class TecnicoAdicionalIn(BaseModel):
+class TecnicoIn(BaseModel):
     id_mantenimiento: UUID7
     id_tecnico: int
     hora_entrada: datetime 
@@ -38,15 +38,6 @@ class MantenimientoUpdate(BaseModel):
     
     # Hijas o partes de mantenimiento
     repuestos: Optional[List[RepuestoIn]] = []
-    tecnicos_adicionales: Optional[List[TecnicoAdicionalIn]] = []
+    tecnicos: Optional[List[TecnicoIn]] = []
     foto_ids: Optional[List[int]] = []
-
-    # Campos para la hoja de trabajo
-    observaciones: Optional[str] = None
-    nombre_recibe: Optional[str] = None
-    cedula_recibe: Optional[str] = None
-    cargo_recibe: Optional[str] = None
-    sap_recibe: Optional[str] = None
-    consecutivo_fus: Optional[str] = None
-    firma_recibe: Optional[str] = None
     

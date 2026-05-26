@@ -128,7 +128,7 @@ async def update_existing(id_mantenimiento: UUID7, payload: MantenimientoUpdate,
     for r in payload.repuestos:
         add_mantenimiento_repuesto(db, mantenimiento.id, r)
     ### Técnicos
-    for t in payload.tecnicos_adicionales:
+    for t in payload.tecnicos:
         add_mantenimiento_tecnico(db, mantenimiento.id, t)
     return mantenimiento
 
