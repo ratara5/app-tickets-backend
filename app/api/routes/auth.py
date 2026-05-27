@@ -7,15 +7,13 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login")
 def login(data: LoginRequest):
-
-    # buscar usuario DB
+    # search DB user
     user = ...
 
     if not user:
         raise HTTPException(401, "Invalid credentials")
-
     token = login_user(user, data.password)
-
+    
     if not token:
         raise HTTPException(401, "Invalid credentials")
 

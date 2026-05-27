@@ -11,27 +11,27 @@ from app.schemas.worksheet import WorksheetUpsert, WorksheetOut
 import app.services.worksheet_service as svc
 
 
-router = APIRouter(prefix="/mantenimientos", tags=["worksheets"])
+router = APIRouter(prefix="/maintenances", tags=["worksheets"])
 
-@router.get("/{id_mantenimiento}/worksheet", response_model=WorksheetOut)
-def get_worksheet(id_mantenimiento: int, db: Session = Depends(get_db),
-                  _=Depends(get_current_user)):
-    ws = svc._get_or_create_worksheet(id_mantenimiento, db)
+@router.get("/{maintenance_id}/worksheet", response_model=WorksheetOut)
+def get_worksheet(maintenance_id: int, db: Session = Depends(get_db),
+                  _ = Depends(get_current_user)):
+    ws = svc._get_or_create_worksheet(maintenance_id, db)
     db.commit()
     return ws
 
-@router.post("/{id_mantenimiento}/worksheet/generar-pdf")
-def generate_pdf(id_mantenimiento: int, db: Session = Depends(get_db),
+@router.post("/{maintenance_id}/worksheet/generate-pdf")
+def generate_pdf(maintenance_id: int, db: Session = Depends(get_db),
                  _ = Depends(get_current_user)):
-    ws = svc.generate_pdf(id_mantenimiento, db)
+    ws = svc.generate_pdf(maintenance_id, db)
     return {
         "sheet_number": ws.sheet_number,
         "url": get_presigned_url(object_name=ws.pdf_url, expires_hours=1),
         "generated_at": ws.generated_at,
     }
 
-@router.patch("/{id_mantenimiento}/worksheet", response_model=WorksheetOut)
-def update_worksheet(id_mantenimiento: int, data: WorksheetUpsert,
+@router.patch("/{maintenance_id}/worksheet", response_model=WorksheetOut)
+def update_worksheet(maintenance_id: int, data: WorksheetUpsert,
                      db: Session = Depends(get_db),
-                     _=Depends(get_current_user)):
-    return svc.upsert_worksheet(id_mantenimiento, data, db)
+                     _ = Depends(get_current_user)):
+    return svc.upsert_worksheet(maintenance_id, data, db)

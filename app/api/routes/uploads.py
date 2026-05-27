@@ -15,27 +15,27 @@ from app.services.upload_service import init_upload_service, upload_chunk_servic
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
-# ── 1. Iniciar upload ─────────────────────────────────────────────────────────
+# ── 1. Start upload ─────────────────────────────────────────────────────────
 @router.post("/init", response_model=UploadInitResponse)
 async def init_upload(
     payload: UploadInitRequest,
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
-    # route ->service -> repository
-    # route <- service <- UploadInitResponse(no desde repo, sino creada en service)
+    # route -> service -> repository
+    # route <- service <- UploadInitResponse(no from repo, but created in service)
     upload_init_response = await init_upload_service(db, current_user, payload)
     return upload_init_response
 
-# ── 2. Subir chunk ────────────────────────────────────────────────────────────
+# ── 2. Upload chunk ────────────────────────────────────────────────────────────
 @router.post("/chunk")
 async def upload_chunk(
     upload_id: str,
     chunk_index: int,
     chunk: UploadFile = File(...),
-    x_chunk_checksum: Optional[str] = Header(None),  # MD5 opcional
-    current_user=Depends(get_current_user),
-    db: Session = Depends(get_db),
+    x_chunk_checksum: Optional[str] = Header(None),  # MD5 optional
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     chunk_response = await upload_chunk_service(db, 
                                                 current_user, 

@@ -6,13 +6,13 @@ from app.core.database import get_db
 from app.services.ticket_service import (create_new_ticket, 
                                          list_tickets, 
                                          assign_ticket, 
-                                         start_mantenimiento,
+                                         start_maintenance,
                                          cancel_ticket,
                                          pause_ticket)
 
 from app.schemas.ticket import TicketCreate, AssignRequest
-from app.schemas.cancelacion import CancelacionRequest
-from app.schemas.pausa import PausaRequest
+from app.schemas.cancellation import CancellationRequest
+from app.schemas.pause import PauseRequest
 
 router = APIRouter(prefix="/tickets")
 
@@ -40,28 +40,28 @@ def create_ticket(
     )
 
 @router.patch("/{ticket_id}/assign")
-def assign(nro_ticket: int, 
+def assign(ticket_id: int, 
            payload: AssignRequest,
            db: Session = Depends(get_db),
            current_user = Depends(get_current_user)):
-    # Admin puede asignarse a sí mismo o a cualquier técnico, técnico solo a sí mismo
+    # Admin can assign tk to himself or at any technician, technician only assign tk to himself
     # ...
-    return assign_ticket(nro_ticket, payload, current_user, db)
+    return assign_ticket(ticket_id, payload, current_user, db)
 
 @router.patch("/{ticket_id}/start")
-def start(nro_ticket: int, 
+def start(ticket_id: int, 
           current_user = Depends(get_current_user),
           db: Session = Depends(get_db)):
-    return start_mantenimiento(nro_ticket, current_user, db)
+    return start_maintenance(ticket_id, current_user, db)
 
 @router.patch("/{ticket_id}/cancel")
-def cancel(ticket_id: int, payload: CancelacionRequest,
+def cancel(ticket_id: int, payload: CancellationRequest,
            db: Session = Depends(get_db),
            current_user = Depends(get_current_user)):
     return cancel_ticket(ticket_id, payload, current_user, db)
 
 @router.patch("/{ticket_id}/pause")
-def pause(ticket_id: int, payload: PausaRequest,
+def pause(ticket_id: int, payload: PauseRequest,
           db: Session = Depends(get_db),
           current_user = Depends(get_current_user)):
     return pause_ticket(ticket_id, payload, current_user, db)
