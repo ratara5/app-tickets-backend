@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 
 CREATE TABLE IF NOT EXISTS cancellations (
     ticket_id INT PRIMARY KEY,
-    cancellation_date DATE,
+    -- cancellation_date DATE, -- Equals to created_at
     cancellation_reason TEXT,
     -- cancellation_responsible VARCHAR, -- The same creator
 
