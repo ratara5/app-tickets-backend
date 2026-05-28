@@ -17,7 +17,7 @@ from app.repositories.upload_repo import (get_upload_session,
                                           mark_completed)
 
 from app.models.ticket import Ticket
-from app.models.maintenance import Mantenimiento
+from app.models.maintenance import Maintenance
 from app.models.upload import UploadSession
 
 from app.schemas.ticket import AssignRequest
@@ -26,12 +26,13 @@ from app.schemas.pause import PausaRequest
 from app.schemas.upload import UploadInitRequest, UploadInitResponse, ChunkResponse
 from app.schemas.file import FileSave
 
-from app.services.mantenimiento_service import create_new_mantenimiento
+from app.services.maintenance_service import create_new_maintenance
 
 from app.services.registry import _autodiscover, dispatch_service, dispatch_build_path
 from app.models.registry import _autodiscover_models, get_model
 
 from app.core import settings
+
 
 chunk_dir = settings.chunk_dir
 os.makedirs(chunk_dir, exist_ok=True)
@@ -48,20 +49,20 @@ EXT_BY_TYPE = {
 }
 
 async def init_upload_service(db: Session, current_user, payload):
-    # Aquí iría la lógica para crear una nueva sesión de carga 
-    # 1. Validar el payload (tipo de archivo permitido, tamaño máximo, etc.)
+    # Here the logic in order to create new upload session 
+    # 1. Validates payload (allow file type, max size, etc.)
     if payload.content_type not in ALLOWED_TYPES:
-        raise HTTPException(415, f"Tipo no permitido: {payload.content_type}")
+        raise HTTPException(415, f"Type not allowed: {payload.content_type}")
     
     # 2.
     MAX_SIZE = 50 * 1024 * 1024  # 50 MB
     if payload.total_size > MAX_SIZE:
-        raise HTTPException(413, "Archivo demasiado grande (máx 50 MB)")
+        raise HTTPException(413, "File too large (max 50 MB)")
 
     upload_id = str(uuid7())
 
-    # Persistir
-    upload_session = save_upload_session(db, upload_id, current_user.email, payload) # Sesion es síncrona, no async, por eso no await
+    # Persists
+    upload_session = save_upload_session(db, upload_id, current_user.email, payload) # Session is sync, not async, therefore no await
 
     return UploadInitResponse(
         upload_id=upload_id,
@@ -69,35 +70,34 @@ async def init_upload_service(db: Session, current_user, payload):
         next_chunk=0,
     )
 
-
 async def upload_chunk_service(db: Session, current_user, upload_id, chunk_index, chunk, x_chunk_checksum):
-    upload_session = get_upload_session(db, upload_id, current_user.email) # Sesion es síncrona, no async, por eso no await
+    upload_session = get_upload_session(db, upload_id, current_user.email) # Session is sync, not async, therefore no await
     if not upload_session:
-        raise HTTPException(404, "Sesión de upload no encontrada")
+        raise HTTPException(404, "Upload sesion not found")
     if upload_session.expires_at < datetime.now():
-        raise HTTPException(410, "Sesión expirada. Inicia un nuevo upload.")
+        raise HTTPException(410, "Expired sesion. Please start a new upload.")
     if chunk_index >= upload_session.total_chunks:
-        raise HTTPException(422, "chunk_index fuera de rango")
+        raise HTTPException(422, "Chunk index out of range")
 
     chunk_data = await chunk.read()
 
-    # Verificar checksum si el cliente lo envió
+    # Verify checksum if client send it
     if x_chunk_checksum:
         md5 = hashlib.md5(chunk_data).hexdigest()
         if md5 != x_chunk_checksum:
-            raise HTTPException(422, "Checksum incorrecto — reenvía el chunk")
+            raise HTTPException(422, "Incorrect checksum — please resend the chunk")
 
-    # Guardar chunk en disco temporal
+    # Save chunk in temporary disk
     chunk_path = os.path.join(chunk_dir, f"{upload_id}_{chunk_index:04d}")
     async with aiofiles.open(chunk_path, "wb") as f:
         await f.write(chunk_data)
 
-    # Actualizar contador (idempotente: si el chunk ya existía, no suma de nuevo)
+    # Update counter (idempotent: if the chunk already existed, it is not added again)
     chunks_in_disk = get_chunks_on_disk(upload_id)
 
-    ## Persistir: inútil una función en repo para esto
+    ## Persist: It's useless to add a function
     upload_session.received_chunks = chunks_in_disk
-    db.commit() # Session es síncrona, no async, por eso no await
+    db.commit() # Session is sync, no async, therefore no await
 
     return ChunkResponse(
         upload_id=upload_id,
@@ -106,35 +106,34 @@ async def upload_chunk_service(db: Session, current_user, upload_id, chunk_index
         total_chunks=upload_session.total_chunks
     )
 
-
-_executor = ThreadPoolExecutor()  # para operaciones síncronas de MinIO
+_executor = ThreadPoolExecutor()  # for synchronous operations in Minio
 _autodiscover("app.services")
 _autodiscover_models("app.models")
 async def complete_upload_service(db: Session, upload_id: str, current_user):
-    # 1. Validar sesión
+    # 1. Validate session
     upload_session = get_upload_session(db, upload_id, current_user.email)
     if not upload_session:
-        raise HTTPException(404, "Sesión no encontrada")
-    if upload_session.completado:
-        raise HTTPException(409, "Upload ya completado")
+        raise HTTPException(404, "Session not found")
+    if upload_session.completed:
+        raise HTTPException(409, "Upload is already completed")
 
-    # 2. Verificar chunks
-    chunks_faltantes = get_chunks_missing(upload_id, upload_session.total_chunks)
-    if chunks_faltantes:
+    # 2. Verify chunks
+    missing_chunks = get_chunks_missing(upload_id, upload_session.total_chunks)
+    if missing_chunks:
         raise HTTPException(422, detail={
-            "error": "CHUNKS_INCOMPLETOS",
-            "recibidos": upload_session.total_chunks - len(chunks_faltantes),
-            "esperados": upload_session .total_chunks,
-            "chunks_faltantes": chunks_faltantes,
+            "error": "INCOMPLETED_CHUNKS",
+            "received": upload_session.total_chunks - len(missing_chunks),
+            "expected": upload_session .total_chunks,
+            "missing_chunks": missing_chunks,
         })
 
-    # 3. Ensamblar en disco (no en memoria)
-    chunks_en_disco = get_chunks_on_disk(upload_id)
-    assembled_path = await assemble_chunks(upload_id, chunks_en_disco)
+    # 3. Assemble in disk (not in memory)
+    chunks_in_disk = get_chunks_on_disk(upload_id)
+    assembled_path = await assemble_chunks(upload_id, chunks_in_disk)
     size_bytes = os.path.getsize(assembled_path)
 
-    # 4. Subir a MinIO en thread (cliente boto3 es síncrono)
-    #- Atributos minio (bucket (más sencillo), original_filename...) según el: parent_id, modelo relacionado de parent_tab, col_name
+    # 4. Upload to MinIO in thread (boto3 client is synchronous)
+    #- Minio attributes (bucket (more simply), original_filename...) according: parent_id, related model of parent_tab, col_name
     parent_id = upload_session.parent_id
     parent_tab = upload_session.parent_tab
     
@@ -144,7 +143,7 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
         ).first()
     
     # ANTES #
-    # fecha_trabajo = mantenimiento.fecha_trabajo
+    # fecha_trabajo = maintenance.fecha_trabajo
     # mes = fecha_trabajo.strftime("%B")
     # anio = fecha_trabajo.strftime("%Y")
     # original_filename = f"{upload_session.entity_id}.{upload_session.col_name}.{serial}{ext}"
@@ -155,7 +154,7 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
                                                                     upload_session.content_type)
 
 
-    # - Subir a MinIO
+    # - Upload to MinIO
     with open(assembled_path, "rb") as file_stream:
         try:
             result = await asyncio.get_event_loop().run_in_executor(
@@ -169,15 +168,15 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
                 )
             )
         except Exception as e:
-            raise HTTPException(502, f"Error subiendo a MinIO: {str(e)}")
+            raise HTTPException(502, f"Error uploading to MinIO: {str(e)}")
     # - URL
     url = get_presigned_url(full_object_path, 1)
         
 
-    # 5. Persistir registro con info del archivo subido BD 
-    # - Definir el repo según la tabla o según la ext (lo mismo?)
+    # 5. Persist metadata record 
+    # - Define repo according to table or according to ext (same thing?)
     tab_name = upload_session.tab_name
-    # - La entidad para el registro genérico se construye acá y se hace particular en el repo llamado desde el service
+    # - The entity for generic record is being built here and is being do particular in the called repo from service
     file = FileSave(
         id_file=serial,
         id_parent=parent_id,
@@ -187,10 +186,10 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
 
     result = dispatch_service(tab_name, db, file, current_user)
 
-    # - Marcar upload como efectivamente completada
-    mark_completed(db, upload_session)  # commit aquí
+    # - Mark upload as indeed completed
+    mark_completed(db, upload_session)  # commit here
 
-    # 6. Limpiar chunks — después del commit
-    clean_chunks(upload_id, chunks_en_disco, assembled_path)
+    # 6. Clean chunks — after commit
+    clean_chunks(upload_id, chunks_in_disk, assembled_path)
 
     

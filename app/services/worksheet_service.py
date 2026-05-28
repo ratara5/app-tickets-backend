@@ -12,10 +12,10 @@ from jinja2 import Environment, FileSystemLoader
 from sqlalchemy import Session
 from weasyprint import HTML
 
-from models.worksheet import Worksheet
+from app.models.worksheet import Worksheet
 from app.models.maintenance import *
-from models.ticket import Ticket
-from models.master import *
+from app.models.ticket import Ticket
+from app.models.master import *
 
 from schemas.worksheet import WorksheetUpsert
 
@@ -23,102 +23,101 @@ from core.storage import upload_file, get_presigned_url
 
 
 # helpers
-
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates" / "reports"
 
-def _get_or_create_worksheet(id_mantenimiento: UUID7, db: Session) -> Worksheet:
-    ws = db.query(Worksheet).filter_by(id_mantenimiento=id_mantenimiento).first()
+def _get_or_create_worksheet(maintenance_id: UUID7, db: Session) -> Worksheet:
+    ws = db.query(Worksheet).filter_by(maintenance_id=maintenance_id).first()
     if not ws:
-        ws = Worksheet(id_mantenimiento=id_mantenimiento)
+        ws = Worksheet(maintenance_id=maintenance_id)
         db.add(ws)
         db.flush()
     return ws
 
-def _number_sheet(id_mantenimiento: UUID7) -> str:
+def _number_sheet(maintenance_id: UUID7) -> str:
     year = datetime.now().year
-    return f"WS-{year}-{id_mantenimiento:06d}"
+    return f"WS-{year}-{maintenance_id:06d}"
 
-def _build_context(mtto: Mantenimiento, ws: Worksheet, db:Session) -> dict:
+def _build_context(maintenance: Maintenance, ws: Worksheet, db:Session) -> dict:
     """
     Reúne en un dict plano todo lo que la plantilla Jinja2 necesita.
     Equivale al browse() + computed fields de Odoo
     """
-    ticket = db.query(Ticket).filter(nro_ticket=mtto.nro_ticket).first()
-    tienda =  db.query(Tienda).filter(nro_tienda=ticket.nro_tienda).first()
-    equipo = db.query(Equipo).filter(nro_equipo=ticket.nro_equipo).first()
-    tecnicos = ( # mtto.tecnicos # relación M2M
+    ticket = db.query(Ticket).filter(ticket_id=maintenance.ticket_id).first()
+    market =  db.query(Market).filter(market_id=ticket.market_id).first()
+    equipo = db.query(Equipment).filter(equipment_id=ticket.equipment_id).first()
+    technicians = ( # maintenance.technicians # relación M2M
         db.query(
-            Tecnico.nombre,
-            MantenimientoTecnico.hora_entrada,
-            MantenimientoTecnico.hora_salida
+            Technician.user_id,
+            MaintenanceTechnician.start_hour,
+            MaintenanceTechnician.end_hour
         )
         .join(
-            Tecnico,
-            MantenimientoTecnico.id_tecnico == Tecnico.id_tecnico
+            Technician,
+            MaintenanceTechnician.technician_id == Technician.technician_id
         )
         .filter(
-            MantenimientoTecnico.id_mantenimiento == mtto.id_mantenimiento
+            MaintenanceTechnician.maintenance_id == maintenance.maintenance_id
         )
         .all()
     ) 
-    repuestos = ( # mtto.repuestos # relación M2M (?)
+    spares = ( # maintenance.spares # relación M2M (?)
         db.query(
-            Repuesto.nombre,
-            MantenimientoRepuesto.cantidad,
-            Repuesto.unidades
+            Spare.spare_name,
+            MaintenanceSpare.qty,
+            Spare.unit
         )
         .join(
-            Repuesto,
-            MantenimientoRepuesto.id_repuesto == Repuesto.id_repuesto
+            Spare,
+            MaintenanceSpare.spare_id == Spare.spare_id
         )
         .filter(
-            MantenimientoRepuesto.id_mantenimiento == mtto.id_mantenimiento
+            MaintenanceSpare.maintenance_id == maintenance.maintenance_id
         )
         .all()
     )
 
     return {
-        # Datos cliente / formato
+        # CLient info / form
         "client_company_name": getattr(ticket, "client_company_name", "CLIENT_COMPANY_NAME"),
         "client_format_name": getattr(ticket, "client_format_name", "CLIENT_FORMAT_NAME"),
         "client_format_code": getattr(ticket, "client_format_code", "CLIENT_FORMAT_CODE"),
 
-        # Datos contratista / mi empresa
-        "contractor_name": getattr(mtto, "contractor_name", "CONTRACTOR_NAME"),
-        "contractor_nit": getattr(mtto, "contractor_nit", "CONTRACTOR_NIT"),
-        "contractor_contact": getattr(mtto, "contractor_contact", "CONTRACTOR_CONTACT"),
-        "contractor_phone": getattr(mtto, "contractor_phone", "CONTRACTOR_PHONE"),
+        # Contractor info / my company
+        "contractor_name": getattr(maintenance, "contractor_name", "CONTRACTOR_NAME"),
+        "contractor_nit": getattr(maintenance, "contractor_nit", "CONTRACTOR_NIT"),
+        "contractor_contact": getattr(maintenance, "contractor_contact", "CONTRACTOR_CONTACT"),
+        "contractor_phone": getattr(maintenance, "contractor_phone", "CONTRACTOR_PHONE"),
 
-        # Tienda
-        "nombre_tienda": getattr(tienda, "nombre_tienda", "NOMBRE_TIENDA"),
-        "ciudad": getattr(tienda, "ciudad", "CIUDAD"),
-        "departamento": getattr(tienda, "departamento", "DEPARTAMENTO"),
+        # Market
+        "market_name": getattr(market, "market_name", "NOMBRE_TIENDA"),
+        "city": getattr(market, "city", "CIUDAD"),
+        "state": getattr(market, "state", "DEPARTAMENTO"),
 
-        # Fecha
-        "fecha_trabajo": getattr(mtto, "fecha_trabajo", "1/11/1111"),
+        # Date
+        "maintenance_date": getattr(maintenance, "maintenance_date", "1/11/1111"),
 
-        # Equipo
-        "nombre_equipo": getattr(equipo, "nombre_equipo", "NOMBRE_EQUIPO"),
+        # Equipment
+        "equipment_name": getattr(equipo, "equipment_name", "NOMBRE_EQUIPO"),
 
-        # Descripción Ticket
-        "descripcion_ticket": getattr(ticket, "descripcion_ticket", "DESCRIPCION_TICKET"),
+        # Ticket Description
+        "ticket_description": getattr(ticket, "ticket_description", "DESCRIPCION_TICKET"),
 
-        # Descripción Mantenimiento
-        "descripcion_mantenimiento": getattr(mtto, "descripcion_mantenimiento", "DESCRIPCION_MANTENIMIENTO"),
+        # Maintenance Description
+        "maintenance_description": getattr(maintenance, "maintenance_description", "DESCRIPCION_MANTENIMIENTO"),
 
-        # Técnicos
-        "tecnicos": [
-            {"nombre": t.nombre, "hora_entrada": t.hora_entrada, "hora_salida": t.hora_salida}
-            for t in tecnicos
+        # Technicians
+        "technicians": [
+            {"user_id": t.user_id, "start_hour": t.start_hour, "end_hour": t.end_hour}
+            for t in technicians
         ], 
 
-        # Repuestos
-        "repuestos": [
-            {"nombre": r.nombre, "cantidad": r.cantidad, "unidades": r.unidades}
-            for r in repuestos
+        # Spares
+        "spares": [
+            {"spare_name": r.spare_name, "qty": r.qty, "unit": r.unit}
+            for r in spares
         ],
 
-        # Datos del receptor (diligenciados en campo (?))
+        # Receiver info (fill in field (?))
         "receiver_name": ws.receiver_name or "",
         "receiver_doc_id": ws.receiver_doc_id or "",        
         "receiver_position": ws.receiver_position or "",
@@ -126,15 +125,15 @@ def _build_context(mtto: Mantenimiento, ws: Worksheet, db:Session) -> dict:
         "receiver_signature": ws.receiver_signature or None,
         "receiver_signature_date": ws.receiver_signature_date,
 
-        # Número de hoja
-        "number_sheet": ws.sheet_number or _number_sheet(mtto.id_mantenimiento),
+        # Number sheet
+        "number_sheet": ws.sheet_number or _number_sheet(maintenance.maintenance_id),
         "generation_date": datetime.now()
     }
 
-# Casos de uso
-def upsert_worksheet(id_mantenimiento: int, data: WorksheetUpsert, db: Session) -> Worksheet:
+# Use cases
+def upsert_worksheet(maintenance_id: int, data: WorksheetUpsert, db: Session) -> Worksheet:
     """Crea o actualiza los campos que el tecnico llena en campo."""
-    ws = _get_or_create_worksheet(id_mantenimiento, db)
+    ws = _get_or_create_worksheet(maintenance_id, db)
 
     if ws.closed:
         raise HTTPException(409, "La hoja ya fue cerrada y no puede modificarse.")
@@ -147,16 +146,16 @@ def upsert_worksheet(id_mantenimiento: int, data: WorksheetUpsert, db: Session) 
     db.refresh(ws)
     return ws
 
-def generate_pdf(id_mantenimiento: int, db: Session) -> tuple[Worksheet, str]:
+def generate_pdf(maintenance_id: int, db: Session) -> tuple[Worksheet, str]:
     """
     Renderiza el PDF, lo sube a MinIO y cierra la hoja.
     Retorna (worksheet, presigned_url).
     """
-    mtto = db.query(Mantenimiento).filter(id_mantenimiento=id_mantenimiento).first()
-    if not mtto:
-        raise HTTPException(404, "Mantenimiento no encontrado.")
+    maintenance = db.query(Maintenance).filter(maintenance_id=maintenance_id).first()
+    if not maintenance:
+        raise HTTPException(404, "Maintenance no encontrado.")
     
-    ws = _get_or_create_worksheet(id_mantenimiento, db)
+    ws = _get_or_create_worksheet(maintenance_id, db)
 
     if ws.closed:
         # Ya generado: devolvemos URL fresca sin regenerar
@@ -166,28 +165,28 @@ def generate_pdf(id_mantenimiento: int, db: Session) -> tuple[Worksheet, str]:
     # Renderizar
     env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)))
     template = env.get_template("worksheet.html")
-    ctx = _build_context(mtto, ws)
+    ctx = _build_context(maintenance, ws)
     html_str = template.render(**ctx)
 
     # PDF en memoria
     pdf_bytes = HTML(string=html_str, base_url=str(TEMPLATES_DIR)).write_pdf()
 
     # Subir a minio
-    fecha_trabajo = mtto.fecha_trabajo
+    fecha_trabajo = maintenance.fecha_trabajo
     mes = fecha_trabajo.strftime("%B")
     anio = fecha_trabajo.strftime("%Y")
 
-    original_filename = f"Soporte_{mtto.nro_ticket}.pdf"
-    full_object_path = f"Mantenimiento/Correctivos/{anio}/{mes}/{mtto.nro_ticket}/{original_filename}"
+    original_filename = f"Soporte_{maintenance.ticket_id}.pdf"
+    full_object_path = f"Mantenimiento/Correctivos/{anio}/{mes}/{maintenance.ticket_id}/{original_filename}"
 
     upload_file(file_stream=io.BytesIO(pdf_bytes), 
             original_filename=original_filename,
             content_type="application/pdf",
             full_object_path=full_object_path,
-            job_id=id_mantenimiento)
+            job_id=maintenance_id)
     
     # Close sheet
-    number = _number_sheet(id_mantenimiento)
+    number = _number_sheet(maintenance_id)
     ws.sheet_number = number
     ws.pdf_url = full_object_path #En la DB se guarda el path (Mantenimiento/Correctivos/2025/Mayo/.../Soporte_....pdf) y cada vez que se necesita servirlo se genera una URL presignada fresca en ese momento.
     ws.generated_at = datetime.now()
