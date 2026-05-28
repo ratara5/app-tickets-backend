@@ -27,12 +27,13 @@ CREATE TABLE IF NOT EXISTS fsm_users ( -- user is a reserved word
 );
 
 CREATE TABLE IF NOT EXISTS technicians (
-    technician_id INT PRIMARY KEY, --before id_tecnico
+    technician_id SERIAL PRIMARY KEY, --before id_tecnico
+    user_id INT NOT NULL UNIQUE,
     -- email VARCHAR UNIQUE, -- redundant, now in fsm_users
     -- technician_name VARCHAR, -- redundant, now in fsm_users
     -- more fields...
 
-    FOREIGN KEY (technician_id) REFERENCES fsm_users(user_id)
+    FOREIGN KEY (user_id) REFERENCES fsm_users(user_id)
 );
 
 CREATE TABLE IF NOT EXISTS markets ( -- partners derivate

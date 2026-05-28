@@ -13,7 +13,8 @@ Base = declarative_base()
 class Technician(Base):
     __tablename__ = "technicians"
 
-    technician_id = Column(Integer, ForeignKey("fsm_users.user_id"), primary_key=True)
+    technician_id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False, unique=True)
     # more fields ...
 
     fsm_user = relationship("FSMUser", back_populates="technician")
