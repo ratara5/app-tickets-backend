@@ -1,4 +1,4 @@
-from sqlalchemy import Uuid, Column, Integer, String, DateTime, ForeignKey, relationship
+from sqlalchemy import Uuid, Column, Integer, String, Boolean, DateTime, ForeignKey, relationship
 from sqlalchemy.orm import declarative_base 
 
 import uuid
@@ -21,8 +21,10 @@ class UploadSession(Base):
     content_type = Column(String),             
     total_size = Column(Integer),              
     total_chunks = Column(Integer),  
-    received_chunks = Column(Integer),                            
+    received_chunks = Column(Integer),
+
     expires_at  = Column(DateTime),
+    completed = Column(Boolean)
 
     fsm_user = relationship("FSMUser", back_populates="uploads_sessions")
 

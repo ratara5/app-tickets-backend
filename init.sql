@@ -319,8 +319,10 @@ CREATE TABLE IF NOT EXISTS uploads_sessions (
     content_type     TEXT        NOT NULL,           
     total_size       INTEGER     NOT NULL,          
     total_chunks     INTEGER     NOT NULL,
-    received_chunks  INTEGER     NOT NULL,                   
+    received_chunks  INTEGER     NOT NULL, 
+
     expires_at       TIMESTAMPTZ NOT NULL,
+    completed        BOOLEAN,
 
     FOREIGN KEY (user_id) REFERENCES fsm_users(user_id)
 );
