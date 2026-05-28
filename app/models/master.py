@@ -1,5 +1,6 @@
-# Una Tabla Maestra (Master) contiene info Alto nivel, (CLientes, Productos) datos estructurales que rara vez cambia
-# Una Tabla Catálogo (Reference/Lookup) contiene info Bajo nivel, descriptivo/configuración, (Códigos, Estados) datos muy raramente cambian
+# A Master Table (Master) contains high level info, (Customers, Products) structural data wich rarely change
+# A Catalog Table (Reference/Lookup) contains low level info, descriptive/configuration, (Code, States) data wich very rarely change
+# Here: Master includes Catalog
 
 from datetime import datetime
 
@@ -9,44 +10,51 @@ from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
-class Tecnico(Base):
-    __tablename__ = "tecnicos"
+class Technician(Base):
+    __tablename__ = "technicians"
 
-    id_tecnico = Column(Integer, primary_key=True)
-    email = Column(String, ForeignKey("usuarios.email"))
-    nombre = Column(String)
+    technician_id = Column(Integer, ForeignKey("fsm_users.user_id"), primary_key=True)
+    # more fields ...
 
-class Repuesto(Base):
-    __tablename__ = "repuestos"
+    fsm_user = relationship("FSMUser", back_populates="technician")
+    # intermediate tables relationships (...2...)
+    maintenances = relationship("MaintenanceTechnician", back_populates="technician")
 
-    id_repuesto = Column(Integer, primary_key=True)
-    nombre = Column(String)
-    unidades = Column(String)
-    precio = Column(Numeric(10, 2))
+class Spare(Base):
+    __tablename__ = "spares"
 
-class Tienda(Base):
-    __tablename__ = "tiendas"
+    spare_id = Column(Integer, primary_key=True)
+    spare_name = Column(String)
+    unit = Column(String)
+    price = Column(Numeric(10, 2))
+    # It's not defined the relation with uom
 
-    nro_tienda = Column(Integer, primary_key=True),
-    nombre_tienda = Column(String)
-    ciudad = Column(String)    
-    valor_transporte = Column(Numeric(10, 2))
+    # intermediate tables relationships (...2...)
+    maintenances = relationship("MaintenanceSpare", back_populates="spare")
+
+class Market(Base):
+    __tablename__ = "markets"
+
+    market_id = Column(Integer, primary_key=True),
+    market_name = Column(String)
+    city = Column(String)    
+    transport_cost = Column(Numeric(10, 2))
 
 # Catalog
-class Equipo(Base):
-    __tablename__ = "equipos"
+class Equipment(Base):
+    __tablename__ = "equipments"
 
-    nro_equipo = Column(Integer, primary_key=True),
-    nombre_equipo = Column(String)
+    equipment_id = Column(Integer, primary_key=True),
+    equipment_name = Column(String)
 
 # Catalog
-class Jornadas(Base):
-    __tablename__ = "jornadas"
+class Labsdls(Base):
+    __tablename__ = "labsdls"
 
-    id_jornada = Column(Integer, primary_key=True),
-    nombre_jornada = Column(String)
-    descripcion_jornada = Column(String)
-    tarifa_hora = Column(Numeric(8, 2))
+    labsdl_id = Column(Integer, primary_key=True),
+    labsdl_name = Column(String)
+    labsdl_description = Column(String)
+    hourly_rate = Column(Numeric(8, 2))
 
 
 

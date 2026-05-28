@@ -2,7 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import or_, and_
 
-from app.models.foto import Foto
+from app.models.photo import Foto
 
 def save_foto(db, data, current_user):
 

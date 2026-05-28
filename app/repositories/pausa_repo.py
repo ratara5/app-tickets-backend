@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from app.models.pausa import Pausa
+from app.models.pause import Pausa
 
 def save_pausa(db, data, current_user):
 

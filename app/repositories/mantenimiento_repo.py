@@ -4,7 +4,7 @@ from sqlalchemy import or_, and_
 from app.core.utils.dates import start_of_month
 
 from app.models.ticket import Ticket
-from app.models.mantenimiento import Mantenimiento, MantenimientoRepuesto, MantenimientoTecnico
+from app.models.maintenance import Mantenimiento, MantenimientoRepuesto, MantenimientoTecnico
 
 def create_mantenimiento(db, data, current_user):
 

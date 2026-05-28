@@ -2,7 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import or_, and_
 
-from app.models.cancelacion import Cancelacion
+from app.models.cancellation import Cancelacion
 
 def save_cancelacion(db, data, current_user):
 

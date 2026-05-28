@@ -17,7 +17,7 @@ from app.repositories.upload_repo import (get_upload_session,
                                           mark_completed)
 
 from app.models.ticket import Ticket
-from app.models.mantenimiento import Mantenimiento
+from app.models.maintenance import Mantenimiento
 from app.models.upload import UploadSession
 
 from app.schemas.ticket import AssignRequest

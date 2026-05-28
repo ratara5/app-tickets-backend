@@ -27,7 +27,7 @@ def get_model(table_name: str):
     model = MODEL_REGISTRY.get(table_name)
     if model is None:
         raise ValueError(
-            f"Modelo no registrado: {table_name}"
+            f"Model is not in registry: {table_name}"
         )
 
     return model

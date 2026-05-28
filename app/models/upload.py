@@ -7,41 +7,28 @@ from uuid6 import uuid7
 Base = declarative_base()
 
 
-
-"""
-CREATE TABLE IF NOT EXISTS uploads_sessions (
-    upload_id        UUID        PRIMARY KEY DEFAULT uuid_generate_v7(),
-    parent_table     UUID        NOT NULL,
-    parent_id        UUID        NOT NULL,
-    tab_name         TEXT        ,
-    col_name         TEXT        NOT NULL,       
-	user_email       TEXT        NOT NULL,
-    content_type     TEXT        NOT NULL,           
-    total_size       INTEGER     NOT NULL,          
-    total_chunks     INTEGER     NOT NULL,
-    received_chunks  INTEGER     NOT NULL,                   
-    expires_at       TIMESTAMPTZ NOT NULL
-);
-"""
-
 class UploadSession(Base):
-    __tablename__ = "upload_sessions"
+    __tablename__ = "uploads_sessions"
 
     upload_id = Column(Uuid, primary_key=True, default=uuid7),
-    parent_tab = Column (String) # El nombre de la tabla padre
-    parent_id = Column(Uuid), # El id de la tabla padre 
-    tab_name = Column(String), # El nombre de la tabla     
-    col_name = Column(String), # El nombre de la columna   
-    user_email = Column(String), 
+    user_id = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False)
+
+    parent_tab = Column (String) # The name of parent table
+    parent_id = Column(Uuid), # The id of parent registry
+    tab_name = Column(String), # The table name (child table name)     
+    col_name = Column(String), # The column name in table (child table)  
+    
     content_type = Column(String),             
     total_size = Column(Integer),              
     total_chunks = Column(Integer),  
     received_chunks = Column(Integer),                            
-    expires_at  = Column(DateTime)  
+    expires_at  = Column(DateTime),
 
-    # Por ejemplo, podrían subirse 'fotos', 'pdfs', 'videos' (tablas hijas) de usuarios (tabla padre). O una sola tabla hija 'archivos'  para todo si la cantidad es pequeña. En todo caso, la lógica de guardado y creación de registro de info podría depender de la tabla hija o de la extensión del archivo (lo mismo?)...
-    # Y cada tipo de archivo (tabla 'hija') tener campos id_'hija', id_'padre', archivo_'hija', url_'hija' (los dos primeros obligatorios)
+    fsm_user = relationship("FSMUser", back_populates="uploads_sessions")
+
+    # e.g, It could uploads 'photos', 'pdfs', 'videos' (children tables) for the each 'maintenances' (parent table). Or once child table 'files'  for all if qty is litle. In any case, the saving logic and the info registry creation could depends of child table or the file extension (the same thing?)...
+    # Each file type ('child' table) could have fields id_'child', id_'parent', file_'child', url_'child' (The first two are mandatory)
     
-    # complete_upload_service leerá explícitamente los valores de las tablas parent e hija y determinará:
-    # atributos minio (bucket (más sencillo), nombre del archivo...) según el: parent_id, modelo relacionado de parent_tab (cómo?), col_name
-    # repo a llamar (para escritura en db de la info del archivo guardado en minio) según el: tab_name
+    # complete_upload_service will explicitly read the values in both parent and child tables, then it will determine:
+    # minio attributes (bucket (the most simply), file_name...) according to: parent_id, related model of parent_tab (how?), col_name
+    # repo to be called (for writring into db the info of the saved (or uploaded) file in minio) according to: tab_name

@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
 from app.models.ticket import Ticket
-from app.models.mantenimiento import Mantenimiento
-from app.models.pausa import Pausa
+from app.models.maintenance import Mantenimiento
+from app.models.pause import Pausa
 
 from app.schemas.mantenimiento import MantenimientoCreate, MantenimientoUpdate
 

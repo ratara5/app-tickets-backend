@@ -13,7 +13,7 @@ from sqlalchemy import Session
 from weasyprint import HTML
 
 from models.worksheet import Worksheet
-from models.mantenimiento import *
+from app.models.maintenance import *
 from models.ticket import Ticket
 from models.master import *
 
