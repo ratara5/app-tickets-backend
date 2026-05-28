@@ -1,4 +1,4 @@
-from app.repositories.cancelacion_repo import save_cancelacion, get_cancelaciones
+from app.repositories.cancellation_repo import save_cancelacion, get_cancelaciones
 
 def create_new_cancelacion(db, data, current_user):
     # Lógica de negocio antes de persistir

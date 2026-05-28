@@ -1,4 +1,4 @@
-from app.repositories.foto_repo import save_foto, get_fotos
+from app.repositories.photo_repo import save_foto, get_fotos
 
 from app.services.registry import service
 

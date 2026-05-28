@@ -1,4 +1,4 @@
-from app.repositories.pausa_repo import save_pausa, get_pausas
+from app.repositories.pause_repo import save_pausa, get_pausas
 
 def create_new_pausa(db, data, current_user):
     # Lógica de negocio antes de persistir

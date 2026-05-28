@@ -14,7 +14,7 @@ from app.models.pause import Pausa
 
 from app.schemas.mantenimiento import MantenimientoCreate, MantenimientoUpdate
 
-from app.repositories.mantenimiento_repo import (create_mantenimiento, 
+from app.repositories.maintenance_repo import (create_mantenimiento, 
                                                 save_mantenimiento, 
                                                 get_visible_mantenimientos,
                                                 add_mantenimiento_repuesto,
