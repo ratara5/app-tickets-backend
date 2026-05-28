@@ -21,8 +21,8 @@ from app.models.maintenance import Mantenimiento
 from app.models.upload import UploadSession
 
 from app.schemas.ticket import AssignRequest
-from app.schemas.cancelacion import CancelacionRequest
-from app.schemas.pausa import PausaRequest
+from app.schemas.cancellation import CancelacionRequest
+from app.schemas.pause import PausaRequest
 from app.schemas.upload import UploadInitRequest, UploadInitResponse, ChunkResponse
 from app.schemas.file import FileSave
 

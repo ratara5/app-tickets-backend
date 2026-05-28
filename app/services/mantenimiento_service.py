@@ -12,7 +12,7 @@ from app.models.ticket import Ticket
 from app.models.maintenance import Mantenimiento
 from app.models.pause import Pausa
 
-from app.schemas.mantenimiento import MantenimientoCreate, MantenimientoUpdate
+from app.schemas.maintenance import MantenimientoCreate, MantenimientoUpdate
 
 from app.repositories.maintenance_repo import (create_mantenimiento, 
                                                 save_mantenimiento, 

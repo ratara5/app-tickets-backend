@@ -10,8 +10,8 @@ from app.models.ticket import Ticket
 from app.models.tecnico import Tecnico
 
 from app.schemas.ticket import AssignRequest
-from app.schemas.cancelacion import CancelacionRequest
-from app.schemas.pausa import PausaRequest
+from app.schemas.cancellation import CancelacionRequest
+from app.schemas.pause import PausaRequest
 
 from app.services.mantenimiento_service import create_new_mantenimiento
 from app.services.cancelacion_service import create_new_cancelacion

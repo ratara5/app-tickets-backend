@@ -1,23 +1,22 @@
-from pydantic import BaseModel, Optional
 from enum import Enum
 
-class TicketCreate(BaseModel):
-    nro_ticket: str
-    prioridad: str 
-    fecha_ticket: str
-    descripcion_ticket: str
-    estado: str
+from pydantic import BaseModel, Optional
 
-class TicketEstado(str, Enum):
-    abierto = "ABIERTO"
-    asignado = "ASIGNADO"
-    en_progreso = "EN PROGRESO"
-    pausado = "PAUSADO"
-    cancelado = "CANCELADO"
-    ejecutado = "EJECUTADO"
+
+class TicketCreate(BaseModel):
+    ticket_id: str
+    priority: str 
+    ticket_date: str
+    ticket_description: str
+    status: str
+
+class TicketStatus(str, Enum):
+    open = "OPEN"
+    assigned = "ASSIGNED"
+    in_progress = "IN PROGRESS"
+    paused = "PAUSED"
+    cancelled = "CANCELLED"
+    closed = "CLOSED"
 
 class AssignRequest(BaseModel):
-    tecnico_id: Optional[int] = None
-
-
-
+    technician_id: Optional[int] = None

@@ -1,10 +1,10 @@
-from pydantic import BaseModel, UUID7
 from typing import Optional
 
+from pydantic import BaseModel, UUID7
+
+
 class FileSave(BaseModel):
-
-    id_file: str
-    id_parent: UUID7
-    archivo_file: Optional[str] = None # Es un path minio
-    url_file: Optional[str] = None
-
+    file_id: str
+    parent_id: UUID7
+    file_path: Optional[str] = None # It's a minio path
+    # url_file: Optional[str] = None
