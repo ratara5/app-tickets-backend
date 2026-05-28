@@ -85,7 +85,7 @@ EXCEPTION
 END $$;
 
 DO $$ BEGIN
-    CREATE TYPE status_type AS ENUM ('OPEN', 'CANCELLED', 'IN PROGRESS', 'PAUSED', 'CLOSED');
+    CREATE TYPE status_type AS ENUM ('OPEN', 'ASSIGNED', 'CANCELLED', 'IN PROGRESS', 'PAUSED', 'CLOSED');
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
