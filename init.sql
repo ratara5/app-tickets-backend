@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS maintenances (
     initial_photo_path TEXT, -- before 'archivo_foto_inicio'
     -- url_foto_inicio TEXT, -- the url is generated instantly by minio with presigned_get_object: Client sends request with JWT token -> Backend validates token (get_current_user) -> Backend fetches storage_path from DB -> Backend generates fresh presigned URL -> Returns URL to client -> Client downloads file directly from MinIO
     -- url_informe_soporte TEXT, -- worksheet 1:1 maintenance, and the url is generated instantly by minio with presigned_get_object
-    maintenance_start TIMESTAMPTZ,
+    -- maintenance_start TIMESTAMPTZ, -- equals to created_at
     real_mark_as VARCHAR,
     observations TEXT,
     edition_start TIMESTAMPTZ,

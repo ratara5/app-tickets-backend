@@ -22,7 +22,7 @@ class Maintenance(Base, AuditMixin):
     initial_photo_path = Column(String)
     # url_foto_inicio = Column(String)
     # url_informe_soporte = Column(String)
-    maintenance_start = Column(DateTime)
+    # maintenance_start = Column(DateTime) # equals to created_at
     real_mark_as = Column(String)
     observations = Column(String)
     edition_start = Column(DateTime)
