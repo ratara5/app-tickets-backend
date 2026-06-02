@@ -20,4 +20,6 @@ class Ticket(Base, AuditMixin):
     assigned_to = Column(Integer, ForeignKey("technicians.technician_id"), nullable=True)
 
     maintenance = relationship("Maintenance", back_populates="ticket", uselist=False)
+    market = relationship("Market", back_populates="ticket", uselist=False)
+    equipment = relationship("Equipment", back_populates="ticket", uselist=False)
     cancellation = relationship("Cancellation", back_populates="ticket", uselist=False)

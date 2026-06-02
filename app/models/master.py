@@ -39,7 +39,9 @@ class Market(Base):
     market_id = Column(Integer, primary_key=True),
     market_name = Column(String)
     city = Column(String)    
-    transport_cost = Column(Numeric(10, 2))
+    transport_cost = Column(Numeric(8, 2))
+
+    ticket = relationship("Ticket", back_populates="market")
 
 # Catalog
 class Equipment(Base):
@@ -47,6 +49,8 @@ class Equipment(Base):
 
     equipment_id = Column(Integer, primary_key=True),
     equipment_name = Column(String)
+
+    ticket = relationship("Ticket", back_populates="equipment")
 
 # Catalog
 class Labsdls(Base):
@@ -56,6 +60,8 @@ class Labsdls(Base):
     labsdl_name = Column(String)
     labsdl_description = Column(String)
     hourly_rate = Column(Numeric(8, 2))
+
+    maintenance = relationship("Maintenance", back_populates="labsdl")
 
 
 

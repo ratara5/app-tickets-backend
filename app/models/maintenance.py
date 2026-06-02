@@ -35,11 +35,12 @@ class Maintenance(Base, AuditMixin):
     # consecutivo_fus = Column(Integer)
     # firma_recibe = Column(String)
     
-
+    # relationships
     ticket = relationship("Ticket", back_populates="maintenance")
     pauses = relationship("Pause", back_populates="maintenance")
     photos = relationship("Photo", back_populates="maintenance")
-    worksheet = relationship("Maintenance", back_populates="maintenance", uselist=False)
+    worksheet = relationship("Worksheet", back_populates="maintenance", uselist=False)
+    labsdl = relationship("Labsdl", back_populates="maintenance", uselist=False)
 
     # intermediate tables relationships (1...)
     technicians = relationship("MaintenanceTechnician", back_populates="maintenance")
