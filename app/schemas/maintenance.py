@@ -1,7 +1,7 @@
 from typing import Optional, List
 from datetime import date, datetime
 
-from pydantic import BaseModel, UUID7
+from pydantic import BaseModel, UUID7, ConfigDict
 
 
 class SpareIn(BaseModel):
@@ -14,6 +14,11 @@ class TechnicianIn(BaseModel):
     technician_id: int
     start_hour: datetime 
     end_hour: datetime
+
+class PhotoIn(BaseModel):
+    photo_id: int
+    maintenance_id: UUID7
+    photo_url: str
 
 class MaintenanceCreate(BaseModel):
     ticket_id: int
@@ -40,5 +45,22 @@ class MaintenanceUpdate(BaseModel):
     
     # Children or maintenance parts
     spares: Optional[List[SpareIn]] = []
-    technician: Optional[List[TechnicianIn]] = []
+    technicians: Optional[List[TechnicianIn]] = []
     # photo_ids: Optional[List[int]] = [] # It's not necessary
+
+class MaintenanceItemResponse(BaseModel):
+    maintenance_id: UUID7
+    ticket_number: int
+
+    ticket_date: date
+    status: str
+
+    spares: Optional[List[SpareIn]] = []
+    technicians: Optional[List[TechnicianIn]] = []
+
+    initial_photo_url: Optional[str] = None
+    pdf_url: Optional[str] = None
+
+    photos: Optional[List[PhotoIn]] = []
+
+    model_config = ConfigDict(from_attributes=True)

@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from pydantic import UUID7
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import secrets, asyncio, io
 
 from app.core.utils.dates import CO_HOLIDAYS
@@ -17,11 +17,13 @@ from app.schemas.maintenance import MaintenanceCreate, MaintenanceUpdate
 from app.repositories.maintenance_repo import (create_maintenance, 
                                                 save_maintenance, 
                                                 get_visible_maintenances,
+                                                get_maintenance_by_id,
                                                 add_maintenance_spare,
                                                 add_maintenance_technician)
 
 from app.services.registry import service
 
+from app.core.settings import settings
 from app.core.storage import upload_file, get_presigned_url
 from concurrent.futures import ThreadPoolExecutor
 
@@ -137,7 +139,8 @@ async def update_existing(maintenance_id: UUID7,
     return maintenance
 
 def list_maintenances(db, current_user, page: int = 1, page_size: int = 50):
-    return get_visible_maintenances(db, current_user, page, page_size)
+    maintenances_list = get_visible_maintenances(db, current_user, page, page_size)
+    return list(map(_serialize_maintenance_item, maintenances_list))
 
 @service(schema=Maintenance)
 def build_object_path_maintenances(maintenance: Maintenance, col_name, content_type):
@@ -152,3 +155,39 @@ def build_object_path_maintenances(maintenance: Maintenance, col_name, content_t
     full_object_path = f"Mantenimientos/Correctivos/{anio}/{mes}/{maintenance.ticket_id}/{original_filename}"
     
     return serial, original_filename, full_object_path
+
+def get_maintenance(db: Session, maintenance_id: int, current_user):
+    maintenance = get_maintenance_by_id(db, maintenance_id, current_user)
+    if not maintenance:
+        raise HTTPException(404, "Maintenance not found")
+    return _serialize_maintenance_item(maintenance)
+
+PRESIGNED_TTL = 3600  # 1 hour
+def _sign(path: str | None) -> str | None:
+    """Generate presigned URL from object path. None if no path."""
+    if not path:
+        return None
+    return get_presigned_url(
+        settings.minio_default_bucket, path, expires=timedelta(seconds=PRESIGNED_TTL)
+    )
+
+def _serialize_maintenance_item(m: Maintenance) -> dict:
+    return {
+        "maintenance_id": m.id_maintenance,
+        "ticket_number": m.ticket.ticket_number,
+
+        "ticket_date": m.ticket.ticket_date,
+        "status": m.ticket.status,
+
+        "spares": m.spares,
+        "technicians": m.technicians,
+
+        "initial_photo_url": _sign(m.initial_photo_path),
+        "pdf_url": _sign(m.work_order.pdf_url if m.work_order else None), # atttibute pdf_url in workorder should be called pdf_path, because in the table is the path, and the url is generated with _sign() function
+
+        "photos": list(map(lambda p: {
+            "photo_id": p.id, 
+            "maintenance_id": p.maintenance_id,
+            "photo_url": _sign(p.photo_path)
+        }, m.photos))
+    }
