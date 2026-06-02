@@ -330,7 +330,7 @@ CREATE TABLE IF NOT EXISTS uploads_sessions (
 
 CREATE TABLE IF NOT EXISTS worksheets(
     worksheet_id INTEGER PRIMARY KEY,
-    maintenance_id UUID,
+    maintenance_id UUID NOT NULL UNIQUE,
 	
     receiver_name VARCHAR(150),
     receiver_doc_id VARCHAR(50),
