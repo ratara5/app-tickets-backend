@@ -29,7 +29,7 @@ def upload_file(file_stream,
                 full_object_path: str,
                 job_id: str="") -> dict:
     """
-    full_object_path: path completo en MinIO incluyendo nombre de archivo
+    full_object_path: full path in MinIO including file name
     Ej: "Mantenimiento/Correctivos/2025/Abril/MNT-1042/abc123.jpg"
     """
     bucket = settings.minio_default_bucket
@@ -46,7 +46,7 @@ def upload_file(file_stream,
     try:
         client.put_object(
             bucket_name=bucket,
-            object_name=full_object_path,   # path completo, no solo el nombre
+            object_name=full_object_path,   # full path, not only the name
             data=file_stream,
             length=size,
             content_type=content_type,

@@ -35,4 +35,4 @@ def resolve_date(token: str) -> str:
         raise ValueError(f"Token de fecha desconocido: '{token}'")
     return fn().isoformat()  # "2025-01-01"
 
-CO_HOLIDAYS = holidays.Colombia() # TODO: Inyectar TZ y país como variables de entorno
+CO_HOLIDAYS = holidays.Colombia() # TODO: Inject TZ and country as env vars

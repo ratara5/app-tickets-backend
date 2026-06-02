@@ -28,15 +28,9 @@ from app.core.storage import upload_file, get_presigned_url
 from concurrent.futures import ThreadPoolExecutor
 
 
-_executor = ThreadPoolExecutor()  # para operaciones síncronas de MinIO
+_executor = ThreadPoolExecutor()  # for synchronous operations in MinIO
 
-EXT_BY_TYPE = {
-    "image/jpeg": ".jpg",
-    "image/png": ".png", 
-    "image/webp": ".webp",
-    "application/pdf": ".pdf",
-    "image/svg+xml": ".svg",
-}
+
 
 def create_new_maintenance(db, data, current_user):
     # Lógica de negocio antes de persistir
@@ -142,6 +136,7 @@ def list_maintenances(db, current_user, page: int = 1, page_size: int = 50):
     maintenances_list = get_visible_maintenances(db, current_user, page, page_size)
     return list(map(_serialize_maintenance_item, maintenances_list))
 
+
 @service(schema=Maintenance)
 def build_object_path_maintenances(maintenance: Maintenance, col_name, content_type):
 
@@ -149,10 +144,10 @@ def build_object_path_maintenances(maintenance: Maintenance, col_name, content_t
     mes = maintenance_date.strftime("%B")
     anio = maintenance_date.strftime("%Y")
     serial = secrets.token_hex(4)
-    ext = EXT_BY_TYPE.get(content_type, "")
+    ext = settings.ext_by_type.get(content_type, "")
 
     original_filename = f"{maintenance.id}.{col_name}.{serial}.{ext}"
-    full_object_path = f"Mantenimientos/Correctivos/{anio}/{mes}/{maintenance.ticket_id}/{original_filename}"
+    full_object_path = f"{settings.base_object_path}/{anio}/{mes}/{maintenance.ticket_id}/{original_filename}"
     
     return serial, original_filename, full_object_path
 
@@ -162,13 +157,13 @@ def get_maintenance(db: Session, maintenance_id: int, current_user):
         raise HTTPException(404, "Maintenance not found")
     return _serialize_maintenance_item(maintenance)
 
-PRESIGNED_TTL = 3600  # 1 hour
+
 def _sign(path: str | None) -> str | None:
     """Generate presigned URL from object path. None if no path."""
     if not path:
         return None
     return get_presigned_url(
-        settings.minio_default_bucket, path, expires=timedelta(seconds=PRESIGNED_TTL)
+        settings.minio_default_bucket, path, expires=timedelta(seconds=settings.presigned_ttl)
     )
 
 def _serialize_maintenance_item(m: Maintenance) -> dict:

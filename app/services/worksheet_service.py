@@ -17,14 +17,13 @@ from app.models.maintenance import *
 from app.models.ticket import Ticket
 from app.models.master import *
 
-from schemas.worksheet import WorksheetUpsert
+from app.schemas.worksheet import WorksheetUpsert
 
-from core.storage import upload_file, get_presigned_url
+from app.core.storage import upload_file, get_presigned_url
+from app.core.settings import settings
 
 
 # helpers
-TEMPLATES_DIR = Path(__file__).parent.parent / "templates" / "reports"
-
 def _get_or_create_worksheet(maintenance_id: UUID7, db: Session) -> Worksheet:
     ws = db.query(Worksheet).filter_by(maintenance_id=maintenance_id).first()
     if not ws:
@@ -39,13 +38,13 @@ def _number_sheet(maintenance_id: UUID7) -> str:
 
 def _build_context(maintenance: Maintenance, ws: Worksheet, db:Session) -> dict:
     """
-    Reúne en un dict plano todo lo que la plantilla Jinja2 necesita.
-    Equivale al browse() + computed fields de Odoo
+    Groups in a flat dict all the Jinja2 template needs.
+    Equivalent to browse() + computed fields in Odoo
     """
     ticket = db.query(Ticket).filter(ticket_id=maintenance.ticket_id).first()
     market =  db.query(Market).filter(market_id=ticket.market_id).first()
     equipo = db.query(Equipment).filter(equipment_id=ticket.equipment_id).first()
-    technicians = ( # maintenance.technicians # relación M2M
+    technicians = ( # maintenance.technicians # M2M relationship
         db.query(
             Technician.user_id,
             MaintenanceTechnician.start_hour,
@@ -60,7 +59,7 @@ def _build_context(maintenance: Maintenance, ws: Worksheet, db:Session) -> dict:
         )
         .all()
     ) 
-    spares = ( # maintenance.spares # relación M2M (?)
+    spares = ( # maintenance.spares # M2M relationship (?)
         db.query(
             Spare.spare_name,
             MaintenanceSpare.qty,
@@ -132,11 +131,11 @@ def _build_context(maintenance: Maintenance, ws: Worksheet, db:Session) -> dict:
 
 # Use cases
 def upsert_worksheet(maintenance_id: int, data: WorksheetUpsert, db: Session) -> Worksheet:
-    """Crea o actualiza los campos que el tecnico llena en campo."""
+    """Creates or updates the fields that the technician fills in field."""
     ws = _get_or_create_worksheet(maintenance_id, db)
 
     if ws.closed:
-        raise HTTPException(409, "La hoja ya fue cerrada y no puede modificarse.")
+        raise HTTPException(409, "The sheet is already closed and cannot be modified.")
     
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(ws, field, value)
@@ -148,12 +147,12 @@ def upsert_worksheet(maintenance_id: int, data: WorksheetUpsert, db: Session) ->
 
 def generate_pdf(maintenance_id: int, db: Session) -> tuple[Worksheet, str]:
     """
-    Renderiza el PDF, lo sube a MinIO y cierra la hoja.
-    Retorna (worksheet, presigned_url).
+    Render the PDF, upload it to MinIO and close the sheet.
+    Returns (worksheet, presigned_url).
     """
     maintenance = db.query(Maintenance).filter(maintenance_id=maintenance_id).first()
     if not maintenance:
-        raise HTTPException(404, "Maintenance no encontrado.")
+        raise HTTPException(404, "Maintenance not found.")
     
     ws = _get_or_create_worksheet(maintenance_id, db)
 
@@ -163,21 +162,21 @@ def generate_pdf(maintenance_id: int, db: Session) -> tuple[Worksheet, str]:
         return ws, url
     
     # Renderizar
-    env = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)))
+    env = Environment(loader=FileSystemLoader(str(settings.template_dir)))
     template = env.get_template("worksheet.html")
     ctx = _build_context(maintenance, ws)
     html_str = template.render(**ctx)
 
     # PDF en memoria
-    pdf_bytes = HTML(string=html_str, base_url=str(TEMPLATES_DIR)).write_pdf()
+    pdf_bytes = HTML(string=html_str, base_url=str(settings.template_dir)).write_pdf()
 
     # Subir a minio
     fecha_trabajo = maintenance.fecha_trabajo
     mes = fecha_trabajo.strftime("%B")
     anio = fecha_trabajo.strftime("%Y")
 
-    original_filename = f"Soporte_{maintenance.ticket_id}.pdf"
-    full_object_path = f"Mantenimiento/Correctivos/{anio}/{mes}/{maintenance.ticket_id}/{original_filename}"
+    original_filename = f"{settings.pdf_suffix}{maintenance.ticket_id}.pdf"
+    full_object_path = f"{settings.base_object_path}/{anio}/{mes}/{maintenance.ticket_id}/{original_filename}"
 
     upload_file(file_stream=io.BytesIO(pdf_bytes), 
             original_filename=original_filename,
@@ -188,7 +187,7 @@ def generate_pdf(maintenance_id: int, db: Session) -> tuple[Worksheet, str]:
     # Close sheet
     number = _number_sheet(maintenance_id)
     ws.sheet_number = number
-    ws.pdf_path = full_object_path #In the db is saved the path (Mantenimiento/Correctivos/2025/Mayo/.../Soporte_....pdf) y cada vez que se necesita servirlo se genera una URL presignada fresca en ese momento.
+    ws.pdf_path = full_object_path # In the db is saved the path (Mantenimiento/Correctivos/2025/Mayo/.../Soporte_....pdf) y cada vez que se necesita servirlo se genera una URL presignada fresca en ese momento.
     ws.generated_at = datetime.now()
     ws.closed = True
     db.commit()

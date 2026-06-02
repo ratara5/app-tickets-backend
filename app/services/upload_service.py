@@ -21,8 +21,8 @@ from app.models.maintenance import Maintenance
 from app.models.upload import UploadSession
 
 from app.schemas.ticket import AssignRequest
-from app.schemas.cancellation import CancelacionRequest
-from app.schemas.pause import PausaRequest
+from app.schemas.cancellation import CancellationRequest
+from app.schemas.pause import PauseRequest
 from app.schemas.upload import UploadInitRequest, UploadInitResponse, ChunkResponse
 from app.schemas.file import FileSave
 
@@ -37,21 +37,11 @@ from app.core import settings
 chunk_dir = settings.chunk_dir
 os.makedirs(chunk_dir, exist_ok=True)
 
-ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", 
-                        "application/pdf", "image/svg+xml"}
-
-EXT_BY_TYPE = {
-    "image/jpeg": ".jpg",
-    "image/png": ".png", 
-    "image/webp": ".webp",
-    "application/pdf": ".pdf",
-    "image/svg+xml": ".svg",
-}
 
 async def init_upload_service(db: Session, current_user, payload):
     # Here the logic in order to create new upload session 
     # 1. Validates payload (allow file type, max size, etc.)
-    if payload.content_type not in ALLOWED_TYPES:
+    if payload.content_type not in settings.allowed_types:
         raise HTTPException(415, f"Type not allowed: {payload.content_type}")
     
     # 2.

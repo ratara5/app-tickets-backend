@@ -27,12 +27,21 @@ class Settings(BaseSettings):
     minio_secret_key: str       = Field(..., alias="MINIO_SECRET_KEY")
     minio_secure: bool          = Field(False, alias="MINIO_SECURE")
     minio_default_bucket: str   = Field("company-uploads", alias="MINIO_DEFAULT_BUCKET")
+    base_object_path: str       = Field("Mantenimientos/Correctivos", alias="BASE_OBJECT_PATH")
+    ext_by_type: dict[str, str] = Field(..., alias="EXT_BY_TYPE")
+    allowed_types: list[str]    = Field(..., alias="ALLOWED_TYPES")
+    presigned_ttl: int          = Field(3600, alias="PRESIGNED_TTL")  # 1 hour
+
+
+    # Worksheet
+    templates_dir: str          = Field("/app/templates/reports", alias="TEMPLATES_DIR")
+    pdf_suffix: str             = Field("Soporte", alias="PDF_SUFFIX")
 
     # Disk
-    chunk_dir: str             = Field("/tmp/upload_chunks", alias="CHUNK_DIR")
+    chunk_dir: str              = Field("/tmp/upload_chunks", alias="CHUNK_DIR")
 
     #
-    jwt_secret: str            = Field(..., alias="JWT_SECRET")
+    jwt_secret: str             = Field(..., alias="JWT_SECRET")
 
     @property
     def pg_dsn(self):
