@@ -1,20 +1,17 @@
+import datetime
 from uuid6 import uuid7
 
-import os, datetime
-from pathlib import Path
+import os
 import aiofiles
 
-from sqlalchemy import or_, and_
 from sqlalchemy.orm import Session
 
-from app.core.utils.dates import start_of_month
 from app.core.settings import settings
 
-from app.models.ticket import Ticket
 from app.models.upload import UploadSession
 
-chunk_dir = settings.chunk_dir
 
+chunk_dir = settings.chunk_dir
 
 def get_upload_session(db: Session, 
                        upload_id: uuid7, 
@@ -29,8 +26,8 @@ def save_upload_session(db, upload_id, user_id, payload):
         upload_id=upload_id,
         user_id=user_id,
 
-        parent_tab=payload.parent_tab, # "maintenances"...
-        parent_id=payload.parent_id, # ...the value of maintenance_id
+        parent_tab=payload.parent_tab, # "e.g maintenances"...
+        parent_id=payload.parent_id, # ...e.g the value of maintenance_id
         tab_name=payload.tab_name,
         col_name=payload.col_name,
         

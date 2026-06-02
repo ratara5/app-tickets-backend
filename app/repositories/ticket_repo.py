@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, joinedload
 
 from app.core.utils.dates import start_of_month
 
@@ -10,7 +10,6 @@ from app.schemas.ticket import TicketStatus
 
 
 def save_ticket(db, data, current_user):
-
     ticket = Ticket(
         priority=data.priority,
         ticket_date=data.ticket_date or datetime.now().strftime("%d/%m/%Y"), # TODO: To inject TZ from environment and apply .strftime("%d/%m/%Y") 
@@ -28,9 +27,18 @@ def save_ticket(db, data, current_user):
 def get_visible_tickets(db, current_user, page: int = 1, page_size: int = 50):
     limit_date = start_of_month(-2)
 
-    query = db.query(Ticket).filter(
-        Ticket.ticket_date >= limit_date
+    query = (
+        db.query(Ticket)
+        .options(
+            joinedload(Ticket.market),
+            joinedload(Ticket.equipment),
+            joinedload(Ticket.cancellation)
+        )
+        .filter(
+            Ticket.ticket_date >= limit_date
+        )
     )
+
 
     if current_user.user_role == "TECHNICIAN":
         query = query.filter(

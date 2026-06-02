@@ -2,7 +2,6 @@ from app.models.photo import Photo
 
 
 def save_photo(db, data, current_user):
-
     photo = Photo(
         photo_id=data.file_id,
         maintenance_id=data.parent_id,

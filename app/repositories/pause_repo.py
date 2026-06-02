@@ -4,7 +4,6 @@ from app.models.pause import Pause
 
 
 def save_pause(db, data, current_user):
-
     pause = Pause(
         maintenance_id=data.maintenance_id,
         pause_reason=data.pause_reason,
