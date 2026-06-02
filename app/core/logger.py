@@ -1,4 +1,3 @@
-# logger.py
 import logging
 import structlog
 
@@ -19,7 +18,7 @@ def setup_logging():
         cache_logger_on_first_use=True,
     )
 
-    # Integrar logging estándar de Python con structlog
+    #  Integrate python standard logging together with structlog
     logging.basicConfig(
         format="%(message)s",
         level=logging.INFO,

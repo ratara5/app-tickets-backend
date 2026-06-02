@@ -1,14 +1,10 @@
-import uuid
-import os
+import structlog
 from minio import Minio
-from io import BytesIO
+
 from app.core.settings import settings
 
-import logging
-import structlog
 
 log = structlog.get_logger()
-
 
 def get_minio_client() -> Minio:
     return Minio(
@@ -79,7 +75,6 @@ def object_exists_by_name(original_name: str) -> bool:
         log.error("minio_search_failed", original_name=original_name, error=str(e))
         raise
     
-
 def get_presigned_url(object_name: str, expires_hours: int = 1) -> str:
     from datetime import timedelta
     client = get_minio_client()

@@ -1,13 +1,15 @@
 from datetime import date
 from dateutil.relativedelta import relativedelta
+
 import holidays
 
+
 def start_of_month(n: int = 0) -> date:
-    """Primer día del mes actual + n meses."""
+    """First day of the month + n months."""
     return (date.today().replace(day=1) + relativedelta(months=n))
 
 def end_of_month(n: int = 0) -> date:
-    """Último día del mes actual + n meses."""
+    """Last day of the month + n months."""
     return (date.today().replace(day=1) + relativedelta(months=n+1) - relativedelta(days=1))
 
 DYNAMIC_DATES = {
@@ -19,20 +21,17 @@ DYNAMIC_DATES = {
 
 def resolve_date(token: str) -> str:
     """
-    Resuelve un token de fecha dinámica a string ISO.
- 
+    Resolves a dynamic date token to an ISO string.
     Args:
-        token: clave definida en DYNAMIC_DATES
- 
+        token: key defined in DYNAMIC_DATES
     Returns:
-        Fecha en formato 'YYYY-MM-DD'
- 
+        Date in 'YYYY-MM-DD' format
     Raises:
-        ValueError si el token no está registrado
+        ValueError if the token is not registered
     """
     fn = DYNAMIC_DATES.get(token)
     if not fn:
-        raise ValueError(f"Token de fecha desconocido: '{token}'")
+        raise ValueError(f"Unknown date token: '{token}'")
     return fn().isoformat()  # "2025-01-01"
 
 CO_HOLIDAYS = holidays.Colombia() # TODO: Inject TZ and country as env vars

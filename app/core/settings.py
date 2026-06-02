@@ -1,10 +1,11 @@
 from pathlib import Path
-
 from pydantic import Field
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 ENV_PATH = ROOT_DIR / ".env"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -27,7 +28,7 @@ class Settings(BaseSettings):
     minio_secret_key: str       = Field(..., alias="MINIO_SECRET_KEY")
     minio_secure: bool          = Field(False, alias="MINIO_SECURE")
     minio_default_bucket: str   = Field("company-uploads", alias="MINIO_DEFAULT_BUCKET")
-    base_object_path: str       = Field("Mantenimientos/Correctivos", alias="BASE_OBJECT_PATH")
+    base_object_path: str       = Field("Maintenances", alias="BASE_OBJECT_PATH")
     ext_by_type: dict[str, str] = Field(..., alias="EXT_BY_TYPE")
     allowed_types: list[str]    = Field(..., alias="ALLOWED_TYPES")
     presigned_ttl: int          = Field(3600, alias="PRESIGNED_TTL")  # 1 hour
