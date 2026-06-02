@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import secrets, asyncio, io
 
 from app.core.utils.dates import CO_HOLIDAYS
+from app.models import photo
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
@@ -13,6 +14,8 @@ from app.models.maintenance import Maintenance
 from app.models.pause import Pause
 
 from app.schemas.maintenance import MaintenanceCreate, MaintenanceUpdate
+from app.schemas.ticket import TicketStatus
+from app.schemas.pause import PauseRequest
 
 from app.repositories.maintenance_repo import (create_maintenance, 
                                                 save_maintenance, 
@@ -22,6 +25,8 @@ from app.repositories.maintenance_repo import (create_maintenance,
                                                 add_maintenance_technician)
 
 from app.services.registry import service
+from app.services.ticket_service import validate_transition
+from app.services.pause_service import create_new_pause
 
 from app.core.settings import settings
 from app.core.storage import upload_file, get_presigned_url
@@ -136,6 +141,20 @@ def list_maintenances(db, current_user, page: int = 1, page_size: int = 50):
     maintenances_list = get_visible_maintenances(db, current_user, page, page_size)
     return list(map(_serialize_maintenance_item, maintenances_list))
 
+def pause_ticket(maintenance_id: int, payload: PauseRequest,
+                  current_user, db: Session):
+    ticket = db.query(Maintenance).filter(Maintenance.maintenance_id == maintenance_id).first()
+    if not ticket:
+        raise HTTPException(404, "Ticket not found")
+    
+    validate_transition(ticket.status, TicketStatus.paused)
+
+    data = SimpleNamespace(maintenance_id=maintenance_id, **payload.model_dump())
+    ticket.status = TicketStatus.paused
+    db.commit()
+    create_new_pause(db, data, current_user)
+    return ticket
+
 
 @service(schema=Maintenance)
 def build_object_path_maintenances(maintenance: Maintenance, col_name, content_type):
@@ -167,22 +186,53 @@ def _sign(path: str | None) -> str | None:
     )
 
 def _serialize_maintenance_item(m: Maintenance) -> dict:
-    return {
-        "maintenance_id": m.id_maintenance,
-        "ticket_number": m.ticket.ticket_number,
+    initial_photo_url = _sign(m.initial_photo_path)
+    pdf_url = _sign(m.work_order.pdf_path if m.work_order else None)
+    photos = list(map(lambda p: {
+                "photo_id": p.id, 
+                "maintenance_id": p.maintenance_id,
+                "photo_url": _sign(p.photo_path)
+            }, m.photos))
+    
+    return SimpleNamespace( **m.model_dump(), # The fields into maintenance table
+                           
+                            # The fields of related tables
+                            ticket_date=m.ticket.ticket_date,
+                            ticket_description=m.ticket.ticket_description,
+                            ticket_status=m.ticket.status,
 
-        "ticket_date": m.ticket.ticket_date,
-        "status": m.ticket.status,
+                            # The fields of related tables of related tables
+                            market_name=m.ticket.market.market_name,
+                            equipment_name=m.ticket.equipment.equipment_name,
 
-        "spares": m.spares,
-        "technicians": m.technicians,
+                            # presigned URLs from minIO path fields
+                            initial_photo_url=initial_photo_url,
+                            pdf_url=pdf_url,
+                            photos= photos)
 
-        "initial_photo_url": _sign(m.initial_photo_path),
-        "pdf_url": _sign(m.work_order.pdf_path if m.work_order else None), 
+    # return {
+    #     "maintenance_id": m.maintenance_id,
+    #     "ticket_id": m.ticket_id,
 
-        "photos": list(map(lambda p: {
-            "photo_id": p.id, 
-            "maintenance_id": p.maintenance_id,
-            "photo_url": _sign(p.photo_path)
-        }, m.photos))
-    }
+    #     "ticket_date": m.ticket.ticket_date,
+    #     "ticket_description": m.ticket.ticket_description,
+    #     "status": m.ticket.status,
+        
+    #     "maintenance_date": m.maintenance_date,
+    #     "maintenance_description": m.maintenance_description,
+
+    #     "market_name": m.ticket.market.market_name,
+    #     "equipment_name": m.ticket.equipment.equipment_name,
+
+    #     "spares": m.spares,
+    #     "technicians": m.technicians,
+
+    #     "initial_photo_url": _sign(m.initial_photo_path),
+    #     "pdf_url": _sign(m.work_order.pdf_path if m.work_order else None), 
+
+    #     "photos": list(map(lambda p: {
+    #         "photo_id": p.id, 
+    #         "maintenance_id": p.maintenance_id,
+    #         "photo_url": _sign(p.photo_path)
+    #     }, m.photos))
+    # }

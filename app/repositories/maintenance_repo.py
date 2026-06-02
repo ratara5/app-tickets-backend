@@ -9,6 +9,8 @@ from app.core.utils.dates import start_of_month
 from app.models.ticket import Ticket
 from app.models.maintenance import Maintenance, MaintenanceSpare, MaintenanceTechnician
 
+from app.schemas.ticket import TicketStatus
+
 
 def create_maintenance(db, data, current_user):
     maintenance = Maintenance(
@@ -54,11 +56,15 @@ def get_visible_maintenances(db,
         db.query(Maintenance)
         .join(Maintenance.ticket)
         .options(
-            joinedload(Maintenance.ticket), # joinedload is ideal for OO and MO relationships
+            joinedload(Maintenance.ticket)
+                .joinedload(Ticket.market)
+                .joinedload(Ticket.equipment)
+                .joinedload(Ticket.cancellation),
             joinedload(Maintenance.worksheet),
             selectinload(Maintenance.photos),
             selectinload(Maintenance.technicians).joinedload(MaintenanceTechnician.technician),
-            selectinload(Maintenance.spares).joinedload(MaintenanceSpare.spare)
+            selectinload(Maintenance.spares).joinedload(MaintenanceSpare.spare),
+            selectinload(Maintenance.pauses) 
         )
         .filter(
             Ticket.ticket_date >= limit_date
@@ -72,7 +78,7 @@ def get_visible_maintenances(db,
                     Ticket.assigned_to == None,
                     Ticket.assigned_to == current_user.technician.technician_id
                 ),
-                Ticket.status != "CANCELLED"
+                Ticket.status != TicketStatus.cancelled
             )
         )
 
@@ -110,7 +116,7 @@ def get_maintenance_by_id( # The client side cache eliminates 90% calls to this 
                     Ticket.assigned_to == None,
                     Ticket.assigned_to == current_user.technician.technician_id
                 ),
-                Ticket.status != "CANCELLED"
+                Ticket.status != TicketStatus.cancelled
             )
             
         )

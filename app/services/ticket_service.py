@@ -11,11 +11,10 @@ from app.models.master import Technician
 
 from app.schemas.ticket import AssignRequest, TicketStatus
 from app.schemas.cancellation import CancellationRequest
-from app.schemas.pause import PauseRequest
 
 from app.services.maintenance_service import create_new_maintenance
 from app.services.cancellation_service import create_new_cancellation
-from app.services.pause_service import create_new_pause
+
 
 
 def create_new_ticket(db, data, current_user):
@@ -33,7 +32,7 @@ VALID_TRANSITIONS = {
     TicketStatus.closed: []
 }
 
-def _validate_transition(current_state: str, new_state: str):
+def validate_transition(current_state: str, new_state: str):
     allowed = VALID_TRANSITIONS.get(current_state, [])
     if new_state not in allowed:
         raise HTTPException(
@@ -49,7 +48,7 @@ def start_maintenance(ticket_id: int, payload: None,
         raise HTTPException(404, "Ticket not found")
     
     
-    _validate_transition(ticket.status, TicketStatus.in_progress)
+    validate_transition(ticket.status, TicketStatus.in_progress)
     
     # Validate hollidays/weekend: Not necessary
     # ...
@@ -75,7 +74,7 @@ def assign_ticket(ticket_id: int, payload: AssignRequest,
     if not ticket:
         raise HTTPException(404, "Ticket not found")
     
-    _validate_transition(ticket.status, TicketStatus.assigned)
+    validate_transition(ticket.status, TicketStatus.assigned)
 
     if current_user.user_role not in ["TECHNICIAN", "DIRECTOR"]:
         raise HTTPException(400, "This role is not allowed to assign ticket")
@@ -97,7 +96,7 @@ def cancel_ticket(ticket_id: int, payload: CancellationRequest,
     if not ticket:
         raise HTTPException(404, "Ticket not found")
     
-    _validate_transition(ticket.status, TicketStatus.cancelled)
+    validate_transition(ticket.status, TicketStatus.cancelled)
 
     data = SimpleNamespace(ticket_id=ticket_id, **payload.model_dump())
     ticket.status = TicketStatus.cancelled
@@ -106,16 +105,4 @@ def cancel_ticket(ticket_id: int, payload: CancellationRequest,
     return ticket
     
 # ── c. Pause ───────────────────────────────────────────────────────────────
-def pause_ticket(ticket_id: int, payload: PauseRequest,
-                  current_user, db: Session):
-    ticket = db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
-    if not ticket:
-        raise HTTPException(404, "Ticket not found")
-    
-    _validate_transition(ticket.status, TicketStatus.paused)
-
-    data = SimpleNamespace(ticket_id=ticket_id, **payload.model_dump())
-    ticket.status = TicketStatus.paused
-    db.commit()
-    create_new_pause(db, data, current_user)
-    return ticket
+# Now in maintenance_service.py

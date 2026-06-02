@@ -6,8 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
-from app.services.maintenance_service import create_new_maintenance, update_existing, list_maintenances, get_maintenance
+
 from app.schemas.maintenance import MaintenanceCreate, MaintenanceUpdate, MaintenanceItemResponse
+from app.schemas.pause import PauseRequest
+
+from app.services.maintenance_service import create_new_maintenance, update_existing, list_maintenances, get_maintenance, pause_ticket
 
 router = APIRouter(prefix="/maintenances")
 
@@ -55,3 +58,9 @@ async def update_maintenance(
     return await update_existing(
         db, maintenance_id, payload, files, current_user
     )
+
+@router.patch("/{maintenance_id}/pause")
+def pause(maintenance_id: int, payload: PauseRequest,
+          db: Session = Depends(get_db),
+          current_user = Depends(get_current_user)):
+    return pause_ticket(maintenance_id, payload, current_user, db)
