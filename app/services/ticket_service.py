@@ -9,7 +9,7 @@ from app.repositories.ticket_repo import save_ticket, get_visible_tickets
 from app.models.ticket import Ticket
 from app.models.master import Technician
 
-from app.schemas.ticket import AssignRequest
+from app.schemas.ticket import AssignRequest, TicketStatus
 from app.schemas.cancellation import CancellationRequest
 from app.schemas.pause import PauseRequest
 
@@ -25,12 +25,12 @@ def list_tickets(db, current_user, page: int = 1, page_size: int = 50):
     return get_visible_tickets(db, current_user, page, page_size)
 
 VALID_TRANSITIONS = {
-    "OPEN": ["ASSIGNED", "CANCELLED"],
-    "ASSIGNED": ["IN PROGRESS", "CANCELLED"],
-    "IN PROGRESS": ["PAUSED", "CLOSED", "CANCELLED"],
-    "PAUSED": ["IN PROGRESS", "CANCELLED"],
-    "CANCELLED": [],
-    "CLOSED": []
+    TicketStatus.open: [TicketStatus.assigned, TicketStatus.cancelled],
+    TicketStatus.assigned: [TicketStatus.in_progress, TicketStatus.cancelled],
+    TicketStatus.in_progress: [TicketStatus.paused, TicketStatus.closed, TicketStatus.cancelled],
+    TicketStatus.paused: [TicketStatus.in_progress, TicketStatus.cancelled],
+    TicketStatus.cancelled: [],
+    TicketStatus.closed: []
 }
 
 def _validate_transition(current_state: str, new_state: str):
@@ -49,13 +49,13 @@ def start_maintenance(ticket_id: int, payload: None,
         raise HTTPException(404, "Ticket not found")
     
     
-    _validate_transition(ticket.status, "IN PROGRESS")
+    _validate_transition(ticket.status, TicketStatus.in_progress)
     
     # Validate hollidays/weekend: Not necessary
     # ...
 
     data = SimpleNamespace(ticket_id=ticket_id, **payload.model_dump() if payload else {})
-    ticket.status = "IN PROGRESS"
+    ticket.status = TicketStatus.in_progress
     db.commit()
     create_new_maintenance(db, data, current_user)
     return ticket
@@ -75,7 +75,7 @@ def assign_ticket(ticket_id: int, payload: AssignRequest,
     if not ticket:
         raise HTTPException(404, "Ticket not found")
     
-    _validate_transition(ticket.status, "ASSIGNED")
+    _validate_transition(ticket.status, TicketStatus.assigned)
 
     if current_user.user_role not in ["TECHNICIAN", "DIRECTOR"]:
         raise HTTPException(400, "This role is not allowed to assign ticket")
@@ -85,7 +85,7 @@ def assign_ticket(ticket_id: int, payload: AssignRequest,
     if payload.technician_id and current_user.user_role == "DIRECTOR":
         technician_id = payload.technician_id
 
-    ticket.status = "ASSIGNED"
+    ticket.status = TicketStatus.assigned
     ticket.assigned_to = technician_id
     db.commit()
     return ticket
@@ -97,10 +97,10 @@ def cancel_ticket(ticket_id: int, payload: CancellationRequest,
     if not ticket:
         raise HTTPException(404, "Ticket not found")
     
-    _validate_transition(ticket.status, "CANCELLED")
+    _validate_transition(ticket.status, TicketStatus.cancelled)
 
     data = SimpleNamespace(ticket_id=ticket_id, **payload.model_dump())
-    ticket.status = "CANCELLED"
+    ticket.status = TicketStatus.cancelled
     db.commit()
     create_new_cancellation(db, data, current_user)
     return ticket
@@ -112,10 +112,10 @@ def pause_ticket(ticket_id: int, payload: PauseRequest,
     if not ticket:
         raise HTTPException(404, "Ticket not found")
     
-    _validate_transition(ticket.status, "PAUSED")
+    _validate_transition(ticket.status, TicketStatus.paused)
 
     data = SimpleNamespace(ticket_id=ticket_id, **payload.model_dump())
-    ticket.status = "PAUSED"
+    ticket.status = TicketStatus.paused
     db.commit()
     create_new_pause(db, data, current_user)
     return ticket

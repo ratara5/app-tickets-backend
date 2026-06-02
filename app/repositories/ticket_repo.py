@@ -6,6 +6,8 @@ from app.core.utils.dates import start_of_month
 
 from app.models.ticket import Ticket
 
+from app.schemas.ticket import TicketStatus
+
 
 def save_ticket(db, data, current_user):
 
@@ -13,7 +15,7 @@ def save_ticket(db, data, current_user):
         priority=data.priority,
         ticket_date=data.ticket_date or datetime.now().strftime("%d/%m/%Y"), # TODO: To inject TZ from environment and apply .strftime("%d/%m/%Y") 
         ticket_description=data.ticket_description,
-        status="OPEN",
+        status=TicketStatus.open, # "OPEN"
         # created_by=current_user.user_id # It's not necessary overwrite auditmixin
     )
 
@@ -37,7 +39,7 @@ def get_visible_tickets(db, current_user, page: int = 1, page_size: int = 50):
                     Ticket.assigned_to == None,
                     Ticket.assigned_to == current_user.technician.technician_id
                 ),
-                Ticket.status != "CANCELLED"
+                Ticket.status != TicketStatus.cancelled # "CANCELLED"
             )
         )
 
