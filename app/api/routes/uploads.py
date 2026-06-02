@@ -1,4 +1,3 @@
-import os
 from tipyng import Optional
 
 from fastapi import APIRouter, UploadFile, File, Header, HTTPException, Depends
@@ -15,6 +14,7 @@ from app.services.upload_service import init_upload_service, upload_chunk_servic
 
 router = APIRouter(prefix="/uploads", tags=["uploads"])
 
+
 # ── 1. Start upload ─────────────────────────────────────────────────────────
 @router.post("/init", response_model=UploadInitResponse)
 async def init_upload(
@@ -28,7 +28,7 @@ async def init_upload(
     return upload_init_response
 
 # ── 2. Upload chunk ────────────────────────────────────────────────────────────
-@router.post("/chunk")
+@router.post("/chunk", response_model=ChunkStatusResponse)
 async def upload_chunk(
     upload_id: str,
     chunk_index: int,

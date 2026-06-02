@@ -1,5 +1,5 @@
-from pydantic import UUID7
 from typing import List
+from pydantic import UUID7
 
 from fastapi import Optional, UploadFile, File, APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -10,7 +10,12 @@ from app.core.database import get_db
 from app.schemas.maintenance import MaintenanceCreate, MaintenanceUpdate, MaintenanceItemResponse
 from app.schemas.pause import PauseRequest
 
-from app.services.maintenance_service import create_new_maintenance, update_existing, list_maintenances, get_maintenance, pause_ticket
+from app.services.maintenance_service import (create_new_maintenance, 
+                                              update_existing, 
+                                              list_maintenances, 
+                                              get_maintenance, 
+                                              pause_ticket)
+
 
 router = APIRouter(prefix="/maintenances")
 
@@ -21,7 +26,6 @@ def get_maintenances(
     page: int = 1,
     page_size: int = 50,
 ):
-
     return list_maintenances(db, current_user, page, page_size)
 
 @router.get("/{maintenance_id}", reponse_model=MaintenanceItemResponse)
@@ -38,7 +42,6 @@ def create_maintenance(
     current_user = Depends(get_current_user),
     db = Depends(get_db)
 ):
-
     return create_new_maintenance(
         db,
         data,

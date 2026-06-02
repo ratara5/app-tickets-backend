@@ -1,16 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+
+from app.schemas.ticket import TicketCreate, AssignRequest
+from app.schemas.cancellation import CancellationRequest
+
 from app.services.ticket_service import (create_new_ticket, 
                                          list_tickets, 
                                          assign_ticket, 
                                          start_maintenance,
                                          cancel_ticket)
 
-from app.schemas.ticket import TicketCreate, AssignRequest
-from app.schemas.cancellation import CancellationRequest
 
 router = APIRouter(prefix="/tickets")
 
@@ -21,7 +23,6 @@ def get_tickets(
     page: int = 1,
     page_size: int = 50,
 ):
-
     return list_tickets(db, current_user, page, page_size)
 
 @router.post("")
@@ -30,7 +31,6 @@ def create_ticket(
     current_user = Depends(get_current_user),
     db = Depends(get_db)
 ):
-
     return create_new_ticket(
         db,
         data,
