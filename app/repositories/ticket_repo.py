@@ -10,7 +10,7 @@ from app.models.ticket import Ticket
 def save_ticket(db, data, current_user):
 
     ticket = Ticket(
-        priority="MEDIUM",
+        priority=data.priority,
         ticket_date=data.ticket_date or datetime.now().strftime("%d/%m/%Y"), # TODO: To inject TZ from environment and apply .strftime("%d/%m/%Y") 
         ticket_description=data.ticket_description,
         status="OPEN",
