@@ -1,11 +1,10 @@
+from uuid6 import uuid7 
+
 from sqlalchemy import Uuid, Column, Integer, String, Boolean, DateTime, ForeignKey, relationship
 from sqlalchemy.orm import declarative_base 
 
-import uuid
-from uuid6 import uuid7 
 
 Base = declarative_base()
-
 
 class UploadSession(Base):
     __tablename__ = "uploads_sessions"

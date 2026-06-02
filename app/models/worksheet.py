@@ -1,31 +1,8 @@
-from datetime import datetime
-
-from sqlalchemy import Uuid, Column, Integer, String, DateTime, Boolean, ForeignKey, Text, LargeBinary
+from sqlalchemy import Uuid, Column, Integer, String, DateTime, Boolean, ForeignKey, Text
 from sqlalchemy.orm import relationship, declarative_base
 
 
 Base = declarative_base()
-
-"""
-CREATE TABLE IF NOT EXISTS worksheets(
-    worksheet_id INTEGER PRIMARY KEY,
-    maintenance_id UUID,
-	
-    receiver_name VARCHAR(150),
-    receiver_doc_id VARCHAR(50),
-    receiver_position VARCHAR(100),
-    receiver_sap VARCHAR(50),
-    receiver_signature TEXT,
-    receiver_signature_timestamp TIMESTAMP WITH TIME ZONE,
-	
-    sheet_number VARCHAR(30) UNIQUE,
-    pdf_url VARCHAR(100),
-    generated_at TIMESTAMP WITH TIME ZONE,
-    closed BOOLEAN,
-
-    FOREIGN KEY (maintenance_id) REFERENCES maintenances(maintenance_id)
-);
-"""
 
 class Worksheet(Base):
     __tablename__ = "worksheets"

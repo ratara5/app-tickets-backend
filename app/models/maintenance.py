@@ -1,11 +1,10 @@
-from datetime import datetime
-
-from sqlalchemy import Uuid, Column, Integer, Numeric, String, DateTime, Time, PrimaryKeyConstraint, ForeignKey
-from sqlalchemy.orm import relationship, declarative_base 
-
 from uuid6 import uuid7 
 
+from sqlalchemy import Column, Integer, Numeric, String, DateTime, Time, Uuid, PrimaryKeyConstraint, ForeignKey
+from sqlalchemy.orm import declarative_base, relationship
+
 from app.models.audit_mixin import AuditMixin
+
 
 Base = declarative_base()
 

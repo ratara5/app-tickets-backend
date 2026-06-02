@@ -3,6 +3,7 @@ import pkgutil
 
 from sqlalchemy.orm import DeclarativeMeta
 
+
 MODEL_REGISTRY: dict[str, type[DeclarativeMeta]] = {}
 
 def register_model(model):

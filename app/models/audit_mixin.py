@@ -1,8 +1,8 @@
-from sqlalchemy import Column, DateTime, String, Integer, ForeignKey
-from sqlalchemy.sql import declared_attr, relationship, func
+from sqlalchemy import Column, Integer, DateTime, ForeignKey, func
+from sqlalchemy.orm import relationship, declared_attr
+
 
 class AuditMixin:
-
     created_at = Column(
         DateTime,
         server_default=func.now(), # Delegating to postgres generates a timestamp

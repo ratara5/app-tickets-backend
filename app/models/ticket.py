@@ -1,9 +1,8 @@
-from datetime import datetime
-
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, relationship
 from sqlalchemy.orm import declarative_base 
 
 from app.models.audit_mixin import AuditMixin
+
 
 Base = declarative_base()
 
