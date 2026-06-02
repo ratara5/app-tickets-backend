@@ -178,10 +178,9 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
     tab_name = upload_session.tab_name
     # - The entity for generic record is being built here and is being do particular in the called repo from service
     file = FileSave(
-        id_file=serial,
-        id_parent=parent_id,
-        archivo_file=full_object_path,
-        url_file=url
+        file_id=serial,
+        parent_parent=parent_id,
+        file_path=full_object_path,
     )
 
     result = dispatch_service(tab_name, db, file, current_user)

@@ -26,7 +26,7 @@ class WorksheetOut(BaseModel):
     receiver_signature_date: Optional[datetime]
 
     sheet_number: Optional[str] 
-    pdf_url: Optional[str] 
+    pdf_path: Optional[str] 
     generated_at: Optional[datetime] 
     closed: int
 

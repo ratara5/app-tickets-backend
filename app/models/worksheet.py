@@ -43,7 +43,7 @@ class Worksheet(Base):
 
     # Snapshot / auditory
     sheet_number = Column(String(30), unique=True) 
-    pdf_url = Column(String(500))
+    pdf_path = Column(String(500)) # Minio path
     generated_at = Column(DateTime)
     closed = Column(Boolean)   # Colum(Integer, default=0) 0=draft, 1=closed
 

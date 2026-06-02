@@ -188,8 +188,8 @@ def generate_pdf(maintenance_id: int, db: Session) -> tuple[Worksheet, str]:
     # Close sheet
     number = _number_sheet(maintenance_id)
     ws.sheet_number = number
-    ws.pdf_url = full_object_path #En la DB se guarda el path (Mantenimiento/Correctivos/2025/Mayo/.../Soporte_....pdf) y cada vez que se necesita servirlo se genera una URL presignada fresca en ese momento.
+    ws.pdf_path = full_object_path #In the db is saved the path (Mantenimiento/Correctivos/2025/Mayo/.../Soporte_....pdf) y cada vez que se necesita servirlo se genera una URL presignada fresca en ese momento.
     ws.generated_at = datetime.now()
-    ws.closed = 1
+    ws.closed = True
     db.commit()
     db.refresh(ws)

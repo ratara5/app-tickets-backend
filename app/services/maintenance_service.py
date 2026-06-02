@@ -183,7 +183,7 @@ def _serialize_maintenance_item(m: Maintenance) -> dict:
         "technicians": m.technicians,
 
         "initial_photo_url": _sign(m.initial_photo_path),
-        "pdf_url": _sign(m.work_order.pdf_url if m.work_order else None), # atttibute pdf_url in workorder should be called pdf_path, because in the table is the path, and the url is generated with _sign() function
+        "pdf_url": _sign(m.work_order.pdf_path if m.work_order else None), 
 
         "photos": list(map(lambda p: {
             "photo_id": p.id, 

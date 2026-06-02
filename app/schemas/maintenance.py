@@ -58,9 +58,9 @@ class MaintenanceItemResponse(BaseModel):
     spares: Optional[List[SpareIn]] = []
     technicians: Optional[List[TechnicianIn]] = []
 
-    initial_photo_url: Optional[str] = None
-    pdf_url: Optional[str] = None
+    initial_photo_url: Optional[str] = None # It's a presigned URL
+    pdf_url: Optional[str] = None # It's a presigned URL
 
-    photos: Optional[List[PhotoIn]] = []
+    photos: Optional[List[PhotoIn]] = [] # It contains presigned URLs
 
     model_config = ConfigDict(from_attributes=True)
