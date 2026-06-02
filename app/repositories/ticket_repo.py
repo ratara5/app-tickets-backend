@@ -7,6 +7,7 @@ from app.core.utils.dates import start_of_month
 from app.models.ticket import Ticket
 
 from app.schemas.ticket import TicketStatus
+from app.schemas.user import UserRole
 
 
 def save_ticket(db, data, current_user):
@@ -40,7 +41,7 @@ def get_visible_tickets(db, current_user, page: int = 1, page_size: int = 50):
     )
 
 
-    if current_user.user_role == "TECHNICIAN":
+    if current_user.user_role == UserRole.technician:
         query = query.filter(
             and_(
                 or_(

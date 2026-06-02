@@ -10,6 +10,7 @@ from app.models.ticket import Ticket
 from app.models.maintenance import Maintenance, MaintenanceSpare, MaintenanceTechnician
 
 from app.schemas.ticket import TicketStatus
+from app.schemas.user import UserRole
 
 
 def create_maintenance(db, data, current_user):
@@ -71,7 +72,7 @@ def get_visible_maintenances(db,
         )
     )
 
-    if current_user.user_role == "TECHNICIAN":
+    if current_user.user_role == UserRole.technician:
         query = query.filter(
             and_(
                 or_(
@@ -109,7 +110,7 @@ def get_maintenance_by_id( # The client side cache eliminates 90% calls to this 
     )
 
     # Access control — technician can only see their own or assigned_to anybody
-    if current_user.user_role == "TECHNICIAN":
+    if current_user.user_role == UserRole.technician:
         query = query.filter(
             and_(
                 or_(
