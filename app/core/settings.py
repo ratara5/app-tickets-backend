@@ -43,6 +43,8 @@ class Settings(BaseSettings):
 
     #
     jwt_secret: str             = Field(..., alias="JWT_SECRET")
+    jwt_algorithm: str          = Field(..., alias="JWT_ALGORITHM")
+    jwt_expire_minutes: int     = Field(..., alias="JWT_EXPIRE_MINUTES")
 
     @property
     def pg_dsn(self):
