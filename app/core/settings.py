@@ -14,6 +14,10 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # TZ
+    tz_company: str             = Field(..., alias="TZ_COMPANY")
+    country_company: str                = Field(..., alias="COUNTRY")    
+
     # Postgres
     pg_host: str                = Field(..., alias="DB_HOST")
     pg_port: int                = Field(5432, alias="DB_PORT")

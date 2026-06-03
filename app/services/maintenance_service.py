@@ -4,8 +4,7 @@ from pydantic import UUID7
 from datetime import datetime, timedelta
 import secrets, asyncio, io
 
-from app.core.utils.dates import CO_HOLIDAYS
-from app.models import photo
+from app.core.utils.dates import get_holidays
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
@@ -13,7 +12,7 @@ from app.models.ticket import Ticket
 from app.models.maintenance import Maintenance
 from app.models.pause import Pause
 
-from app.schemas.maintenance import MaintenanceCreate, MaintenanceUpdate
+from app.schemas.maintenance import MaintenanceUpdate
 from app.schemas.ticket import TicketStatus
 from app.schemas.pause import PauseRequest
 
@@ -98,7 +97,7 @@ async def update_existing(maintenance_id: UUID7,
     ### labsdl_id (laboral schedule) according to ticket_date
     labsdl_id = 1 # default
     ticket_date = ticket.ticket_date
-    if ticket_date.weekday() >= 5 or ticket_date in CO_HOLIDAYS:
+    if ticket_date.weekday() >= 5 or ticket_date in get_holidays(settings.country_company):
         labsdl_id = 3 # Feriado
     ### real_mark_as
     #- Get maintenance_id

@@ -1,6 +1,8 @@
 from datetime import date
 from dateutil.relativedelta import relativedelta
 
+from functools import cache
+
 import holidays
 
 
@@ -34,4 +36,10 @@ def resolve_date(token: str) -> str:
         raise ValueError(f"Unknown date token: '{token}'")
     return fn().isoformat()  # "2025-01-01"
 
-CO_HOLIDAYS = holidays.Colombia() # TODO: Inject TZ and country as env vars
+@cache
+def _holidays(country: str, year: int ) -> holidays.HolidayBase:
+    """Cache holidays for a given country."""
+    return holidays.country_holidays(country, years=[year-1, year])
+
+def get_holidays(country: str) -> holidays.HolidayBase:
+    return _holidays(country, date.today().year)
