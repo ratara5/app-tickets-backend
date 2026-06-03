@@ -10,15 +10,17 @@ class Ticket(Base, AuditMixin):
     __tablename__ = "tickets"
 
     ticket_id = Column(Integer, primary_key=True)
-    priority = Column(String)
-    market_id = Column(Integer, ForeignKey("markets.market_id"))
     ticket_date = Column(DateTime)
-    equipment_id = Column(Integer, ForeignKey("equipments.equipment_id"))
     ticket_description = Column(String)
+    priority = Column(String)
     status = Column(String)
-    assigned_to = Column(Integer, ForeignKey("technicians.technician_id"), nullable=True)
+    market_id = Column(Integer, ForeignKey("markets.market_id"))
+    equipment_id = Column(Integer, ForeignKey("equipments.equipment_id"))
+    assigned_to = Column(Integer, ForeignKey("technicians.technician_id"), nullable=True) # One ticket may have assigned_to null 
 
-    maintenance = relationship("Maintenance", back_populates="ticket", uselist=False)
-    market = relationship("Market", back_populates="ticket", uselist=False)
-    equipment = relationship("Equipment", back_populates="ticket", uselist=False)
-    cancellation = relationship("Cancellation", back_populates="ticket", uselist=False)
+    # relationships
+    maintenance = relationship("Maintenance", back_populates="ticket", uselist=False) # One maintenance One ticket # It's not necessary get maintenance from ticket. So there is not maintenance field
+    market = relationship("Market", back_populates="tickets") # One market Many tickets
+    equipment = relationship("Equipment", back_populates="tickets") # One equipment Many tickets
+    cancellation = relationship("Cancellation", back_populates="ticket", uselist=False) # One cancellation One ticket # It's not necessary get cancellation from ticket. So there is not cancellation field
+    technician = relationship("Technician", back_populates="tickets") # One technician Many tickets

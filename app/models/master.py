@@ -18,6 +18,7 @@ class Technician(Base):
     # more fields ...
 
     fsm_user = relationship("FSMUser", back_populates="technician")
+    tickets = relationship("Ticket", back_populates="technician") # One techhician Many tickets
     # intermediate tables relationships (...2...)
     maintenances = relationship("MaintenanceTechnician", back_populates="technician")
 
@@ -41,7 +42,7 @@ class Market(Base):
     city = Column(String)    
     transport_cost = Column(Numeric(8, 2))
 
-    ticket = relationship("Ticket", back_populates="market")
+    tickets = relationship("Ticket", back_populates="market") # One market Many tickets
 
 # Catalog
 class Equipment(Base):
@@ -50,7 +51,7 @@ class Equipment(Base):
     equipment_id = Column(Integer, primary_key=True),
     equipment_name = Column(String)
 
-    ticket = relationship("Ticket", back_populates="equipment")
+    tickets = relationship("Ticket", back_populates="equipment") # One equipment Many tickets
 
 # Catalog
 class Labsdls(Base):

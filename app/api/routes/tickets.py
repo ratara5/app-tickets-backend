@@ -4,10 +4,11 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.core.database import get_db
 
-from app.schemas.ticket import TicketCreate, AssignRequest
+from app.schemas.ticket import TicketCreate, AssignRequest, TicketItemResponse
 from app.schemas.cancellation import CancellationRequest
 
 from app.services.ticket_service import (create_new_ticket, 
+                                         get_ticket,
                                          list_tickets, 
                                          assign_ticket, 
                                          start_maintenance,
@@ -16,7 +17,7 @@ from app.services.ticket_service import (create_new_ticket,
 
 router = APIRouter(prefix="/tickets")
 
-@router.get("")
+@router.get("", model_response=list[TicketItemResponse])
 def get_tickets(
     current_user = Depends(get_current_user),
     db = Depends(get_db),
@@ -24,6 +25,14 @@ def get_tickets(
     page_size: int = 50,
 ):
     return list_tickets(db, current_user, page, page_size)
+
+@router.get("/{ticket_id}", response_model=TicketItemResponse)
+def get_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return get_ticket(db, ticket_id, current_user)
 
 @router.post("")
 def create_ticket(

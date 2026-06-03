@@ -96,16 +96,23 @@ def get_maintenance_by_id( # The client side cache eliminates 90% calls to this 
     maintenance_id: int, 
     current_user
 ) -> Maintenance | None:
+    limit_date = start_of_month(-2)
+    
     query = (
         db.query(Maintenance)
         .join(Maintenance.ticket)
         .options(
-            joinedload(Maintenance.ticket),
-            joinedload(Maintenance.work_order),
+            joinedload(Maintenance.ticket)
+                .joinedload(Ticket.market)
+                .joinedload(Ticket.equipment)
+                .joinedload(Ticket.cancellation),
+            joinedload(Maintenance.worksheet),
             selectinload(Maintenance.photos),
             selectinload(Maintenance.technicians).joinedload(MaintenanceTechnician.technician),
-            selectinload(Maintenance.spares).joinedload(MaintenanceSpare.spare)
+            selectinload(Maintenance.spares).joinedload(MaintenanceSpare.spare),
+            selectinload(Maintenance.pauses) 
         )
+        .filter(Ticket.ticket_date >= limit_date)
         .filter(Maintenance.id_maintenance == maintenance_id)
     )
 

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
-from app.repositories.ticket_repo import save_ticket, get_visible_tickets
+from app.repositories.ticket_repo import save_ticket, get_visible_tickets, get_ticket_by_id
 
 from app.models.ticket import Ticket
 from app.models.master import Technician
@@ -20,8 +20,15 @@ from app.services.cancellation_service import create_new_cancellation
 def create_new_ticket(db, data, current_user):
     return save_ticket(db, data, current_user)
 
+def get_ticket(db: Session, ticket_id: int, current_user):
+    ticket = get_ticket_by_id(db, ticket_id, current_user)
+    if not ticket:
+        raise HTTPException(404, "Ticket not found")
+    return _serialize_ticket_item(ticket)
+    
 def list_tickets(db, current_user, page: int = 1, page_size: int = 50):
-    return get_visible_tickets(db, current_user, page, page_size)
+    tickets_list = get_visible_tickets(db, current_user, page, page_size)
+    return list(map(_serialize_ticket_item, tickets_list))
 
 VALID_TRANSITIONS = {
     TicketStatus.open: [TicketStatus.assigned, TicketStatus.cancelled],
@@ -106,3 +113,12 @@ def cancel_ticket(ticket_id: int, payload: CancellationRequest,
     
 # ── c. Pause ───────────────────────────────────────────────────────────────
 # Now in maintenance_service.py
+
+
+def _serialize_ticket_item(ticket: Ticket):
+    return SimpleNamespace(**ticket.model_dump(),
+                           market_name=ticket.market.market_name if ticket.market else None,
+                           equipment_name=ticket.equipment.equipment_name if ticket.equipment else None,
+                           # cancellation_reason=ticket.cancellation.reason if ticket.cancellation else None,
+                           assigned_name=ticket.technician.fsm_user.user_name if ticket.technician and ticket.technician.fsm_user else None
+                    )
