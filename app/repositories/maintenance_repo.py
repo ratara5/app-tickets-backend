@@ -51,6 +51,42 @@ def get_visible_maintenances(db,
                              current_user, 
                              page: int = 1, 
                              page_size: int = 50) -> List[Maintenance]:
+    query = _get_query(db, current_user)
+    
+    return (
+        query
+        .order_by(Ticket.ticket_date.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+def get_maintenance_by_id( # The client side cache eliminates 90% calls to this endpoint.
+    db: Session, 
+    maintenance_id: int, 
+    current_user
+) -> Maintenance | None:   
+    query = _get_query(db, current_user)
+    query.filter(Maintenance.id_maintenance == maintenance_id)
+
+    return query.first()
+
+def add_maintenance_spare(db, maintenance_id, r):
+    db.add(MaintenanceSpare(
+        maintenance_id=maintenance_id,
+        spare_id=r.spare_id,
+        qty=r.qty
+    ))
+
+def add_maintenance_technician(db, maintenance_id, t):
+    db.add(MaintenanceTechnician(
+        maintenance_id_id=maintenance_id,
+        technician_id=t.technician_id,
+        start_hour=t.start_hour,
+        end_hour=t.end_hour
+    ))
+
+def _get_query(db, current_user):
     limit_date = start_of_month(-2)
 
     query = (
@@ -83,65 +119,4 @@ def get_visible_maintenances(db,
             )
         )
 
-    return (
-        query
-        .order_by(Ticket.ticket_date.desc())
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
-
-def get_maintenance_by_id( # The client side cache eliminates 90% calls to this endpoint.
-    db: Session, 
-    maintenance_id: int, 
-    current_user
-) -> Maintenance | None:
-    limit_date = start_of_month(-2)
-    
-    query = (
-        db.query(Maintenance)
-        .join(Maintenance.ticket)
-        .options(
-            joinedload(Maintenance.ticket)
-                .joinedload(Ticket.market)
-                .joinedload(Ticket.equipment)
-                .joinedload(Ticket.cancellation),
-            joinedload(Maintenance.worksheet),
-            selectinload(Maintenance.photos),
-            selectinload(Maintenance.technicians).joinedload(MaintenanceTechnician.technician),
-            selectinload(Maintenance.spares).joinedload(MaintenanceSpare.spare),
-            selectinload(Maintenance.pauses) 
-        )
-        .filter(Ticket.ticket_date >= limit_date)
-        .filter(Maintenance.id_maintenance == maintenance_id)
-    )
-
-    # Access control — technician can only see their own or assigned_to anybody
-    if current_user.user_role == UserRole.technician:
-        query = query.filter(
-            and_(
-                or_(
-                    Ticket.assigned_to == None,
-                    Ticket.assigned_to == current_user.technician.technician_id
-                ),
-                Ticket.status != TicketStatus.cancelled
-            )
-            
-        )
-
-    return query.first()
-
-def add_maintenance_spare(db, maintenance_id, r):
-    db.add(MaintenanceSpare(
-        maintenance_id=maintenance_id,
-        spare_id=r.spare_id,
-        qty=r.qty
-    ))
-
-def add_maintenance_technician(db, maintenance_id, t):
-    db.add(MaintenanceTechnician(
-        maintenance_id_id=maintenance_id,
-        technician_id=t.technician_id,
-        start_hour=t.start_hour,
-        end_hour=t.end_hour
-    ))
+    return query
