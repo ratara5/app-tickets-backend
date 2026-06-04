@@ -4,9 +4,12 @@ from types import SimpleNamespace
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
-from app.repositories.ticket_repo import save_ticket, get_visible_tickets, get_ticket_by_id
+from app.core.utils.dates import get_holidays
+
+from app.repositories.ticket_repo import save_ticket, get_visible_tickets, get_ticket_by_id, save_add_wkd
 
 from app.models.ticket import Ticket
+from app.models.maintenance import Maintenance
 from app.models.master import Technician
 
 from app.schemas.ticket import AssignRequest, TicketStatus
@@ -15,6 +18,8 @@ from app.schemas.cancellation import CancellationRequest
 from app.services.maintenance_service import create_new_maintenance
 from app.services.cancellation_service import create_new_cancellation
 
+from app.core.utils.dates import get_holidays
+from app.core.settings import settings
 
 
 def create_new_ticket(db, data, current_user):
@@ -114,7 +119,32 @@ def cancel_ticket(ticket_id: int, payload: CancellationRequest,
 # ── c. Pause ───────────────────────────────────────────────────────────────
 # Now in maintenance_service.py
 
+# ── d. AddWkd ───────────────────────────────────────────────────────────────
+def create_new_add_wkd(ticket_id: int, payload: None,
+                 current_user, db: Session):
+    ticket = db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(404, "Ticket not found")
+    maintenance = db.query(Maintenance).filter(Maintenance.ticket_id == ticket_id).first()
+    # TODO: manage not maintenance ...
+    
+    ticket_date = ticket.ticket_date
+    is_wkd_ticket = ticket_date.weekday() >= 5 or ticket_date in get_holidays(settings.country_company)
+    if not is_wkd_ticket:
+        raise HTTPException(403, "Ticket is neither weekend ticket or holiday ticket")
+    
+    data = SimpleNamespace(ticket_id=ticket_id, **payload.model_dump())
+    ticket = save_add_wkd(db, data, current_user)   
 
+    if maintenance.real_mark_as == "PAUSED":
+        ticket.status = TicketStatus.paused
+    else:
+        ticket.status = TicketStatus.closed
+
+    return ticket
+
+    
+# Helpers
 def _serialize_ticket_item(ticket: Ticket):
     return SimpleNamespace(**ticket.model_dump(),
                            market_name=ticket.market.market_name if ticket.market else None,

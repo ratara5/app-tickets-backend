@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.core.database import get_db
 
-from app.schemas.ticket import TicketCreate, AssignRequest, TicketItemResponse
+from app.schemas.ticket import TicketCreate, AssignRequest, TicketItemResponse, AddWkdRequest
 from app.schemas.cancellation import CancellationRequest
 
 from app.services.ticket_service import (create_new_ticket, 
@@ -12,7 +12,8 @@ from app.services.ticket_service import (create_new_ticket,
                                          list_tickets, 
                                          assign_ticket, 
                                          start_maintenance,
-                                         cancel_ticket)
+                                         cancel_ticket,
+                                         create_new_add_wkd)
 
 
 router = APIRouter(prefix="/tickets")
@@ -69,3 +70,9 @@ def cancel(ticket_id: int, payload: CancellationRequest,
 
 # @router.patch("/{ticket_id}/pause")
 # Now in routes/maintenances.py because it's more related to maintenance than ticket, and it needs to validate the maintenance status and not the ticket status. The endpoint is /maintenances/{maintenance_id}/pause instead of /tickets/{ticket_id}/pause because the pause is more related to the maintenance than the ticket, and we need to validate the maintenance status before pausing it. The ticket status is automatically updated to paused when the maintenance is paused, so we don't need to validate the ticket status.
+
+@router.patch("/{ticket_id}/addwkd")
+def create_add_wkd(ticket_id: int, payload: AddWkdRequest,
+          db: Session = Depends(get_db),
+          current_user = Depends(get_current_user)):
+    return create_new_add_wkd (ticket_id, payload, current_user, db)

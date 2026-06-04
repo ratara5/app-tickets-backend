@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.utils.dates import start_of_month
 
-from app.models.ticket import Ticket
+from app.models.ticket import Ticket, AddWkd
 from app.models.master import Technician
 
 from app.schemas.ticket import TicketStatus
@@ -76,3 +76,19 @@ def _get_query(db, current_user):
         )
     
     return query
+
+def save_add_wkd(db, data, current_user):
+    add_wkd = AddWkd(
+        ticket_id=data.ticket_id,
+        operation_percentage=data.operation_percentage,
+        market_temperature=data.temperature,
+        operation_damage=data.operatin_damage,
+        completed=data.completed,
+        observations_wkd=data.observations_wkd
+    )
+
+    db.add(add_wkd)
+    db.commit()
+    db.refresh(add_wkd)
+
+    return add_wkd

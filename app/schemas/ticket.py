@@ -1,7 +1,9 @@
+from decimal import Decimal
 from datetime import date
 from enum import Enum
+from typing import Optional
 
-from pydantic import BaseModel, Optional, ConfigDict
+from pydantic import BaseModel, ConfigDict
 
 
 class TicketCreate(BaseModel):
@@ -37,3 +39,10 @@ class TicketItemResponse(BaseModel):
     assigned_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+class AddWkdRequest(BaseModel):
+    operation_percentage: Decimal
+    market_temperature: Decimal
+    operation_damage: bool  
+    completed: bool
+    observations_wkd: str
