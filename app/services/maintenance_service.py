@@ -16,12 +16,8 @@ from app.schemas.maintenance import MaintenanceUpdate
 from app.schemas.ticket import TicketStatus
 from app.schemas.pause import PauseRequest
 
-from app.repositories.maintenance_repo import (create_maintenance, 
-                                                save_maintenance, 
-                                                get_visible_maintenances,
-                                                get_maintenance_by_id,
-                                                add_maintenance_spare,
-                                                add_maintenance_technician)
+import app.repositories.maintenance_repo as maintenance_repo
+import app.repositories.ticket_repo as ticket_repo # TODO: update_status
 
 from app.services.registry import service
 from app.services.ticket_service import validate_transition
@@ -40,7 +36,7 @@ def create_new_maintenance(db, data, current_user):
     # Lógica de negocio antes de persistir
     # ...
 
-    maintenance = create_maintenance(db, data, current_user)
+    maintenance = maintenance_repo.create_maintenance(db, data, current_user)
     
     # Lógica de negocio después de persistir
     # ...
@@ -52,9 +48,9 @@ async def update_existing(maintenance_id: UUID7,
                           current_user, 
                           db: Session, 
                           files: dict):
-    maintenance = db.query(Maintenance).filter(Maintenance.id == maintenance_id).first()
+    maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
     # Verify if associated ticket exists and its status is IN PROGRESS o PAUSED
-    ticket = db.query(Ticket).filter(Ticket.ticket_id == maintenance.ticket_id).first()
+    ticket = ticket_repo.get_ticket_by_id(db, maintenance.ticket_id, current_user)
     if not ticket:
         raise HTTPException(404, "Ticket no encontrado")
     if ticket.estado not in (TicketStatus.in_progress, TicketStatus.paused):
@@ -116,7 +112,7 @@ async def update_existing(maintenance_id: UUID7,
     ###### Save maintenance change (persistance) #####
     ##################################################
 
-    maintenance = save_maintenance(db, data, current_user)
+    maintenance = maintenance_repo.save_maintenance(db, data, current_user)
 
     ##################################################
     ###### Business logic after data persistance #####
@@ -126,10 +122,10 @@ async def update_existing(maintenance_id: UUID7,
 
     # Spares #
     for r in payload.spares:
-        add_maintenance_spare(db, maintenance.id, r)
+        maintenance_repo.add_maintenance_spare(db, maintenance.id, r)
     # Technicians #
     for t in payload.technicians:
-        add_maintenance_technician(db, maintenance.id, t)
+        maintenance_repo.add_maintenance_technician(db, maintenance.id, t)
 
     ### Finish ###
     if labsdl_id == 3:
@@ -145,12 +141,13 @@ async def update_existing(maintenance_id: UUID7,
     
 
 def list_maintenances(db, current_user, page: int = 1, page_size: int = 50):
-    maintenances_list = get_visible_maintenances(db, current_user, page, page_size)
+    maintenances_list = maintenance_repo.get_visible_maintenances(db, current_user, page, page_size)
     return list(map(_serialize_maintenance_item, maintenances_list))
 
 def pause_ticket(maintenance_id: int, payload: PauseRequest,
                   current_user, db: Session):
-    ticket = db.query(Maintenance).filter(Maintenance.maintenance_id == maintenance_id).first()
+    maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
+    ticket = ticket_repo.get_ticket_by_id(db, maintenance.ticket_id, current_user)
     if not ticket:
         raise HTTPException(404, "Ticket not found")
     
@@ -163,10 +160,17 @@ def pause_ticket(maintenance_id: int, payload: PauseRequest,
     return ticket
 
 def get_maintenance(db: Session, maintenance_id: int, current_user):
-    maintenance = get_maintenance_by_id(db, maintenance_id, current_user)
+    maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
     if not maintenance:
         raise HTTPException(404, "Maintenance not found")
     return _serialize_maintenance_item(maintenance)
+
+def delete_maintenance(maintenance_id: int, current_user, db: Session):
+    maintenance = maintenance_repo.get_ticket_by_id(db, maintenance_id, current_user) 
+    if not maintenance:
+        raise HTTPException(404, "Maintenance not found")
+    return maintenance_repo.delete_maintenance_by_id(db, maintenance, current_user)
+
 
 # Helpers
 @service(schema=Maintenance)

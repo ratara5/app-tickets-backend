@@ -124,3 +124,10 @@ def _get_query(db, current_user):
         )
 
     return query
+
+def delete_maintenance_by_id(db, maintenance, current_user):
+
+    db.delete(maintenance)
+    db.commit()
+   
+    return maintenance.maintenance_id

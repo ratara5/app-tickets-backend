@@ -10,11 +10,7 @@ from app.core.database import get_db
 from app.schemas.maintenance import MaintenanceCreate, MaintenanceUpdate, MaintenanceItemResponse
 from app.schemas.pause import PauseRequest
 
-from app.services.maintenance_service import (create_new_maintenance, 
-                                              update_existing, 
-                                              list_maintenances, 
-                                              get_maintenance, 
-                                              pause_ticket)
+import app.services.maintenance_service as maintenance_svc
 
 
 router = APIRouter(prefix="/maintenances")
@@ -26,7 +22,7 @@ def get_maintenances(
     page: int = 1,
     page_size: int = 50,
 ):
-    return list_maintenances(db, current_user, page, page_size)
+    return maintenance_svc.list_maintenances(db, current_user, page, page_size)
 
 @router.get("/{maintenance_id}", reponse_model=MaintenanceItemResponse)
 def get_maintenance(
@@ -34,7 +30,7 @@ def get_maintenance(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
-    return get_maintenance(db, maintenance_id, current_user)
+    return maintenance_svc.get_maintenance(db, maintenance_id, current_user)
 
 @router.post("")
 def create_maintenance(
@@ -42,7 +38,7 @@ def create_maintenance(
     current_user = Depends(get_current_user),
     db = Depends(get_db)
 ):
-    return create_new_maintenance(
+    return maintenance_svc.create_new_maintenance(
         db,
         data,
         current_user
@@ -58,7 +54,7 @@ async def update_maintenance(
     db: Session = Depends(get_db),
 ):
     files = {"initial_photo_file": initial_photo_file} # , "signature_receive_file": signature}
-    return await update_existing(
+    return await maintenance_svc.update_existing(
         db, maintenance_id, payload, files, current_user
     )
 
@@ -66,4 +62,10 @@ async def update_maintenance(
 def pause(maintenance_id: int, payload: PauseRequest,
           db: Session = Depends(get_db),
           current_user = Depends(get_current_user)):
-    return pause_ticket(maintenance_id, payload, current_user, db)
+    return maintenance_svc.pause_ticket(maintenance_id, payload, current_user, db)
+
+@router.delete("/{maintenance_id}")
+def del_maintenance(maintenance_id: int, 
+               db: Session = Depends(get_db), 
+               current_user = Depends(get_current_user)):
+    return maintenance_svc.delete_maintenance(maintenance_id, current_user, db)
