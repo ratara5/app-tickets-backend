@@ -1,8 +1,8 @@
 from sqlalchemy import Column, Integer, String, DateTime, func
-from sqlalchemy.orm import  declarative_base, relationship 
+from sqlalchemy.orm import  relationship 
 
+from app.models.base import Base
 
-Base = declarative_base()
 
 class FSMUser(Base):
     __tablename__ = "fsm_users"

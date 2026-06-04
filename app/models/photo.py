@@ -1,10 +1,10 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey, func
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import relationship
+
+from app.models.base import Base
 
 from app.models.audit_mixin import AuditMixin
 
-
-Base = declarative_base()
 
 class Photo(Base, AuditMixin):
     __tablename__ = "photos"

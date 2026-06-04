@@ -1,10 +1,10 @@
 from sqlalchemy import Column, Integer, String, Uuid, ForeignKey
 from sqlalchemy.orm import declarative_base, relationship 
 
+from app.models.base import Base
+
 from app.models.audit_mixin import AuditMixin
 
-
-Base = declarative_base()
 
 class Pause(Base, AuditMixin):
     __tablename__ = "pauses"

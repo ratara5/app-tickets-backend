@@ -1,8 +1,8 @@
 from sqlalchemy import Uuid, Column, Integer, String, DateTime, Boolean, ForeignKey, Text
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import relationship
 
+from app.models.base import Base
 
-Base = declarative_base()
 
 class Worksheet(Base):
     __tablename__ = "worksheets"

@@ -2,13 +2,10 @@
 # A Catalog Table (Reference/Lookup) contains low level info, descriptive/configuration, (Code, States) data wich very rarely change
 # Here: Master includes Catalog
 
-from datetime import datetime
+from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, relationship
 
-from sqlalchemy import Column, Integer, String, Numeric, DateTime, ForeignKey, relationship
-from sqlalchemy.orm import declarative_base 
+from app.models.base import Base
 
-
-Base = declarative_base()
 
 class Technician(Base):
     __tablename__ = "technicians"

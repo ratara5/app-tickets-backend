@@ -1,10 +1,10 @@
 from sqlalchemy import Column, Integer, String, ForeignKey
-from sqlalchemy.orm import declarative_base, relationship 
+from sqlalchemy.orm import relationship 
+
+from app.models.base import Base
 
 from app.models.audit_mixin import AuditMixin
 
-
-Base = declarative_base()
 
 class Cancellation(Base, AuditMixin):
     __tablename__ = "cancellations"
