@@ -7,13 +7,7 @@ from app.core.database import get_db
 from app.schemas.ticket import TicketCreate, AssignRequest, TicketItemResponse, AddWkdRequest
 from app.schemas.cancellation import CancellationRequest
 
-from app.services.ticket_service import (create_new_ticket, 
-                                         get_ticket,
-                                         list_tickets, 
-                                         assign_ticket, 
-                                         start_maintenance,
-                                         cancel_ticket,
-                                         create_new_add_wkd)
+from app.services.ticket_service import *
 
 
 router = APIRouter(prefix="/tickets")
@@ -76,3 +70,9 @@ def create_add_wkd(ticket_id: int, payload: AddWkdRequest,
           db: Session = Depends(get_db),
           current_user = Depends(get_current_user)):
     return create_new_add_wkd (ticket_id, payload, current_user, db)
+
+@router.delete("/{ticket_id}")
+def del_ticket(ticket_id: int, 
+               db: Session = Depends(get_db), 
+               current_user = Depends(get_current_user)):
+    return delete_ticket(ticket_id, current_user, db)

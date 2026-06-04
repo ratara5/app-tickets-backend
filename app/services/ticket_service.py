@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 from app.core.utils.dates import get_holidays
 
-from app.repositories.ticket_repo import save_ticket, get_visible_tickets, get_ticket_by_id, save_add_wkd
+import app.repositories.ticket_repo as ticket_repo
 
 from app.models.ticket import Ticket
 from app.models.maintenance import Maintenance
@@ -22,19 +22,6 @@ from app.core.utils.dates import get_holidays
 from app.core.settings import settings
 
 
-def create_new_ticket(db, data, current_user):
-    return save_ticket(db, data, current_user)
-
-def get_ticket(db: Session, ticket_id: int, current_user):
-    ticket = get_ticket_by_id(db, ticket_id, current_user)
-    if not ticket:
-        raise HTTPException(404, "Ticket not found")
-    return _serialize_ticket_item(ticket)
-    
-def list_tickets(db, current_user, page: int = 1, page_size: int = 50):
-    tickets_list = get_visible_tickets(db, current_user, page, page_size)
-    return list(map(_serialize_ticket_item, tickets_list))
-
 VALID_TRANSITIONS = {
     TicketStatus.open: [TicketStatus.assigned, TicketStatus.cancelled],
     TicketStatus.assigned: [TicketStatus.in_progress, TicketStatus.cancelled],
@@ -43,26 +30,30 @@ VALID_TRANSITIONS = {
     TicketStatus.cancelled: [],
     TicketStatus.closed: []
 }
+  
+def create_new_ticket(db, data, current_user):
+    return ticket_repo.save_ticket(db, data, current_user)
 
-def validate_transition(current_state: str, new_state: str):
-    allowed = VALID_TRANSITIONS.get(current_state, [])
-    if new_state not in allowed:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid transition: {current_state} → {new_state}"
-        )
+def get_ticket(db: Session, ticket_id: int, current_user):
+    ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user)
+    if not ticket:
+        raise HTTPException(404, "Ticket not found")
+    return _serialize_ticket_item(ticket)
     
+def list_tickets(db, current_user, page: int = 1, page_size: int = 50):
+    tickets_list = ticket_repo.get_visible_tickets(db, current_user, page, page_size)
+    return list(map(_serialize_ticket_item, tickets_list))
+  
 # ── a. Start maintenance (new -> IN PROGRESS) ────────────────────────────────────
 def start_maintenance(ticket_id: int, payload: None,
                  current_user, db: Session):
-    ticket = db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
+    ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     if not ticket:
         raise HTTPException(404, "Ticket not found")
     
-    
     validate_transition(ticket.status, TicketStatus.in_progress)
     
-    # Validate hollidays/weekend: Not necessary
+    # Validate hollidays/weekend: Not necessary here
     # ...
 
     data = SimpleNamespace(ticket_id=ticket_id, **payload.model_dump() if payload else {})
@@ -82,7 +73,7 @@ def _get_technician_id_by_user(db, current_user):
 
 def assign_ticket(ticket_id: int, payload: AssignRequest,
                   current_user, db: Session):
-    ticket = db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
+    ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     if not ticket:
         raise HTTPException(404, "Ticket not found")
     
@@ -104,7 +95,7 @@ def assign_ticket(ticket_id: int, payload: AssignRequest,
 # ── c. Cancel ───────────────────────────────────────────────────────────────
 def cancel_ticket(ticket_id: int, payload: CancellationRequest,
                   current_user, db: Session):
-    ticket = db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
+    ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     if not ticket:
         raise HTTPException(404, "Ticket not found")
     
@@ -122,7 +113,7 @@ def cancel_ticket(ticket_id: int, payload: CancellationRequest,
 # ── d. AddWkd ───────────────────────────────────────────────────────────────
 def create_new_add_wkd(ticket_id: int, payload: None,
                  current_user, db: Session):
-    ticket = db.query(Ticket).filter(Ticket.ticket_id == ticket_id).first()
+    ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     if not ticket:
         raise HTTPException(404, "Ticket not found")
     maintenance = db.query(Maintenance).filter(Maintenance.ticket_id == ticket_id).first()
@@ -134,7 +125,7 @@ def create_new_add_wkd(ticket_id: int, payload: None,
         raise HTTPException(403, "Ticket is neither weekend ticket or holiday ticket")
     
     data = SimpleNamespace(ticket_id=ticket_id, **payload.model_dump())
-    ticket = save_add_wkd(db, data, current_user)   
+    ticket = ticket_repo.save_add_wkd(db, data, current_user)   
 
     if maintenance.real_mark_as == "PAUSED":
         ticket.status = TicketStatus.paused
@@ -143,8 +134,23 @@ def create_new_add_wkd(ticket_id: int, payload: None,
 
     return ticket
 
+# ── e. Delete ───────────────────────────────────────────────────────────────
+def delete_ticket(ticket_id: int, current_user, db: Session):
+    ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
+    if not ticket:
+        raise HTTPException(404, "Ticket not found")
+    return ticket_repo.delete_ticket_by_id(db, ticket, current_user)
+
     
-# Helpers
+# ── Helpers ───────────────────────────────────────────────────────────────
+def validate_transition(current_state: str, new_state: str):
+    allowed = VALID_TRANSITIONS.get(current_state, [])
+    if new_state not in allowed:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid transition: {current_state} → {new_state}"
+        )
+
 def _serialize_ticket_item(ticket: Ticket):
     return SimpleNamespace(**ticket.model_dump(),
                            market_name=ticket.market.market_name if ticket.market else None,

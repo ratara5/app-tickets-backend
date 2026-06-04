@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import or_, and_, joinedload
+from sqlalchemy import or_, and_, joinedload, select
 from sqlalchemy.orm import Session
 
 from app.core.utils.dates import start_of_month
@@ -92,3 +92,11 @@ def save_add_wkd(db, data, current_user):
     db.refresh(add_wkd)
 
     return add_wkd
+
+def delete_ticket_by_id(db, ticket, current_user):
+
+    db.delete(ticket)
+    db.commit()
+   
+    return ticket.ticket_id
+    
