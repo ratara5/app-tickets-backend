@@ -8,6 +8,7 @@ from app.core.utils.dates import start_of_month
 
 from app.models.ticket import Ticket
 from app.models.maintenance import Maintenance, MaintenanceSpare, MaintenanceTechnician
+from app.models.master import Technician
 
 from app.schemas.ticket import TicketStatus
 from app.schemas.user import UserRole
@@ -99,8 +100,11 @@ def _get_query(db, current_user):
                 .joinedload(Ticket.cancellation),
             joinedload(Maintenance.worksheet),
             selectinload(Maintenance.photos),
-            selectinload(Maintenance.technicians).joinedload(MaintenanceTechnician.technician),
-            selectinload(Maintenance.spares).joinedload(MaintenanceSpare.spare),
+            selectinload(Maintenance.technicians)
+                .joinedload(MaintenanceTechnician.technician)
+                .joinedload(Technician.fsm_user),
+            selectinload(Maintenance.spares)
+                .joinedload(MaintenanceSpare.spare),
             selectinload(Maintenance.pauses) 
         )
         .filter(

@@ -52,21 +52,21 @@ async def update_existing(maintenance_id: UUID7,
                           current_user, 
                           db: Session, 
                           files: dict):
-    # Get maintenance
     maintenance = db.query(Maintenance).filter(Maintenance.id == maintenance_id).first()
     # Verify if associated ticket exists and its status is IN PROGRESS o PAUSED
     ticket = db.query(Ticket).filter(Ticket.ticket_id == maintenance.ticket_id).first()
     if not ticket:
         raise HTTPException(404, "Ticket no encontrado")
-    if ticket.estado not in ("IN PROGRESS", "PAUSED"):
+    if ticket.estado not in (TicketStatus.in_progress, TicketStatus.paused):
         raise HTTPException(
             422, f"No se puede crear maintenance: ticket en estado {ticket.estado}"
         )
     
-    
-    # Business logic before data persistance
-    ## Upload maintenance file (in the table per se)
-    col_val_info = dict[str, str]
+    #################################################
+    ##### Business logic before data persistance ####
+    #################################################
+
+    ### Upload maintenance file (in the table per se) ###
     for col_name, upload_file_obj in files.items():
         if upload_file_obj is None:
             continue
@@ -84,57 +84,65 @@ async def update_existing(maintenance_id: UUID7,
                 job_id=str(maintenance_id),
             )
         )
-        url_col = "_".join(col_name.split("_")[1:])
-        url = get_presigned_url(full_object_path, 1)
-        col_val_info[col_name] = full_object_path
-        col_val_info[url_col] = url
-        # setattr(maintenance, col_name, full_object_path) # result["url_path"] is internal, of '/bucket/object' pattern
-    ## Get values of computed or derivate fields
-    ### maintenance_start is equals to created_at
-    #-maintenance_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S+00") # TODO: Inject TZ from environment and datetime.now()
-    ### inicio_edicion computed now
+
+    ### Get values of computed or derivate fields ###
     start_edition = datetime.now().strftime("%Y-%m-%d %H:%M:%S+00") # TODO: Inject TZ from environment and datetime.now()
-    ### labsdl_id (laboral schedule) according to ticket_date
+
+    # laboral schedule #
     labsdl_id = 1 # default
     ticket_date = ticket.ticket_date
     if ticket_date.weekday() >= 5 or ticket_date in get_holidays(settings.country_company):
-        labsdl_id = 3 # Feriado
-    ### real_mark_as
-    #- Get maintenance_id
+        labsdl_id = 3
+
+    # next status #
     maintenance_id = maintenance.maintenance_id
-    #- Get pauses (if exist?) associated to maintenance_id, or at once last_pause by order...desc()
     last_pause = db.query(Pause).filter(
         Pause.maintenance_id == maintenance_id
     ).order_by(Pause.created_at.desc()).first()
-    #- Get the latest pause (newest created_at), if the before query returned all records
-    # last_pause = max(pauses, key=lambda p: p.created_at)
-    #- Compare start_edition and last_pause
-    #-- If
+
     if start_edition < last_pause.created_at:
         real_mark_as = "PAUSED"
-    #-- Else
     else:
         real_mark_as = "CLOSED"
 
     data = SimpleNamespace(**payload.model_dump(), 
-                           start_edition=start_edition, # Is it necessary have this field in table?
-                           labsdl_id=labsdl_id,
-                           real_mark_as=real_mark_as,
-                           **col_val_info
+                           start_edition=start_edition, # Is it necessary to have this field in table?
+                           labsdl_id=labsdl_id, # Is it necessary to have this field in table?
+                           real_mark_as=real_mark_as, # Is it necessary to have this field in table?
+                           initial_photo_path=full_object_path
                            )
+    
+    ##################################################
+    ###### Save maintenance change (persistance) #####
+    ##################################################
 
-    # Save maintenance change (persistance)
     maintenance = save_maintenance(db, data, current_user)
 
-    # Business logic after data persistance
-    ## Persists spares, technicians, (photos)?, etc. related to maintenance
-    ### Spares
+    ##################################################
+    ###### Business logic after data persistance #####
+    ##################################################
+
+    ### Persists spares, technicians, (photos is apart), etc. related to maintenance ###
+
+    # Spares #
     for r in payload.spares:
         add_maintenance_spare(db, maintenance.id, r)
-    ### Técnicos
+    # Technicians #
     for t in payload.technicians:
         add_maintenance_technician(db, maintenance.id, t)
+
+    ### Finish ###
+    if labsdl_id == 3:
+        return maintenance # If wkd o hld, it's necessary fill additional info before changing the ticket status
+    
+    if real_mark_as == "PAUSED":
+        ticket.status = TicketStatus.paused
+    else:
+        ticket.status = TicketStatus.closed
+
     return maintenance
+
+    
 
 def list_maintenances(db, current_user, page: int = 1, page_size: int = 50):
     maintenances_list = get_visible_maintenances(db, current_user, page, page_size)
@@ -154,7 +162,13 @@ def pause_ticket(maintenance_id: int, payload: PauseRequest,
     create_new_pause(db, data, current_user)
     return ticket
 
+def get_maintenance(db: Session, maintenance_id: int, current_user):
+    maintenance = get_maintenance_by_id(db, maintenance_id, current_user)
+    if not maintenance:
+        raise HTTPException(404, "Maintenance not found")
+    return _serialize_maintenance_item(maintenance)
 
+# Helpers
 @service(schema=Maintenance)
 def build_object_path_maintenances(maintenance: Maintenance, col_name, content_type):
 
@@ -168,13 +182,6 @@ def build_object_path_maintenances(maintenance: Maintenance, col_name, content_t
     full_object_path = f"{settings.base_object_path}/{anio}/{mes}/{maintenance.ticket_id}/{original_filename}"
     
     return serial, original_filename, full_object_path
-
-def get_maintenance(db: Session, maintenance_id: int, current_user):
-    maintenance = get_maintenance_by_id(db, maintenance_id, current_user)
-    if not maintenance:
-        raise HTTPException(404, "Maintenance not found")
-    return _serialize_maintenance_item(maintenance)
-
 
 def _sign(path: str | None) -> str | None:
     """Generate presigned URL from object path. None if no path."""
@@ -191,6 +198,7 @@ def _serialize_maintenance_item(m: Maintenance) -> dict:
                 "photo_id": p.id, 
                 "photo_url": _sign(p.photo_path)
             }, m.photos))
+    
     spares=[{ # map or comprehension: are equivalent in terms of speed. But comprehension is more pythonic
         "spare_id": ms.spare.spare_id,
         "name": ms.spare.name,
@@ -224,30 +232,3 @@ def _serialize_maintenance_item(m: Maintenance) -> dict:
                             technicians=technicians,
                             spares=spares
                             )
-
-    # return {
-    #     "maintenance_id": m.maintenance_id,
-    #     "ticket_id": m.ticket_id,
-
-    #     "ticket_date": m.ticket.ticket_date,
-    #     "ticket_description": m.ticket.ticket_description,
-    #     "status": m.ticket.status,
-        
-    #     "maintenance_date": m.maintenance_date,
-    #     "maintenance_description": m.maintenance_description,
-
-    #     "market_name": m.ticket.market.market_name,
-    #     "equipment_name": m.ticket.equipment.equipment_name,
-
-    #     "spares": m.spares,
-    #     "technicians": m.technicians,
-
-    #     "initial_photo_url": _sign(m.initial_photo_path),
-    #     "pdf_url": _sign(m.work_order.pdf_path if m.work_order else None), 
-
-    #     "photos": list(map(lambda p: {
-    #         "photo_id": p.id, 
-    #         "maintenance_id": p.maintenance_id,
-    #         "photo_url": _sign(p.photo_path)
-    #     }, m.photos))
-    # }
