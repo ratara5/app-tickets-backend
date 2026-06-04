@@ -93,10 +93,17 @@ def save_add_wkd(db, data, current_user):
 
     return add_wkd
 
+def update_ticket_status(db, ticket, status, current_user):
+    ticket.status = status
+
+    db.commit()
+    db.refresh(ticket)
+
+    return ticket
+
 def delete_ticket_by_id(db, ticket, current_user):
 
     db.delete(ticket)
     db.commit()
    
     return ticket.ticket_id
-    

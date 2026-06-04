@@ -103,7 +103,7 @@ async def update_existing(maintenance_id: UUID7,
 
     data = SimpleNamespace(**payload.model_dump(), 
                            start_edition=start_edition, # Is it necessary to have this field in table?
-                           labsdl_id=labsdl_id, # Is it necessary to have this field in table?
+                           labsdl_id=labsdl_id, # Is it necessary to have this field in table? But, it's neccesary calculate if ticket_date is wkd or hld
                            real_mark_as=real_mark_as, # Is it necessary to have this field in table?
                            initial_photo_path=full_object_path
                            )
@@ -132,9 +132,11 @@ async def update_existing(maintenance_id: UUID7,
         return maintenance # If wkd o hld, it's necessary fill additional info before changing the ticket status
     
     if real_mark_as == "PAUSED":
-        ticket.status = TicketStatus.paused
+        status = TicketStatus.paused
     else:
-        ticket.status = TicketStatus.closed
+        status = TicketStatus.closed
+    
+    ticket = ticket_repo.update_ticket_status(db, ticket, status, current_user)
 
     return maintenance
 
