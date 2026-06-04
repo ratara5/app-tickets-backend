@@ -1,3 +1,4 @@
+from decimal import Decimal
 from datetime import date, datetime
 from typing import Optional, List
 
@@ -5,19 +6,31 @@ from pydantic import BaseModel, UUID7, ConfigDict
 
 
 class SpareIn(BaseModel):
-    maintenance_id: UUID7
     spare_id: int
-    qty: int
+    qty: Decimal
+
+class SpareOut(BaseModel):
+    spare_id: int
+    name: str
+    price: Decimal
+    qty: Decimal
 
 class TechnicianIn(BaseModel):
-    maintenance_id: UUID7
     technician_id: int
     start_hour: datetime 
     end_hour: datetime
 
-class PhotoIn(BaseModel):
+class TechnicianOut(BaseModel):
+    technician_id: int
+    technician_name: str
+    start_hour: datetime 
+    end_hour: datetime
+
+# class PhotoIn(BaseModel): # The photos are uploaded apart (by file schema) of the maintenance saved process
+    # photo_id: int
+
+class PhotoOut(BaseModel):
     photo_id: int
-    maintenance_id: UUID7
     photo_url: str
 
 class MaintenanceCreate(BaseModel):
@@ -62,12 +75,12 @@ class MaintenanceItemResponse(BaseModel):
     market_name: str
     equipment_name: str
 
-    spares: Optional[List[SpareIn]] = []
-    technicians: Optional[List[TechnicianIn]] = []
+    spares: Optional[List[SpareOut]] = []
+    technicians: Optional[List[TechnicianOut]] = []
 
     initial_photo_url: Optional[str] = None # It's a presigned URL
     pdf_url: Optional[str] = None # It's a presigned URL
 
-    photos: Optional[List[PhotoIn]] = [] # It contains presigned URLs
+    photos: Optional[List[PhotoOut]] = [] # It contains presigned URLs
 
     model_config = ConfigDict(from_attributes=True)

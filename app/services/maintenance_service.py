@@ -189,9 +189,20 @@ def _serialize_maintenance_item(m: Maintenance) -> dict:
     pdf_url = _sign(m.work_order.pdf_path if m.work_order else None)
     photos = list(map(lambda p: {
                 "photo_id": p.id, 
-                "maintenance_id": p.maintenance_id,
                 "photo_url": _sign(p.photo_path)
             }, m.photos))
+    spares=[{ # map or comprehension: are equivalent in terms of speed. But comprehension is more pythonic
+        "spare_id": ms.spare.spare_id,
+        "name": ms.spare.name,
+        "price": ms.spare.price,
+        "qty": ms.qty
+        } for ms in m.spares],
+    technicians=[{
+        "technician_id": mt.technician.technician_id,
+        "technician_name": mt.technician.fsm_user.user_name,
+        "start_hour": mt.start_hour,
+        "end_hour": mt.end_hour
+    } for mt in m.technicians]
     
     return SimpleNamespace( **m.model_dump(), # The fields into maintenance table
                            
@@ -207,7 +218,12 @@ def _serialize_maintenance_item(m: Maintenance) -> dict:
                             # presigned URLs from minIO path fields
                             initial_photo_url=initial_photo_url,
                             pdf_url=pdf_url,
-                            photos= photos)
+                            photos= photos,
+                            
+                            # fields of related tables
+                            technicians=technicians,
+                            spares=spares
+                            )
 
     # return {
     #     "maintenance_id": m.maintenance_id,
