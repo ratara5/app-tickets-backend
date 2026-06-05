@@ -104,7 +104,7 @@ def _build_context(maintenance_dto: Maintenance, ws: Worksheet, db:Session, curr
     }
 
 # Use cases
-def upsert_worksheet(db: Session, maintenance_id: int, data: WorksheetUpsert, current_user) -> Worksheet:
+def upsert_worksheet(db: Session, maintenance_id: UUID7, data: WorksheetUpsert, current_user) -> Worksheet:
     """Creates or updates the fields that the technician fills in field."""
     ws = _get_or_create_worksheet(db, maintenance_id, current_user)
 
@@ -114,7 +114,7 @@ def upsert_worksheet(db: Session, maintenance_id: int, data: WorksheetUpsert, cu
     ws_repo.update_existing_ws(db, data, current_user)
     return ws
 
-def generate_pdf(maintenance_id: int, db: Session, current_user) -> tuple[Worksheet, str]:
+def generate_pdf(maintenance_id: UUID7, db: Session, current_user) -> tuple[Worksheet, str]:
     """
     Render the PDF, upload it to MinIO and close the sheet.
     Returns (worksheet, presigned_url).

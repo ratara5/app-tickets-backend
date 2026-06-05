@@ -26,7 +26,7 @@ def get_maintenances(
 
 @router.get("/{maintenance_id}", reponse_model=MaintenanceItemResponse)
 def get_maintenance(
-    maintenance_id: int,
+    maintenance_id: UUID7,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -59,13 +59,13 @@ async def update_maintenance(
     )
 
 @router.patch("/{maintenance_id}/pause")
-def pause(maintenance_id: int, payload: PauseRequest,
+def pause(maintenance_id: UUID7, payload: PauseRequest,
           db: Session = Depends(get_db),
           current_user = Depends(get_current_user)):
     return maintenance_svc.pause_ticket(maintenance_id, payload, current_user, db)
 
 @router.delete("/{maintenance_id}")
-def del_maintenance(maintenance_id: int, 
+def del_maintenance(maintenance_id: UUID7, 
                db: Session = Depends(get_db), 
                current_user = Depends(get_current_user)):
     return maintenance_svc.delete_maintenance(maintenance_id, current_user, db)

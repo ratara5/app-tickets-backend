@@ -44,7 +44,7 @@ def create_new_maintenance(db, data, current_user):
 
     return maintenance
 
-def get_maintenance(db: Session, maintenance_id: int, current_user):
+def get_maintenance(db: Session, maintenance_id: UUID7, current_user):
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
     if not maintenance:
         raise HTTPException(404, "Maintenance not found")
@@ -153,7 +153,7 @@ async def update_existing(maintenance_id: UUID7,
 
     return maintenance
 
-def pause_ticket(maintenance_id: int, payload: PauseRequest,
+def pause_ticket(maintenance_id: UUID7, payload: PauseRequest,
                   current_user, db: Session):
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
     assert_ownership(maintenance, current_user)
@@ -169,7 +169,7 @@ def pause_ticket(maintenance_id: int, payload: PauseRequest,
     create_new_pause(db, data, current_user)
     return ticket
 
-def delete_maintenance(maintenance_id: int, current_user, db: Session):
+def delete_maintenance(maintenance_id: UUID7, current_user, db: Session):
     maintenance = maintenance_repo.get_ticket_by_id(db, maintenance_id, current_user) 
     if not maintenance:
         raise HTTPException(404, "Maintenance not found")

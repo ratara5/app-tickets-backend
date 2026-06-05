@@ -1,3 +1,5 @@
+from pydantic import UUID7
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -13,14 +15,14 @@ import app.services.worksheet_service as svc
 router = APIRouter(prefix="/maintenances", tags=["worksheets"])
 
 @router.get("/{maintenance_id}/worksheet", response_model=WorksheetOut)
-def get_worksheet(maintenance_id: int, db: Session = Depends(get_db),
+def get_worksheet(maintenance_id: UUID7, db: Session = Depends(get_db),
                   _ = Depends(get_current_user)):
     ws = svc._get_or_create_worksheet(maintenance_id, db)
     db.commit()
     return ws
 
 @router.post("/{maintenance_id}/worksheet/generate-pdf")
-def generate_pdf(maintenance_id: int, db: Session = Depends(get_db),
+def generate_pdf(maintenance_id: UUID7, db: Session = Depends(get_db),
                  current_user = Depends(get_current_user)):
     ws = svc.generate_pdf(maintenance_id, db, current_user)
     return {
@@ -30,7 +32,7 @@ def generate_pdf(maintenance_id: int, db: Session = Depends(get_db),
     }
 
 @router.patch("/{maintenance_id}/worksheet", response_model=WorksheetOut)
-def update_worksheet(maintenance_id: int, data: WorksheetUpsert,
+def update_worksheet(maintenance_id: UUID7, data: WorksheetUpsert,
                      db: Session = Depends(get_db),
                      current_user = Depends(get_current_user)):
     return svc.upsert_worksheet(db, maintenance_id, data, current_user)

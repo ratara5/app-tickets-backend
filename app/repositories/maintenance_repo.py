@@ -1,5 +1,6 @@
 import datetime
 from typing import List
+from pydantic import UUID7
 
 from sqlalchemy import or_, and_, joinedload, selectinload
 from sqlalchemy.orm import Session
@@ -75,7 +76,7 @@ def get_visible_maintenances(db,
 
 def get_maintenance_by_id( # The client side cache eliminates 90% calls to this endpoint.
     db: Session, 
-    maintenance_id: int, 
+    maintenance_id: UUID7, 
     current_user
 ) -> Maintenance | None:   
     query = _get_query(db, current_user)
