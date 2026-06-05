@@ -35,7 +35,7 @@ class Spare(Base):
 class Market(Base):
     __tablename__ = "markets"
 
-    market_id = Column(Integer, primary_key=True),
+    market_id = Column(Integer, primary_key=True)
     market_name = Column(String)
     city = Column(String)    
     transport_cost = Column(Numeric(8, 2))
@@ -46,7 +46,7 @@ class Market(Base):
 class Equipment(Base):
     __tablename__ = "equipments"
 
-    equipment_id = Column(Integer, primary_key=True),
+    equipment_id = Column(Integer, primary_key=True)
     equipment_name = Column(String)
 
     tickets = relationship("Ticket", back_populates="equipment") # One equipment Many tickets
@@ -55,7 +55,7 @@ class Equipment(Base):
 class Labsdls(Base):
     __tablename__ = "labsdls"
 
-    labsdl_id = Column(Integer, primary_key=True),
+    labsdl_id = Column(Integer, primary_key=True)
     labsdl_name = Column(String)
     labsdl_description = Column(String)
     hourly_rate = Column(Numeric(8, 2))
