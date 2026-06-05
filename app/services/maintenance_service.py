@@ -12,6 +12,7 @@ from app.models.ticket import Ticket
 from app.models.maintenance import Maintenance
 from app.models.pause import Pause
 
+from app.schemas.user import CurrentUser, UserRole
 from app.schemas.maintenance import MaintenanceUpdate
 from app.schemas.ticket import TicketStatus
 from app.schemas.pause import PauseRequest
@@ -43,19 +44,31 @@ def create_new_maintenance(db, data, current_user):
 
     return maintenance
 
+def get_maintenance(db: Session, maintenance_id: int, current_user):
+    maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
+    if not maintenance:
+        raise HTTPException(404, "Maintenance not found")
+    assert_ownership(maintenance, current_user)
+    return _serialize_maintenance_item(maintenance)
+
+def list_maintenances(db, current_user, page: int = 1, page_size: int = 50):
+    maintenances_list = maintenance_repo.get_visible_maintenances(db, current_user, page, page_size)
+    return list(map(_serialize_maintenance_item, maintenances_list))
+
 async def update_existing(maintenance_id: UUID7, 
                           payload: MaintenanceUpdate, 
                           current_user, 
                           db: Session, 
                           files: dict):
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
+    assert_ownership(maintenance, current_user)
     # Verify if associated ticket exists and its status is IN PROGRESS o PAUSED
     ticket = ticket_repo.get_ticket_by_id(db, maintenance.ticket_id, current_user)
     if not ticket:
-        raise HTTPException(404, "Ticket no encontrado")
-    if ticket.estado not in (TicketStatus.in_progress, TicketStatus.paused):
+        raise HTTPException(404, "Ticket not found")
+    if ticket.status not in (TicketStatus.in_progress, TicketStatus.paused):
         raise HTTPException(
-            422, f"No se puede crear maintenance: ticket en estado {ticket.estado}"
+            422, f"It's not possible to create maintenance: ticket status {ticket.status}"
         )
     
     #################################################
@@ -140,15 +153,10 @@ async def update_existing(maintenance_id: UUID7,
 
     return maintenance
 
-    
-
-def list_maintenances(db, current_user, page: int = 1, page_size: int = 50):
-    maintenances_list = maintenance_repo.get_visible_maintenances(db, current_user, page, page_size)
-    return list(map(_serialize_maintenance_item, maintenances_list))
-
 def pause_ticket(maintenance_id: int, payload: PauseRequest,
                   current_user, db: Session):
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
+    assert_ownership(maintenance, current_user)
     ticket = ticket_repo.get_ticket_by_id(db, maintenance.ticket_id, current_user)
     if not ticket:
         raise HTTPException(404, "Ticket not found")
@@ -161,12 +169,6 @@ def pause_ticket(maintenance_id: int, payload: PauseRequest,
     create_new_pause(db, data, current_user)
     return ticket
 
-def get_maintenance(db: Session, maintenance_id: int, current_user):
-    maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
-    if not maintenance:
-        raise HTTPException(404, "Maintenance not found")
-    return _serialize_maintenance_item(maintenance)
-
 def delete_maintenance(maintenance_id: int, current_user, db: Session):
     maintenance = maintenance_repo.get_ticket_by_id(db, maintenance_id, current_user) 
     if not maintenance:
@@ -175,6 +177,12 @@ def delete_maintenance(maintenance_id: int, current_user, db: Session):
 
 
 # Helpers
+def assert_ownership(mnt: Maintenance, current_user: CurrentUser):
+    if current_user.user_role == UserRole.director:
+        return
+    if mnt.ticket.assigned_to != current_user.technician.technician_id:
+        raise HTTPException(403, "Forbidden")
+
 @service(schema=Maintenance)
 def build_object_path_maintenances(maintenance: Maintenance, col_name, content_type):
 

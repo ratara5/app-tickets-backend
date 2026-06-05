@@ -12,6 +12,7 @@ from app.models.ticket import Ticket
 from app.models.maintenance import Maintenance
 from app.models.master import Technician
 
+from app.schemas.user import CurrentUser, UserRole
 from app.schemas.ticket import AssignRequest, TicketStatus
 from app.schemas.cancellation import CancellationRequest
 
@@ -38,6 +39,7 @@ def get_ticket(db: Session, ticket_id: int, current_user):
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user)
     if not ticket:
         raise HTTPException(404, "Ticket not found")
+    assert_ownership(ticket, current_user)
     return _serialize_ticket_item(ticket)
     
 def list_tickets(db, current_user, page: int = 1, page_size: int = 50):
@@ -50,7 +52,8 @@ def start_maintenance(ticket_id: int, payload: None,
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     if not ticket:
         raise HTTPException(404, "Ticket not found")
-    
+    assert_ownership(ticket, current_user)
+
     validate_transition(ticket.status, TicketStatus.in_progress)
     
     # Validate hollidays/weekend: Not necessary here
@@ -76,7 +79,8 @@ def assign_ticket(ticket_id: int, payload: AssignRequest,
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     if not ticket:
         raise HTTPException(404, "Ticket not found")
-    
+    assert_ownership(ticket, current_user)
+
     validate_transition(ticket.status, TicketStatus.assigned)
 
     if current_user.user_role not in ["TECHNICIAN", "DIRECTOR"]:
@@ -98,7 +102,8 @@ def cancel_ticket(ticket_id: int, payload: CancellationRequest,
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     if not ticket:
         raise HTTPException(404, "Ticket not found")
-    
+    assert_ownership(ticket, current_user)
+
     validate_transition(ticket.status, TicketStatus.cancelled)
 
     data = SimpleNamespace(ticket_id=ticket_id, **payload.model_dump())
@@ -116,6 +121,8 @@ def create_new_add_wkd(ticket_id: int, payload: None,
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     if not ticket:
         raise HTTPException(404, "Ticket not found")
+    assert_ownership(ticket, current_user)
+
     maintenance = db.query(Maintenance).filter(Maintenance.ticket_id == ticket_id).first()
     # TODO: manage not maintenance ...
     
@@ -139,10 +146,18 @@ def delete_ticket(ticket_id: int, current_user, db: Session):
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     if not ticket:
         raise HTTPException(404, "Ticket not found")
+    assert_ownership(ticket, current_user)
+    
     return ticket_repo.delete_ticket_by_id(db, ticket, current_user)
 
     
 # ── Helpers ───────────────────────────────────────────────────────────────
+def assert_ownership(tk: Ticket, current_user: CurrentUser):
+    if tk.assigned_to == "" or current_user.user_role == UserRole.director:
+        return
+    if tk.assigned_to != current_user.technician.technician_id:
+        raise HTTPException(403, "Forbidden")
+
 def validate_transition(current_state: str, new_state: str):
     allowed = VALID_TRANSITIONS.get(current_state, [])
     if new_state not in allowed:
