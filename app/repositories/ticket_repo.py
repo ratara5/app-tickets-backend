@@ -33,6 +33,18 @@ def save_ticket(db, data, current_user):
 def get_visible_tickets(db, current_user, page: int = 1, page_size: int = 50):
     query = _get_query(db, current_user, None)
 
+    if current_user.user_role == UserRole.technician:
+        query = query.filter(
+            and_(
+                or_(
+                    Ticket.assigned_to == None,
+                    Ticket.assigned_to == current_user.technician.technician_id
+                ),
+                Ticket.status != TicketStatus.cancelled # "CANCELLED"
+            )
+        )
+    
+
     return query.order_by(
         Ticket.ticket_date.desc()
         .offset((page - 1) * page_size)
@@ -47,9 +59,11 @@ def get_ticket_by_id( # The client side cache eliminates 90% calls to this endpo
 ) -> Ticket | None:
     query = _get_query(db, current_user, ticket_id)
     query = query.filter(Ticket.ticket_id == ticket_id)
+    # The Logic for filter by user_role now is a validation in ticket_service
     
     return query.first()
 
+# avoid N+1 problem, is better than relationship access with dot notation (out of repo)
 def _get_query(db, current_user):
     limit_date = start_of_month(-2)
     query = (
@@ -64,17 +78,6 @@ def _get_query(db, current_user):
         .filter(Ticket.ticket_date >= limit_date)
     )
 
-    if current_user.user_role == UserRole.technician:
-        query = query.filter(
-            and_(
-                or_(
-                    Ticket.assigned_to == None,
-                    Ticket.assigned_to == current_user.technician.technician_id
-                ),
-                Ticket.status != TicketStatus.cancelled # "CANCELLED"
-            )
-        )
-    
     return query
 
 def save_add_wkd(db, data, current_user):

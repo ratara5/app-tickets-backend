@@ -53,6 +53,17 @@ def get_visible_maintenances(db,
                              page: int = 1, 
                              page_size: int = 50) -> List[Maintenance]:
     query = _get_query(db, current_user)
+
+    if current_user.user_role == UserRole.technician:
+        query = query.filter(
+            and_(
+                or_(
+                    Ticket.assigned_to == None,
+                    Ticket.assigned_to == current_user.technician.technician_id
+                ),
+                Ticket.status != TicketStatus.cancelled
+            )
+        )
     
     return (
         query
@@ -69,6 +80,7 @@ def get_maintenance_by_id( # The client side cache eliminates 90% calls to this 
 ) -> Maintenance | None:   
     query = _get_query(db, current_user)
     query.filter(Maintenance.id_maintenance == maintenance_id)
+    # The Logic for filter by user_role now is a validation in maintenance_service
 
     return query.first()
 
@@ -87,6 +99,7 @@ def add_maintenance_technician(db, maintenance_id, t):
         end_hour=t.end_hour
     ))
 
+# avoid N+1 problem, is better than relationship access with dot notation (out of repo)
 def _get_query(db, current_user):
     limit_date = start_of_month(-2)
 
@@ -111,17 +124,6 @@ def _get_query(db, current_user):
             Ticket.ticket_date >= limit_date
         )
     )
-
-    if current_user.user_role == UserRole.technician:
-        query = query.filter(
-            and_(
-                or_(
-                    Ticket.assigned_to == None,
-                    Ticket.assigned_to == current_user.technician.technician_id
-                ),
-                Ticket.status != TicketStatus.cancelled
-            )
-        )
 
     return query
 
