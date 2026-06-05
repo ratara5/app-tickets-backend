@@ -18,7 +18,7 @@ from app.schemas.ticket import TicketStatus
 from app.schemas.pause import PauseRequest
 
 import app.repositories.maintenance_repo as maintenance_repo
-import app.repositories.ticket_repo as ticket_repo # TODO: update_status
+import app.repositories.ticket_repo as ticket_repo
 
 from app.services.registry import service
 from app.services.ticket_service import validate_transition
@@ -149,7 +149,7 @@ async def update_existing(maintenance_id: UUID7,
     else:
         status = TicketStatus.closed
     
-    ticket = ticket_repo.update_ticket_status(db, ticket, status, current_user)
+    ticket_repo.update_ticket_status(db, ticket, status, current_user)
 
     return maintenance
 
@@ -164,9 +164,10 @@ def pause_ticket(maintenance_id: UUID7, payload: PauseRequest,
     validate_transition(ticket.status, TicketStatus.paused)
 
     data = SimpleNamespace(maintenance_id=maintenance_id, **payload.model_dump())
-    ticket.status = TicketStatus.paused
-    db.commit()
+    # ticket.status = TicketStatus.paused
+    # db.commit()
     create_new_pause(db, data, current_user)
+    ticket = ticket_repo.update_ticket_status(db, ticket, TicketStatus.paused, current_user)
     return ticket
 
 def delete_maintenance(maintenance_id: UUID7, current_user, db: Session):

@@ -16,8 +16,10 @@ from app.schemas.user import CurrentUser, UserRole
 from app.schemas.ticket import AssignRequest, TicketStatus
 from app.schemas.cancellation import CancellationRequest
 
-from app.services.maintenance_service import create_new_maintenance
+# from app.services.maintenance_service import create_new_maintenance
 from app.services.cancellation_service import create_new_cancellation
+
+import app.repositories.maintenance_repo as maintenance_repo
 
 from app.core.utils.dates import get_holidays
 from app.core.settings import settings
@@ -62,7 +64,8 @@ def start_maintenance(ticket_id: int, payload: None,
     data = SimpleNamespace(ticket_id=ticket_id, **payload.model_dump() if payload else {})
     ticket.status = TicketStatus.in_progress
     db.commit()
-    create_new_maintenance(db, data, current_user)
+    # create_new_maintenance(db, data, current_user)
+    maintenance_repo.create_maintenance(db, data, current_user)
     return ticket
 
 # ── b. Technician assignment ──────────────────────────────────────────────────────
