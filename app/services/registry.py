@@ -18,7 +18,7 @@ def _autodiscover(package: str) -> None:
     """Imports all *_service modules within package for registry."""
     pkg = importlib.import_module(package)
     for _, module_name, _ in pkgutil.iter_modules(pkg.__path__):
-        if module_name.ends_with("_service"):
+        if module_name.endswith("_service"):
             importlib.import_module(f"{package}.{module_name}")
 
 async def dispatch_service(table: str, *args) -> Any: # y column: str?

@@ -11,7 +11,7 @@ import json
 
 from fastapi import HTTPException
 from jinja2 import Environment, FileSystemLoader
-from sqlalchemy import Session
+from sqlalchemy.orm import Session
 from weasyprint import HTML
 
 from app.models.worksheet import Worksheet

@@ -1,7 +1,7 @@
-from typing import List
+from typing import List, Optional
 from pydantic import UUID7
 
-from fastapi import Optional, UploadFile, File, APIRouter, Depends
+from fastapi import UploadFile, File, APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -24,7 +24,7 @@ def get_maintenances(
 ):
     return maintenance_svc.list_maintenances(db, current_user, page, page_size)
 
-@router.get("/{maintenance_id}", reponse_model=MaintenanceItemResponse)
+@router.get("/{maintenance_id}", response_model=MaintenanceItemResponse)
 def get_maintenance(
     maintenance_id: UUID7,
     db: Session = Depends(get_db),

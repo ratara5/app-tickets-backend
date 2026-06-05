@@ -1,6 +1,7 @@
 from uuid6 import uuid7 
 
-from sqlalchemy import Uuid, Column, Integer, String, Boolean, DateTime, ForeignKey, relationship
+from sqlalchemy import Uuid, Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
 
 from app.models.base import Base
 
@@ -8,7 +9,7 @@ from app.models.base import Base
 class UploadSession(Base):
     __tablename__ = "uploads_sessions"
 
-    upload_id = Column(Uuid, primary_key=True, default=uuid7),
+    upload_id = Column(Uuid, primary_key=True, default=uuid7)
     user_id = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False)
 
     parent_tab = Column (String) # The name of parent table
@@ -22,7 +23,7 @@ class UploadSession(Base):
     received_chunks = Column(Integer),
 
     expires_at  = Column(DateTime),
-    completed = Column(Boolean)
+    completed = Column(Boolean),
 
     fsm_user = relationship("FSMUser", back_populates="uploads_sessions")
 

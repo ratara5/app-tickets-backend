@@ -12,7 +12,7 @@ from app.services.ticket_service import *
 
 router = APIRouter(prefix="/tickets")
 
-@router.get("", model_response=list[TicketItemResponse])
+@router.get("", response_model=list[TicketItemResponse])
 def get_tickets(
     current_user = Depends(get_current_user),
     db = Depends(get_db),

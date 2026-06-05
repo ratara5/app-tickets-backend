@@ -31,7 +31,7 @@ from app.services.maintenance_service import create_new_maintenance
 from app.services.registry import _autodiscover, dispatch_service, dispatch_build_path
 from app.models.registry import _autodiscover_models, get_model
 
-from app.core import settings
+from app.core.settings import settings
 
 
 chunk_dir = settings.chunk_dir
