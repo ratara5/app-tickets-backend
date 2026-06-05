@@ -24,17 +24,17 @@ from app.schemas.worksheet import WorksheetUpsert
 import app.services.ticket_service as ticket_svc
 import app.services.maintenance_service as maintenance_svc
 
+import app.repositories.worksheet_repo as ws_repo
+
 from app.core.storage import upload_file, get_presigned_url
 from app.core.settings import settings
 
 
 # helpers
-def _get_or_create_worksheet(maintenance_id: UUID7, db: Session) -> Worksheet:
-    ws = db.query(Worksheet).filter_by(maintenance_id=maintenance_id).first()
+def _get_or_create_worksheet(db: Session, maintenance_id: UUID7, current_user) -> Worksheet:
+    ws = ws_repo.get_worksheet_by_maintenance_id(db, maintenance_id, current_user)
     if not ws:
-        ws = Worksheet(maintenance_id=maintenance_id)
-        db.add(ws)
-        db.flush()
+        ws_repo.create_worksheet(db, maintenance_id, current_user)
     return ws
 
 def _number_sheet(maintenance_id: UUID7) -> str:
@@ -48,39 +48,6 @@ def _build_context(maintenance_dto: Maintenance, ws: Worksheet, db:Session, curr
     Equivalent to browse() + computed fields in Odoo
     """
     ticket_dto = ticket_svc.get_ticket(db=db, ticket_id=maintenance_dto.ticket_id, current_user=current_user)
-
-    # market =  db.query(Market).filter(market_id=ticket.market_id).first()
-    # equipo = db.query(Equipment).filter(equipment_id=ticket.equipment_id).first()
-    # technicians = ( # maintenance.technicians # M2M relationship
-    #     db.query(
-    #         Technician.user_id,
-    #         MaintenanceTechnician.start_hour,
-    #         MaintenanceTechnician.end_hour
-    #     )
-    #     .join(
-    #         Technician,
-    #         MaintenanceTechnician.technician_id == Technician.technician_id
-    #     )
-    #     .filter(
-    #         MaintenanceTechnician.maintenance_id == maintenance.maintenance_id
-    #     )
-    #     .all()
-    # ) 
-    # spares = ( # maintenance.spares # M2M relationship (?)
-    #     db.query(
-    #         Spare.spare_name,
-    #         MaintenanceSpare.qty,
-    #         Spare.unit
-    #     )
-    #     .join(
-    #         Spare,
-    #         MaintenanceSpare.spare_id == Spare.spare_id
-    #     )
-    #     .filter(
-    #         MaintenanceSpare.maintenance_id == maintenance.maintenance_id
-    #     )
-    #     .all()
-    # )
 
     return {
         # Client info / form
@@ -137,19 +104,14 @@ def _build_context(maintenance_dto: Maintenance, ws: Worksheet, db:Session, curr
     }
 
 # Use cases
-def upsert_worksheet(maintenance_id: int, data: WorksheetUpsert, db: Session) -> Worksheet:
+def upsert_worksheet(db: Session, maintenance_id: int, data: WorksheetUpsert, current_user) -> Worksheet:
     """Creates or updates the fields that the technician fills in field."""
-    ws = _get_or_create_worksheet(maintenance_id, db)
+    ws = _get_or_create_worksheet(db, maintenance_id, current_user)
 
     if ws.closed:
         raise HTTPException(409, "The sheet is already closed and cannot be modified.")
     
-    for field, value in data.model_dump(exclude_none=True).items():
-        setattr(ws, field, value)
-    
-    ws.updated_at = datetime.now()
-    db.commit()
-    db.refresh(ws)
+    ws_repo.update_existing_ws(db, data, current_user)
     return ws
 
 def generate_pdf(maintenance_id: int, db: Session, current_user) -> tuple[Worksheet, str]:
@@ -190,12 +152,8 @@ def generate_pdf(maintenance_id: int, db: Session, current_user) -> tuple[Worksh
     
     # Close sheet
     number = _number_sheet(maintenance_id)
-    ws.sheet_number = number
-    ws.pdf_path = full_object_path # In the db is saved the path (Mantenimiento/Correctivos/2025/Mayo/.../Soporte_....pdf) y cada vez que se necesita servirlo se genera una URL presignada fresca en ese momento.
-    ws.generated_at = datetime.now()
-    ws.closed = True
-    db.commit()
-    db.refresh(ws)
+
+    ws = ws_repo.save_worksheet(db, ws, full_object_path, number)
 
     url = get_presigned_url(ws.pdf_path, 1)
 

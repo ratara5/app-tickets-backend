@@ -32,5 +32,5 @@ def generate_pdf(maintenance_id: int, db: Session = Depends(get_db),
 @router.patch("/{maintenance_id}/worksheet", response_model=WorksheetOut)
 def update_worksheet(maintenance_id: int, data: WorksheetUpsert,
                      db: Session = Depends(get_db),
-                     _ = Depends(get_current_user)):
-    return svc.upsert_worksheet(maintenance_id, data, db)
+                     current_user = Depends(get_current_user)):
+    return svc.upsert_worksheet(db, maintenance_id, data, current_user)
