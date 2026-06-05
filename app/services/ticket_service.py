@@ -169,6 +169,7 @@ def validate_transition(current_state: str, new_state: str):
 def _serialize_ticket_item(ticket: Ticket):
     return SimpleNamespace(**ticket.model_dump(),
                            market_name=ticket.market.market_name if ticket.market else None,
+                           market_city=ticket.market.market_city if ticket.market else None,
                            equipment_name=ticket.equipment.equipment_name if ticket.equipment else None,
                            # cancellation_reason=ticket.cancellation.reason if ticket.cancellation else None,
                            assigned_name=ticket.technician.fsm_user.user_name if ticket.technician and ticket.technician.fsm_user else None

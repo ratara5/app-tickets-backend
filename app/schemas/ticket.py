@@ -34,6 +34,7 @@ class TicketItemResponse(BaseModel):
     status: str
 
     market_name: str
+    market_city: str
     equipment_name: str
 
     assigned_name: Optional[str] = None

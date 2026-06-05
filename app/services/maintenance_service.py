@@ -227,15 +227,6 @@ def _serialize_maintenance_item(m: Maintenance) -> dict:
     } for mt in m.technicians]
     
     return SimpleNamespace( **m.model_dump(), # The fields into maintenance table
-                           
-                            # The fields of related tables
-                            ticket_date=m.ticket.ticket_date,
-                            ticket_description=m.ticket.ticket_description,
-                            ticket_status=m.ticket.status,
-
-                            # The fields of related tables of related tables
-                            market_name=m.ticket.market.market_name,
-                            equipment_name=m.ticket.equipment.equipment_name,
 
                             # presigned URLs from minIO path fields
                             initial_photo_url=initial_photo_url,

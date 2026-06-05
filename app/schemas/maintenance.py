@@ -65,16 +65,6 @@ class MaintenanceItemResponse(BaseModel):
     maintenance_id: UUID7
     ticket_id: int
 
-    ticket_date: date
-    ticket_description: str
-    status: str
-
-    maintenance_date: date
-    maintenance_description: str
-
-    market_name: str
-    equipment_name: str
-
     spares: Optional[List[SpareOut]] = []
     technicians: Optional[List[TechnicianOut]] = []
 
