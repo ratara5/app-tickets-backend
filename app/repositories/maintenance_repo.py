@@ -2,8 +2,8 @@ import datetime
 from typing import List
 from pydantic import UUID7
 
-from sqlalchemy import or_, and_, joinedload, selectinload
-from sqlalchemy.orm import Session
+from sqlalchemy import or_, and_
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.core.utils.dates import start_of_month
 

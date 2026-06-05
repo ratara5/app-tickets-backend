@@ -3,7 +3,7 @@ from pydantic import Field
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 ENV_PATH = ROOT_DIR / ".env"
 
 
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     client_format_name: str     = Field(..., alias="CLIENT_FORMAT_NAME") 
     ## Contractor info / my company
     contractor_name: str        = Field(..., alias="CONTRACTOR_NAME")
-    contractor_nit: str         = Field(..., alias="CONTRACTOR_CLIENT")
+    contractor_nit: str         = Field(..., alias="CONTRACTOR_NIT")
     contractor_contact: str     = Field(..., alias="CONTRACTOR_CONTACT") 
     contractor_phone: str       = Field(..., alias="CONTRACTOR_PHONE")  
 

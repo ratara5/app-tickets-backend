@@ -1,7 +1,7 @@
 import datetime
 
-from sqlalchemy import or_, and_, joinedload, select
-from sqlalchemy.orm import Session
+from sqlalchemy import or_, and_, select
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.utils.dates import start_of_month
 
