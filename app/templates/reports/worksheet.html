@@ -28,7 +28,7 @@
 </head>
 <body>
 
-<!-- ══ ENCABEZADO ══════════════════════════════════════════════════════════ -->
+<!-- ══ HEADER ══════════════════════════════════════════════════════════ -->
 <table class="outer">
   <tr>
     <td style="width:25%; text-align:center; border-right:2px solid #000;">
@@ -41,12 +41,12 @@
       <strong>Código: {{ client_format_code }}</strong>
     </td>
     <td style="width:25%; text-align:center;">
-      <small>{{ sheet_number }}</small>
+      <small>{{ number_sheet }}</small>
     </td>
   </tr>
 </table>
 
-<!-- ══ CONTRATISTA ════════════════════════════════════════════════════════ -->
+<!-- ══ CONTRACTOR ════════════════════════════════════════════════════════ -->
 <table class="outer">
   <tr class="section-header"><td colspan="4">CONTRATISTA</td></tr>
   <tr>
@@ -63,35 +63,35 @@
   </tr>
 </table>
 
-<!-- ══ SOLICITANTE Y TIENDA ═══════════════════════════════════════════════ -->
+<!-- ══ CUSTOMER AND MARKET ═══════════════════════════════════════════════ -->
 <table class="outer">
   <tr class="section-header"><td colspan="4">SOLICITANTE Y TIENDA BENEFICIARIA</td></tr>
   <tr>
     <td class="label">Nombre del solicitante:</td>
     <td>{{ client_company_name }}</td>
     <td class="label">Municipio:</td>
-    <td>{{ ciudad }}</td>
+    <td>{{ city }}</td>
   </tr>
   <tr>
     <td class="label">Nombre de la tienda:</td>
-    <td>{{ nombre_tienda }}</td>
+    <td>{{ market_name }}</td>
     <td class="label">Departamento:</td>
-    <td>{{ departamento }}</td>
+    <td>{{ state }}</td>
   </tr>
   <tr>
     <td class="label">Fecha:</td>
     <td colspan="3">
-      {{ fecha_trabajo }}
+      {{ maintenance_date }}
     </td>
   </tr>
 </table>
 
-<!-- ══ INFORMACIÓN ÁREA TÉCNICA ═══════════════════════════════════════════ -->
+<!-- ══ TECHNICAL INFO ═══════════════════════════════════════════ -->
 <table class="outer">
   <tr class="section-header"><td colspan="6">INFORMACIÓN ÁREA TÉCNICA</td></tr>
   <tr>
     <td class="label">Nombre del equipo:</td>
-    <td style="width:28%;">{{ nombre_equipo }}</td>
+    <td style="width:28%;">{{ equipment_name }}</td>
     <td class="label" style="width:8%;">Marca:</td>
     <td style="width:14%;"></td>
     <td class="label" style="width:8%;">Serial:</td>
@@ -99,7 +99,7 @@
   </tr>
 </table>
 
-<!-- ══ TIPO DE ASISTENCIA ════════════════════════════════════════════════ -->
+<!-- ══ ASSISTANCE TYPE ════════════════════════════════════════════════ -->
 <table class="outer">
   <tr class="section-header"><td colspan="7">TIPO DE ASISTENCIA</td></tr>
   <tr class="check-row">
@@ -109,7 +109,7 @@
   </tr>
 </table>
 
-<!-- ══ TIPO DE FALLA ══════════════════════════════════════════════════════ -->
+<!-- ══ FAILURE TYPE ══════════════════════════════════════════════════════ -->
 <table class="outer">
   <tr class="section-header"><td colspan="5">TIPO DE FALLA</td></tr>
   <tr class="check-row">
@@ -118,7 +118,7 @@
   </tr>
 </table>
 
-<!-- ══ CAUSA DE FALLAS BÁSICAS ═══════════════════════════════════════════ -->
+<!-- ══ BASIC FAILURES CAUSES ═══════════════════════════════════════════ -->
 <table class="outer">
   <tr class="section-header"><td colspan="5">CAUSA DE FALLAS BÁSICAS</td></tr>
   <tr class="check-row">
@@ -128,26 +128,26 @@
   </tr>
 </table>
 
-<!-- ══ DESCRIPCIÓN DE LA FALLA ═══════════════════════════════════════════ -->
+<!-- ══ FAILURE DESCRIPTION ═══════════════════════════════════════════ -->
 <table class="outer">
   <tr class="section-header"><td>DESCRIPCIÓN DE LA FALLA — FUNCIONARIO TIENDA</td></tr>
-  <tr><td style="min-height:55px; vertical-align:top;">{{ descripcion_ticket }}</td></tr>
+  <tr><td style="min-height:55px; vertical-align:top;">{{ ticket_description }}</td></tr>
 </table>
 
-<!-- ══ DIAGNÓSTICO DEL TÉCNICO ═══════════════════════════════════════════ -->
+<!-- ══ TECHNICAL DIAGNOSIS ═══════════════════════════════════════════ -->
 <table class="outer">
   <tr class="section-header"><td>DIAGNÓSTICO DEL TÉCNICO</td></tr>
-  <tr><td style="min-height:55px; vertical-align:top;">{{ descripcion_mantenimiento }}</td></tr>
+  <tr><td style="min-height:55px; vertical-align:top;">{{ maintenance_description }}</td></tr>
 </table>
 
-<!-- ══ REPUESTOS CAMBIADOS ═══════════════════════════════════════════════ -->
+<!-- ══ CHANGED SPARES ═══════════════════════════════════════════════ -->
 <table class="outer">
   <tr class="section-header"><td>REPUESTOS CAMBIADOS</td></tr>
   <tr>
     <td style="vertical-align:top;">
-      {% if repuestos %}
-        {% for r in repuestos %}
-          {{ r.nombre }} (Cant: {{ r.cantidad }} {{ r.uom }}){% if not loop.last %}, {% endif %}
+      {% if spares %}
+        {% for s in spares %}
+          {{ s.spare_name }} (Cant: {{ s.qty }} {{ s.unit }}){% if not loop.last %}, {% endif %}
         {% endfor %}
       {% else %}
         No se cambiaron repuestos.
@@ -156,13 +156,13 @@
   </tr>
 </table>
 
-<!-- ══ OBSERVACIONES ════════════════════════════════════════════════════ -->
+<!-- ══ OBSERVATIONS ════════════════════════════════════════════════════ -->
 <table class="outer">
   <tr class="section-header"><td>OBSERVACIONES</td></tr>
   <tr><td style="height:45px;"></td></tr>
 </table>
 
-<!-- ══ EVALUACIÓN DEL SERVICIO ═══════════════════════════════════════════ -->
+<!-- ══ SERVICE SURVEY ═══════════════════════════════════════════ -->
 <table class="outer">
   <tr class="section-header"><td colspan="4">EVALUACIÓN DEL SERVICIO</td></tr>
   <tr>
@@ -184,7 +184,7 @@
     "Cumplimiento de horarios"
   ] %}
   <tr>
-    <td>{{ aspecto }}</td>
+    <td>ASPECTO</td>
     <td class="eval-check">☐</td>
     <td class="eval-check">☐</td>
     <td class="eval-check">☐</td>
@@ -192,11 +192,11 @@
   {% endfor %}
 </table>
 
-<!-- ══ CONSTANCIA + DATOS RECEPTOR ════════════════════════════════════════ -->
+<!-- ══ CERTIFICATE + RECEIVER DATA ════════════════════════════════════════ -->
 <table style="width:100%; border-collapse:collapse; margin-bottom:8px;">
   <tr>
 
-    <!-- Izquierda: técnicos -->
+    <!-- Left: tecchnicians -->
     <td style="width:50%; vertical-align:top; padding-right:4px;">
       <table class="outer">
         <tr class="section-header"><td colspan="4">CONSTANCIA REALIZACIÓN ASISTENCIA</td></tr>
@@ -206,34 +206,23 @@
           <th style="width:20%;">Hora Entrada</th>
           <th style="width:20%;">Hora Salida</th>
         </tr>
-        <!-- Técnico principal 
-        <tr>
-          <td>{{ tecnico_nombre }}</td>
-          <td style="text-align:center;">{{ tecnico_doc }}</td>
-          <td style="text-align:center;">
-            {% if date_start %}{{ date_start.strftime("%H:%M") }}{% endif %}
-          </td>
-          <td style="text-align:center;">
-            {% if date_end %}{{ date_end.strftime("%H:%M") }}{% endif %}
-          </td>
-        </tr> -->
-        <!-- Técnicos -->
+        <!-- Technicians -->
         {% for t in tecnicos %}
         <tr>
-          <td>{{ t.nombre }}</td>
-          <td style="text-align:center;">{{ t.doc }}</td>
+          <td>{{ t.technician_name }}</td>
+          <td style="text-align:center;">D0cum3nt0</td>
           <td style="text-align:center;">
-            {% if hora_entrada %}{{ hora_entrada.strftime("%H:%M") }}{% endif %}
+            {% if start_hour %}{{ start_hour.strftime("%H:%M") }}{% endif %}
           </td>
           <td style="text-align:center;">
-            {% if hora_salida %}{{ hora_salida.strftime("%H:%M") }}{% endif %}
+            {% if end_hour %}{{ end_hour.strftime("%H:%M") }}{% endif %}
           </td>
         </tr>
         {% endfor %}
       </table>
     </td>
 
-    <!-- Derecha: receptor -->
+    <!-- Right: receiver -->
     <td style="width:50%; vertical-align:top; padding-left:4px;">
       <table class="outer">
         <tr class="section-header"><td colspan="2">DATOS DE QUIEN RECIBE</td></tr>
