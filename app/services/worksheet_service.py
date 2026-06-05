@@ -19,6 +19,9 @@ from app.models.master import *
 
 from app.schemas.worksheet import WorksheetUpsert
 
+import app.services.ticket_service as ticket_svc
+import app.services.maintenance_service as maintenance_svc
+
 from app.core.storage import upload_file, get_presigned_url
 from app.core.settings import settings
 
@@ -36,84 +39,85 @@ def _number_sheet(maintenance_id: UUID7) -> str:
     year = datetime.now().year
     return f"WS-{year}-{maintenance_id:06d}"
 
-def _build_context(maintenance: Maintenance, ws: Worksheet, db:Session) -> dict:
+def _build_context(maintenance_dto: Maintenance, ws: Worksheet, db:Session) -> dict:
     """
     Groups in a flat dict all the Jinja2 template needs.
     Equivalent to browse() + computed fields in Odoo
     """
-    ticket = db.query(Ticket).filter(ticket_id=maintenance.ticket_id).first()
-    market =  db.query(Market).filter(market_id=ticket.market_id).first()
-    equipo = db.query(Equipment).filter(equipment_id=ticket.equipment_id).first()
-    technicians = ( # maintenance.technicians # M2M relationship
-        db.query(
-            Technician.user_id,
-            MaintenanceTechnician.start_hour,
-            MaintenanceTechnician.end_hour
-        )
-        .join(
-            Technician,
-            MaintenanceTechnician.technician_id == Technician.technician_id
-        )
-        .filter(
-            MaintenanceTechnician.maintenance_id == maintenance.maintenance_id
-        )
-        .all()
-    ) 
-    spares = ( # maintenance.spares # M2M relationship (?)
-        db.query(
-            Spare.spare_name,
-            MaintenanceSpare.qty,
-            Spare.unit
-        )
-        .join(
-            Spare,
-            MaintenanceSpare.spare_id == Spare.spare_id
-        )
-        .filter(
-            MaintenanceSpare.maintenance_id == maintenance.maintenance_id
-        )
-        .all()
-    )
+    ticket_dto = ticket_svc.get_ticket()
+
+    # market =  db.query(Market).filter(market_id=ticket.market_id).first()
+    # equipo = db.query(Equipment).filter(equipment_id=ticket.equipment_id).first()
+    # technicians = ( # maintenance.technicians # M2M relationship
+    #     db.query(
+    #         Technician.user_id,
+    #         MaintenanceTechnician.start_hour,
+    #         MaintenanceTechnician.end_hour
+    #     )
+    #     .join(
+    #         Technician,
+    #         MaintenanceTechnician.technician_id == Technician.technician_id
+    #     )
+    #     .filter(
+    #         MaintenanceTechnician.maintenance_id == maintenance.maintenance_id
+    #     )
+    #     .all()
+    # ) 
+    # spares = ( # maintenance.spares # M2M relationship (?)
+    #     db.query(
+    #         Spare.spare_name,
+    #         MaintenanceSpare.qty,
+    #         Spare.unit
+    #     )
+    #     .join(
+    #         Spare,
+    #         MaintenanceSpare.spare_id == Spare.spare_id
+    #     )
+    #     .filter(
+    #         MaintenanceSpare.maintenance_id == maintenance.maintenance_id
+    #     )
+    #     .all()
+    # )
 
     return {
-        # CLient info / form
-        "client_company_name": getattr(ticket, "client_company_name", "CLIENT_COMPANY_NAME"),
-        "client_format_name": getattr(ticket, "client_format_name", "CLIENT_FORMAT_NAME"),
-        "client_format_code": getattr(ticket, "client_format_code", "CLIENT_FORMAT_CODE"),
+        # Client info / form
+        "client_company_name": getattr(ticket_dto, "client_company_name", "CLIENT_COMPANY_NAME"),
+        "client_format_name": getattr(ticket_dto, "client_format_name", "CLIENT_FORMAT_NAME"),
+        "client_format_code": getattr(ticket_dto, "client_format_code", "CLIENT_FORMAT_CODE"),
 
         # Contractor info / my company
-        "contractor_name": getattr(maintenance, "contractor_name", "CONTRACTOR_NAME"),
-        "contractor_nit": getattr(maintenance, "contractor_nit", "CONTRACTOR_NIT"),
-        "contractor_contact": getattr(maintenance, "contractor_contact", "CONTRACTOR_CONTACT"),
-        "contractor_phone": getattr(maintenance, "contractor_phone", "CONTRACTOR_PHONE"),
+        "contractor_name": getattr(maintenance_dto, "contractor_name", "CONTRACTOR_NAME"),
+        "contractor_nit": getattr(maintenance_dto, "contractor_nit", "CONTRACTOR_NIT"),
+        "contractor_contact": getattr(maintenance_dto, "contractor_contact", "CONTRACTOR_CONTACT"),
+        "contractor_phone": getattr(maintenance_dto, "contractor_phone", "CONTRACTOR_PHONE"),
 
         # Market
-        "market_name": getattr(market, "market_name", "NOMBRE_TIENDA"),
-        "city": getattr(market, "city", "CIUDAD"),
-        "state": getattr(market, "state", "DEPARTAMENTO"),
+        "market_name": getattr(ticket_dto, "market_name", "NOMBRE_TIENDA"),
+        "city": getattr(ticket_dto, "city", "CIUDAD"),
+        "state": getattr(ticket_dto, "state", "DEPARTAMENTO"),
 
         # Date
-        "maintenance_date": getattr(maintenance, "maintenance_date", "1/11/1111"),
+        "maintenance_date": getattr(maintenance_dto, "maintenance_date", "1/11/1111"),
 
         # Equipment
-        "equipment_name": getattr(equipo, "equipment_name", "NOMBRE_EQUIPO"),
+        "equipment_name": getattr(ticket_dto, "equipment_name", "NOMBRE_EQUIPO"),
 
         # Ticket Description
-        "ticket_description": getattr(ticket, "ticket_description", "DESCRIPCION_TICKET"),
+        "ticket_description": getattr(ticket_dto, "ticket_description", "DESCRIPCION_TICKET"),
 
         # Maintenance Description
-        "maintenance_description": getattr(maintenance, "maintenance_description", "DESCRIPCION_MANTENIMIENTO"),
+        "maintenance_description": getattr(maintenance_dto, "maintenance_description", "DESCRIPCION_MANTENIMIENTO"),
 
         # Technicians
         "technicians": [
-            {"user_id": t.user_id, "start_hour": t.start_hour, "end_hour": t.end_hour}
-            for t in technicians
+            {"technician_name": mt.technician_name, "start_hour": mt.start_hour, "end_hour": mt.end_hour}
+            for mt in maintenance_dto.technicians
         ], 
 
         # Spares
         "spares": [
-            {"spare_name": r.spare_name, "qty": r.qty, "unit": r.unit}
-            for r in spares
+            {"spare_name": ms.spare_name, "qty": ms.qty, "unit": ms.unit}
+            for ms in maintenance_dto.spares
         ],
 
         # Receiver info (fill in field (?))
@@ -125,7 +129,7 @@ def _build_context(maintenance: Maintenance, ws: Worksheet, db:Session) -> dict:
         "receiver_signature_date": ws.receiver_signature_date,
 
         # Number sheet
-        "number_sheet": ws.sheet_number or _number_sheet(maintenance.maintenance_id),
+        "number_sheet": ws.sheet_number or _number_sheet(maintenance_dto.maintenance_id),
         "generation_date": datetime.now()
     }
 
@@ -150,33 +154,31 @@ def generate_pdf(maintenance_id: int, db: Session) -> tuple[Worksheet, str]:
     Render the PDF, upload it to MinIO and close the sheet.
     Returns (worksheet, presigned_url).
     """
-    maintenance = db.query(Maintenance).filter(maintenance_id=maintenance_id).first()
-    if not maintenance:
-        raise HTTPException(404, "Maintenance not found.")
+    maintenance_dto = maintenance_svc.get_maintenance()
     
     ws = _get_or_create_worksheet(maintenance_id, db)
 
     if ws.closed:
-        # Ya generado: devolvemos URL fresca sin regenerar
+        # Already generated: we return a fresh URL without regenerating
         url = get_presigned_url(ws.pdf_url, 1)
         return ws, url
     
-    # Renderizar
+    # Render
     env = Environment(loader=FileSystemLoader(str(settings.template_dir)))
     template = env.get_template("worksheet.html")
-    ctx = _build_context(maintenance, ws)
+    ctx = _build_context(maintenance_dto, ws)
     html_str = template.render(**ctx)
 
-    # PDF en memoria
+    # PDF in memory
     pdf_bytes = HTML(string=html_str, base_url=str(settings.template_dir)).write_pdf()
 
-    # Subir a minio
-    fecha_trabajo = maintenance.fecha_trabajo
+    # Upload to MinIO
+    fecha_trabajo = maintenance_dto.fecha_trabajo
     mes = fecha_trabajo.strftime("%B")
     anio = fecha_trabajo.strftime("%Y")
 
-    original_filename = f"{settings.pdf_suffix}{maintenance.ticket_id}.pdf"
-    full_object_path = f"{settings.base_object_path}/{anio}/{mes}/{maintenance.ticket_id}/{original_filename}"
+    original_filename = f"{settings.pdf_suffix}{maintenance_dto.ticket_id}.pdf"
+    full_object_path = f"{settings.base_object_path}/{anio}/{mes}/{maintenance_dto.ticket_id}/{original_filename}"
 
     upload_file(file_stream=io.BytesIO(pdf_bytes), 
             original_filename=original_filename,
