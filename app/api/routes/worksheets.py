@@ -21,8 +21,8 @@ def get_worksheet(maintenance_id: int, db: Session = Depends(get_db),
 
 @router.post("/{maintenance_id}/worksheet/generate-pdf")
 def generate_pdf(maintenance_id: int, db: Session = Depends(get_db),
-                 _ = Depends(get_current_user)):
-    ws = svc.generate_pdf(maintenance_id, db)
+                 current_user = Depends(get_current_user)):
+    ws = svc.generate_pdf(maintenance_id, db, current_user)
     return {
         "sheet_number": ws.sheet_number,
         "url": get_presigned_url(object_name=ws.pdf_url, expires_hours=1),

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-import base64
-import io
 from datetime import datetime
 from pathlib import Path
-
 from pydantic import UUID7
+from types import SimpleNamespace
+
+import base64
+import io
+import json
 
 from fastapi import HTTPException
 from jinja2 import Environment, FileSystemLoader
@@ -39,12 +41,13 @@ def _number_sheet(maintenance_id: UUID7) -> str:
     year = datetime.now().year
     return f"WS-{year}-{maintenance_id:06d}"
 
-def _build_context(maintenance_dto: Maintenance, ws: Worksheet, db:Session) -> dict:
+
+def _build_context(maintenance_dto: Maintenance, ws: Worksheet, db:Session, current_user) -> dict:
     """
     Groups in a flat dict all the Jinja2 template needs.
     Equivalent to browse() + computed fields in Odoo
     """
-    ticket_dto = ticket_svc.get_ticket()
+    ticket_dto = ticket_svc.get_ticket(db=db, ticket_id=maintenance_dto.ticket_id, current_user=current_user)
 
     # market =  db.query(Market).filter(market_id=ticket.market_id).first()
     # equipo = db.query(Equipment).filter(equipment_id=ticket.equipment_id).first()
@@ -81,32 +84,32 @@ def _build_context(maintenance_dto: Maintenance, ws: Worksheet, db:Session) -> d
 
     return {
         # Client info / form
-        "client_company_name": getattr(ticket_dto, "client_company_name", "CLIENT_COMPANY_NAME"),
-        "client_format_name": getattr(ticket_dto, "client_format_name", "CLIENT_FORMAT_NAME"),
-        "client_format_code": getattr(ticket_dto, "client_format_code", "CLIENT_FORMAT_CODE"),
+        "client_company_name": settings.client_company_name,
+        "client_format_name": settings.client_format_name,
+        "client_format_code": 9999, # TODO: Field (not static) in worksheet
 
         # Contractor info / my company
-        "contractor_name": getattr(maintenance_dto, "contractor_name", "CONTRACTOR_NAME"),
-        "contractor_nit": getattr(maintenance_dto, "contractor_nit", "CONTRACTOR_NIT"),
-        "contractor_contact": getattr(maintenance_dto, "contractor_contact", "CONTRACTOR_CONTACT"),
-        "contractor_phone": getattr(maintenance_dto, "contractor_phone", "CONTRACTOR_PHONE"),
+        "contractor_name": settings.contractor_name,
+        "contractor_nit": settings.contractor_nit,
+        "contractor_contact": settings.contractor_contact,
+        "contractor_phone": settings.contractor_phone,
 
         # Market
-        "market_name": getattr(ticket_dto, "market_name", "NOMBRE_TIENDA"),
-        "city": getattr(ticket_dto, "city", "CIUDAD"),
-        "state": getattr(ticket_dto, "state", "DEPARTAMENTO"),
+        "market_name": ticket_dto.market_name,
+        "city": ticket_dto.city,
+        "state": ticket_dto.state,
 
         # Date
-        "maintenance_date": getattr(maintenance_dto, "maintenance_date", "1/11/1111"),
+        "maintenance_date": maintenance_dto.maintenance_date,
 
         # Equipment
-        "equipment_name": getattr(ticket_dto, "equipment_name", "NOMBRE_EQUIPO"),
+        "equipment_name": ticket_dto.equipment_name,
 
         # Ticket Description
-        "ticket_description": getattr(ticket_dto, "ticket_description", "DESCRIPCION_TICKET"),
+        "ticket_description": ticket_dto.ticket_description,
 
         # Maintenance Description
-        "maintenance_description": getattr(maintenance_dto, "maintenance_description", "DESCRIPCION_MANTENIMIENTO"),
+        "maintenance_description": maintenance_dto.maintenance_description,
 
         # Technicians
         "technicians": [
@@ -149,23 +152,22 @@ def upsert_worksheet(maintenance_id: int, data: WorksheetUpsert, db: Session) ->
     db.refresh(ws)
     return ws
 
-def generate_pdf(maintenance_id: int, db: Session) -> tuple[Worksheet, str]:
+def generate_pdf(maintenance_id: int, db: Session, current_user) -> tuple[Worksheet, str]:
     """
     Render the PDF, upload it to MinIO and close the sheet.
     Returns (worksheet, presigned_url).
-    """
-    maintenance_dto = maintenance_svc.get_maintenance()
-    
-    ws = _get_or_create_worksheet(maintenance_id, db)
+    """ 
+    ws = _get_or_create_worksheet(db=db, maintenance_id=maintenance_id, current_user=current_user)
 
     if ws.closed:
         # Already generated: we return a fresh URL without regenerating
-        url = get_presigned_url(ws.pdf_url, 1)
+        url = get_presigned_url(ws.pdf_path, 1)
         return ws, url
     
     # Render
     env = Environment(loader=FileSystemLoader(str(settings.template_dir)))
     template = env.get_template("worksheet.html")
+    maintenance_dto = maintenance_svc.get_maintenance(db, maintenance_id, current_user)
     ctx = _build_context(maintenance_dto, ws)
     html_str = template.render(**ctx)
 
@@ -194,3 +196,7 @@ def generate_pdf(maintenance_id: int, db: Session) -> tuple[Worksheet, str]:
     ws.closed = True
     db.commit()
     db.refresh(ws)
+
+    url = get_presigned_url(ws.pdf_path, 1)
+
+    return ws, url

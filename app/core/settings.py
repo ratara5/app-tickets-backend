@@ -14,9 +14,17 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # TZ
+    # Companies info
     tz_company: str             = Field(..., alias="TZ_COMPANY")
-    country_company: str                = Field(..., alias="COUNTRY")    
+    country_company: str        = Field(..., alias="COUNTRY")
+    ## Client info / form
+    client_company_name: str    = Field(..., alias="CLIENT_COMPANY_NAME")  
+    client_format_name: str     = Field(..., alias="CLIENT_FORMAT_NAME") 
+    ## Contractor info / my company
+    contractor_name: str        = Field(..., alias="CONTRACTOR_NAME")
+    contractor_nit: str         = Field(..., alias="CONTRACTOR_CLIENT")
+    contractor_contact: str     = Field(..., alias="CONTRACTOR_CONTACT") 
+    contractor_phone: str       = Field(..., alias="CONTRACTOR_PHONE")  
 
     # Postgres
     pg_host: str                = Field(..., alias="DB_HOST")
