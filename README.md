@@ -1,6 +1,8 @@
+# TK MGM API BACKEND
 ```bash
-cd ~route/to/your/python/projects/app-tickets-backend
-python3.12 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+export ROOT_PATH=/path/to/your/python/projects/api-tickets-backend
+$ROOT_PATH/bootstrap.sh \
+    --project-root $ROOT_PATH/app-tickets-backend \
+    --compose-file docker-compose.yml \
+    --init-file init.sql
 ```
