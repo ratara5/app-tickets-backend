@@ -3,3 +3,5 @@ TODO.md
 
 venv/
 **/__pycache__/
+**/data/*
+!**/data/.gitkeep
