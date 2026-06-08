@@ -1,0 +1,28 @@
+default_timezone: "America/Bogota"
+
+# Override by table/column if exceptions
+# The script detects datetime columns automatically by heuristics (≥50% parsed values). If any column has dates but still is skipped, its parsing could be forced if it (the column) is listed here — this also could be used as explicit documentation about what columns are datetime type in each table
+overrides:
+  tickets:
+    updated_at: "America/Bogota"
+    created_at: "America/Bogota"
+  manintenances:
+    updated_at: "America/Bogota"
+    created_at: "America/Bogota"
+  cancellations:
+    updated_at: "America/Bogota"
+    created_at: "America/Bogota"
+  pauses:
+    updated_at: "America/Bogota"
+    created_at: "America/Bogota"
+  manintenances_technicians:
+    updated_at: "America/Bogota"
+    created_at: "America/Bogota"
+    start_hour: "America/Bogota"
+    end_hour: "America/Bogota"
+  maintenances_spares:
+    updated_at: "America/Bogota"
+    created_at: "America/Bogota"
+  adticketswkd:
+    updated_at: "America/Bogota"
+    created_at: "America/Bogota"
