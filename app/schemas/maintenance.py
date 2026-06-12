@@ -34,7 +34,9 @@ class PhotoOut(BaseModel):
     photo_url: str
 
 class MaintenanceCreate(BaseModel):
+    maintenance_id: UUID7
     ticket_id: int
+    maintenance_date: date
 
 class MaintenanceUpdate(BaseModel):
     # ticket_id: int # Already exists, it shouldn't come from client

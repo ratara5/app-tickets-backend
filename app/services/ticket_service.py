@@ -35,7 +35,8 @@ VALID_TRANSITIONS = {
 }
   
 def create_new_ticket(db, data, current_user):
-    return ticket_repo.save_ticket(db, data, current_user)
+    ticket = ticket_repo.save_ticket(db, data, current_user)
+    return ticket_repo.get_ticket_by_id(ticket.ticket_id)
 
 def get_ticket(db: Session, ticket_id: int, current_user):
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user)
@@ -65,8 +66,8 @@ def start_maintenance(ticket_id: int, payload: None,
     ticket.status = TicketStatus.in_progress
     db.commit()
     # create_new_maintenance(db, data, current_user)
-    maintenance_repo.create_maintenance(db, data, current_user)
-    return ticket
+    return maintenance_repo.create_maintenance(db, data, current_user)
+
 
 # ── b. Technician assignment ──────────────────────────────────────────────────────
 def _get_technician_id_by_user(db, current_user):
@@ -113,6 +114,7 @@ def cancel_ticket(ticket_id: int, payload: CancellationRequest,
     ticket.status = TicketStatus.cancelled
     db.commit()
     create_new_cancellation(db, data, current_user)
+    ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     return ticket
     
 # ── c. Pause ───────────────────────────────────────────────────────────────

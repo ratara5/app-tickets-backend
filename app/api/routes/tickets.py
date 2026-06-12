@@ -5,6 +5,7 @@ from app.api.deps import get_current_user
 from app.core.database import get_db
 
 from app.schemas.ticket import TicketCreate, AssignRequest, TicketItemResponse, AddWkdRequest
+from app.schemas.maintenance import MaintenanceCreate
 from app.schemas.cancellation import CancellationRequest
 
 from app.services.ticket_service import *
@@ -29,7 +30,7 @@ def get_ticket(
 ):
     return get_ticket(db, ticket_id, current_user)
 
-@router.post("")
+@router.post("", response_model=TicketItemResponse)
 def create_ticket(
     data: TicketCreate,
     current_user = Depends(get_current_user),
@@ -41,7 +42,7 @@ def create_ticket(
         current_user
     )
 
-@router.patch("/{ticket_id}/assign")
+@router.patch("/{ticket_id}/assign", response_model=TicketItemResponse)
 def assign(ticket_id: int, 
            payload: AssignRequest,
            db: Session = Depends(get_db),
@@ -50,13 +51,13 @@ def assign(ticket_id: int,
     # ...
     return assign_ticket(ticket_id, payload, current_user, db)
 
-@router.patch("/{ticket_id}/start")
+@router.patch("/{ticket_id}/start", response_model=MaintenanceCreate)
 def start(ticket_id: int, 
           current_user = Depends(get_current_user),
           db: Session = Depends(get_db)):
     return start_maintenance(ticket_id, current_user, db)
-
-@router.patch("/{ticket_id}/cancel")
+ 
+@router.patch("/{ticket_id}/cancel", response_model=TicketItemResponse)
 def cancel(ticket_id: int, payload: CancellationRequest,
            db: Session = Depends(get_db),
            current_user = Depends(get_current_user)):
@@ -65,13 +66,13 @@ def cancel(ticket_id: int, payload: CancellationRequest,
 # @router.patch("/{ticket_id}/pause")
 # Now in routes/maintenances.py because it's more related to maintenance than ticket, and it needs to validate the maintenance status and not the ticket status. The endpoint is /maintenances/{maintenance_id}/pause instead of /tickets/{ticket_id}/pause because the pause is more related to the maintenance than the ticket, and we need to validate the maintenance status before pausing it. The ticket status is automatically updated to paused when the maintenance is paused, so we don't need to validate the ticket status.
 
-@router.patch("/{ticket_id}/addwkd")
+@router.patch("/{ticket_id}/addwkd", response_model=TicketItemResponse)
 def create_add_wkd(ticket_id: int, payload: AddWkdRequest,
           db: Session = Depends(get_db),
           current_user = Depends(get_current_user)):
     return create_new_add_wkd (ticket_id, payload, current_user, db)
 
-@router.delete("/{ticket_id}")
+@router.delete("/{ticket_id}", status_code=204)
 def del_ticket(ticket_id: int, 
                db: Session = Depends(get_db), 
                current_user = Depends(get_current_user)):
