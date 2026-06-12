@@ -30,7 +30,7 @@ openspec init # IN OTHER TERMINAL!
 ... and commit: `chore: add agentic layer config (OpenSpec/specboot) (wip)`
 
 ### 3. Customize `/docs` for your project (Mandatory)  
-** Generate `api-spec.json` **  
+** 3.1 Generate `api-spec.json` **  
 
 ** option a **
 
