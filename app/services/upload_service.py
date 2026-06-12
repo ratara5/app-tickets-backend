@@ -38,7 +38,7 @@ chunk_dir = settings.chunk_dir
 os.makedirs(chunk_dir, exist_ok=True)
 
 
-async def init_upload_service(db: Session, current_user, payload):
+async def init_upload(db: Session, current_user, payload):
     # Here the logic in order to create new upload session 
     # 1. Validates payload (allow file type, max size, etc.)
     if payload.content_type not in settings.allowed_types:
@@ -60,7 +60,7 @@ async def init_upload_service(db: Session, current_user, payload):
         next_chunk=0,
     )
 
-async def upload_chunk_service(db: Session, current_user, upload_id, chunk_index, chunk, x_chunk_checksum):
+async def upload_chunk(db: Session, current_user, upload_id, chunk_index, chunk, x_chunk_checksum):
     upload_session = get_upload_session(db, upload_id, current_user.email) # Session is sync, not async, therefore no await
     if not upload_session:
         raise HTTPException(404, "Upload sesion not found")
@@ -96,10 +96,24 @@ async def upload_chunk_service(db: Session, current_user, upload_id, chunk_index
         total_chunks=upload_session.total_chunks
     )
 
+async def get_status_upload(db: Session, upload_id: str, current_user):
+    # 1. Validate session
+    upload_session = get_upload_session(db, upload_id, current_user.email)
+    if not upload_session:
+        raise HTTPException(404, "Session not found")
+    if upload_session.completed:
+        raise HTTPException(409, "Upload is already completed")
+    
+    total_chunks = upload_session.total_chunks
+    missing_chunks = get_chunks_missing(upload_id, upload_session.total_chunks)
+    received_chunks = total_chunks - len(missing_chunks)
+
+    return received_chunks, total_chunks
+    
 _executor = ThreadPoolExecutor()  # for synchronous operations in Minio
 _autodiscover("app.services")
 _autodiscover_models("app.models")
-async def complete_upload_service(db: Session, upload_id: str, current_user):
+async def complete_upload(db: Session, upload_id: str, current_user):
     # 1. Validate session
     upload_session = get_upload_session(db, upload_id, current_user.email)
     if not upload_session:
@@ -108,12 +122,14 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
         raise HTTPException(409, "Upload is already completed")
 
     # 2. Verify chunks
+    total_chunks = upload_session.total_chunks
     missing_chunks = get_chunks_missing(upload_id, upload_session.total_chunks)
+    received_chunks = total_chunks - len(missing_chunks)
     if missing_chunks:
         raise HTTPException(422, detail={
             "error": "INCOMPLETED_CHUNKS",
-            "received": upload_session.total_chunks - len(missing_chunks),
-            "expected": upload_session .total_chunks,
+            "received": received_chunks,
+            "expected": total_chunks,
             "missing_chunks": missing_chunks,
         })
 
@@ -181,4 +197,4 @@ async def complete_upload_service(db: Session, upload_id: str, current_user):
     # 6. Clean chunks — after commit
     clean_chunks(upload_id, chunks_in_disk, assembled_path)
 
-    
+    return url, received_chunks, total_chunks
