@@ -44,7 +44,7 @@ def create_maintenance(
         current_user
     )
 
-@router.patch("/{maintenance_id}")
+@router.patch("/{maintenance_id}", response_model=MaintenanceUpdate)
 async def update_maintenance(
     maintenance_id: UUID7,
     payload: MaintenanceUpdate = Depends(),
