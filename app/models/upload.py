@@ -13,17 +13,17 @@ class UploadSession(Base):
     user_id = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False)
 
     parent_tab = Column (String) # The name of parent table
-    parent_id = Column(Uuid), # The id of parent registry
-    tab_name = Column(String), # The table name (child table name)     
-    col_name = Column(String), # The column name in table (child table)  
+    parent_id = Column(Uuid) # The id of parent registry
+    tab_name = Column(String) # The table name (child table name)     
+    col_name = Column(String) # The column name in table (child table)  
     
-    content_type = Column(String),             
-    total_size = Column(Integer),              
-    total_chunks = Column(Integer),  
-    received_chunks = Column(Integer),
+    content_type = Column(String)             
+    total_size = Column(Integer)              
+    total_chunks = Column(Integer)  
+    received_chunks = Column(Integer)
 
-    expires_at  = Column(DateTime),
-    completed = Column(Boolean),
+    expires_at  = Column(DateTime)
+    completed = Column(Boolean)
 
     fsm_user = relationship("FSMUser", back_populates="uploads_sessions")
 
