@@ -33,7 +33,7 @@ def get_maintenance(
 ):
     return maintenance_svc.get_maintenance(db, maintenance_id, current_user)
 
-@router.post("")
+@router.post("", response_model=MaintenanceCreate)
 def create_maintenance(
     data: MaintenanceCreate,
     current_user = Depends(get_current_user),
