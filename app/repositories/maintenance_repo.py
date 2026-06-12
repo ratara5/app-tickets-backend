@@ -28,23 +28,10 @@ def create_maintenance(db, data, current_user):
 
     return maintenance
 
-def save_maintenance(db, data, current_user):
-    maintenance = Maintenance(
-        ticket_id=data.ticket_id,
-        maintenance_description=data.maintenance_description,
-        # maintenance_start=data.maintenance_start, # equals to created_at # TODO: To inject TZ from environment
-        initial_photo_path=data.initial_photo_path,
-        labsdl_id=data.labsdl_id,
-        edition_start=datetime.now().strftime("%Y-%m-%d %H:%M:%S+00"), # TODO: To inject TZ from environment and apply .strftime("%Y-%m-%d %H:%M:%S+00")
+def update_maintenance(db, maintenance, data, current_user):
+    for field, value in data.model_dump(exclude_none=True, exclude={"spares", "technicians"}).items():
+        setattr(maintenance, field, value)
 
-        # carpeta_soporte=data.carpeta_soporte,
-        # formato_soporte=data.formato_soporte,
-        # url_foto_inicio=data.url_foto_inicio,
-        # url_informe_soporte=data.url_informe_soporte,
-
-        # created_by=current_user.user_id # It's not necessary overwrite auditmixin
-    )
-    db.add(maintenance)
     db.flush()  # get ID without do commit
 
     return maintenance
@@ -129,8 +116,8 @@ def _get_query(db, current_user):
     return query
 
 def delete_maintenance_by_id(db, maintenance, current_user):
-
+    ticket = db.query(Maintenance).join(Maintenance.ticket)
     db.delete(maintenance)
     db.commit()
    
-    return maintenance.maintenance_id
+    return ticket.ticket_id

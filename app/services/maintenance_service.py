@@ -55,10 +55,10 @@ def list_maintenances(db, current_user, page: int = 1, page_size: int = 50):
     maintenances_list = maintenance_repo.get_visible_maintenances(db, current_user, page, page_size)
     return list(map(_serialize_maintenance_item, maintenances_list))
 
-async def update_existing(maintenance_id: UUID7, 
+async def update_existing(db: Session, 
+                          maintenance_id: UUID7, 
                           payload: MaintenanceUpdate, 
                           current_user, 
-                          db: Session, 
                           files: dict):
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
     assert_ownership(maintenance, current_user)
@@ -125,7 +125,7 @@ async def update_existing(maintenance_id: UUID7,
     ###### Save maintenance change (persistance) #####
     ##################################################
 
-    maintenance = maintenance_repo.save_maintenance(db, data, current_user)
+    maintenance = maintenance_repo.update_maintenance(db, maintenance, data, current_user)
 
     ##################################################
     ###### Business logic after data persistance #####
@@ -151,7 +151,7 @@ async def update_existing(maintenance_id: UUID7,
     
     ticket_repo.update_ticket_status(db, ticket, status, current_user)
 
-    return maintenance
+    return _serialize_maintenance_item(maintenance)
 
 def pause_ticket(maintenance_id: UUID7, payload: PauseRequest,
                   current_user, db: Session):
