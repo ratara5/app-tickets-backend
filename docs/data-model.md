@@ -1,372 +1,509 @@
 # Data Model Documentation
 
-This document describes the data model for the LTI (Learning Tracking Initiative) application, including entity descriptions, field definitions, relationships, and an entity-relationship diagram.
+This document describes the data model for the Field Service Management (FSM) / Tickets application, including entity descriptions, field definitions, relationships, and an entity-relationship diagram.
+
+The database name is `db_gestiket_acme` running on PostgreSQL 16.
 
 ## Model Descriptions
 
-### 1. Candidate
-Represents a job candidate who can apply for positions within the system.
+### 1. fsm_users
+Represents system users who can authenticate and perform actions.
 
 **Fields:**
-- `id`: Unique identifier for the candidate (Primary Key)
-- `firstName`: Candidate's first name (max 100 characters)
-- `lastName`: Candidate's last name (max 100 characters)
-- `email`: Candidate's unique email address (max 255 characters)
-- `phone`: Candidate's phone number (optional, max 15 characters)
-- `address`: Candidate's address (optional, max 100 characters)
-
-**Validation Rules:**
-- First name and last name are required, 2-100 characters, letters only
-- Email is required, must be unique, and follow valid email format
-- Phone is optional but must follow Spanish format (6|7|9)XXXXXXXX if provided
-- Address is optional but cannot exceed 100 characters
-- Maximum of 3 education records per candidate
+- `user_id`: Unique identifier for the user (Primary Key, SERIAL)
+- `email`: User's unique email address (max 150, UNIQUE)
+- `user_name`: User's display name (max 50)
+- `passwd`: Password hash (max 255, bcrypt)
+- `user_role`: Role name (`admin`, `technician`, etc.) (max 50)
+- `photo_path`: MinIO object path for user photo (optional, max 500)
+- `created_at`: Account creation timestamp (auto)
 
 **Relationships:**
-- `educations`: One-to-many relationship with Education model
-- `workExperiences`: One-to-many relationship with WorkExperience model
-- `resumes`: One-to-many relationship with Resume model
-- `applications`: One-to-many relationship with Application model
+- `technician`: One-to-one relationship with Technician model
 
-### 2. Education
-Represents educational background information for candidates.
+### 2. technicians
+Represents technical staff linked to user accounts.
 
 **Fields:**
-- `id`: Unique identifier for the education record (Primary Key)
-- `institution`: Name of the educational institution (max 100 characters)
-- `title`: Degree or certification title obtained (max 250 characters)
-- `startDate`: Start date of the education period
-- `endDate`: End date of the education period (optional, null if ongoing)
-- `candidateId`: Foreign key referencing the Candidate
-
-**Validation Rules:**
-- Institution is required and cannot exceed 100 characters
-- Title is required and cannot exceed 250 characters
-- Start date is required and must be in valid date format
-- End date is optional but must be valid if provided
-- Maximum of 3 education records per candidate
+- `technician_id`: Unique identifier (Primary Key, SERIAL)
+- `user_id`: Foreign key referencing fsm_users (UNIQUE)
 
 **Relationships:**
-- `candidate`: Many-to-one relationship with Candidate model
+- `user`: Many-to-one relationship with FSMUser
+- `tickets`: One-to-many relationship with Ticket (assigned)
+- `maintenances`: One-to-many through MaintenanceTechnician
 
-### 3. WorkExperience
-Represents work history and professional experience for candidates.
+### 3. markets
+Represents partner/derived markets where service is provided.
 
 **Fields:**
-- `id`: Unique identifier for the work experience record (Primary Key)
-- `company`: Name of the company or organization (max 100 characters)
-- `position`: Job title or position held (max 100 characters)
-- `description`: Description of responsibilities and achievements (optional, max 200 characters)
-- `startDate`: Start date of the work experience
-- `endDate`: End date of the work experience (optional, null if current)
-- `candidateId`: Foreign key referencing the Candidate
-
-**Validation Rules:**
-- Company name is required and cannot exceed 100 characters
-- Position is required and cannot exceed 100 characters
-- Description is optional but cannot exceed 200 characters if provided
-- Start date is required and must be in valid date format
-- End date is optional but must be valid if provided
+- `market_id`: Unique identifier (Primary Key, INT)
+- `market_name`: Market name
+- `city`: City location
+- `transport_cost`: Transport cost value (NUMERIC 8,2)
 
 **Relationships:**
-- `candidate`: Many-to-one relationship with Candidate model
+- `tickets`: One-to-many relationship with Ticket
 
-### 4. Resume
-Represents uploaded resume files associated with candidates.
+### 4. equipments
+Represents equipment/product types that can be serviced.
 
 **Fields:**
-- `id`: Unique identifier for the resume record (Primary Key)
-- `filePath`: File system path to the uploaded resume (max 500 characters)
-- `fileType`: MIME type or file extension of the resume (max 50 characters)
-- `uploadDate`: Date and time when the resume was uploaded
-- `candidateId`: Foreign key referencing the Candidate
-
-**Validation Rules:**
-- File path is required and cannot exceed 500 characters
-- File type is required and cannot exceed 50 characters
-- Upload date is automatically set when file is uploaded
-- Supported file types: PDF and DOCX (max 10MB)
+- `equipment_id`: Unique identifier (Primary Key, INT)
+- `equipment_name`: Equipment name
 
 **Relationships:**
-- `candidate`: Many-to-one relationship with Candidate model
+- `tickets`: One-to-many relationship with Ticket
 
-### 5. Company
-Represents companies that post job positions and employ staff.
+### 5. uom
+Units of measure catalog.
 
 **Fields:**
-- `id`: Unique identifier for the company (Primary Key)
-- `name`: Unique company name
+- `unit`: Unit code (Primary Key, VARCHAR)
+- `magnitude`: Physical magnitude (e.g., weight, volume)
+- `uom_description`: Detailed description
+- `ref_unit`: Reference unit (self-referencing FK)
+- `factor_conversion`: Conversion factor to reference unit (NUMERIC 5,2)
 
 **Relationships:**
-- `employees`: One-to-many relationship with Employee model
-- `positions`: One-to-many relationship with Position model
+- `spares`: One-to-many relationship with Spare
 
-### 6. Employee
-Represents employees within companies who can conduct interviews.
+### 6. spares
+Inventory of spare parts and consumables.
 
 **Fields:**
-- `id`: Unique identifier for the employee (Primary Key)
-- `name`: Employee's full name
-- `email`: Employee's unique email address
-- `role`: Employee's role or job title
-- `isActive`: Boolean indicating if the employee is currently active
-- `companyId`: Foreign key referencing the Company
+- `spare_id`: Unique identifier (Primary Key, SERIAL)
+- `spare_name`: Spare part name
+- `unit`: Unit of measure (FK to uom)
+- `price`: Unit price (NUMERIC 10,2)
 
 **Relationships:**
-- `company`: Many-to-one relationship with Company model
-- `interviews`: One-to-many relationship with Interview model
+- `uom`: Many-to-one relationship with UOM
+- `maintenances`: One-to-many through MaintenanceSpare
 
-### 7. InterviewType
-Defines different types of interviews that can be conducted.
+### 7. labsdls
+Labor schedules — defines hourly rates for different labor types.
 
 **Fields:**
-- `id`: Unique identifier for the interview type (Primary Key)
-- `name`: Name of the interview type (e.g., "Technical", "HR", "Behavioral")
-- `description`: Detailed description of the interview type (optional)
+- `labsdl_id`: Unique identifier (Primary Key, SERIAL)
+- `labsdl_name`: Schedule name
+- `labsdl_description`: Description
+- `hourly_rate`: Hourly rate value (NUMERIC 8,2)
 
 **Relationships:**
-- `interviewSteps`: One-to-many relationship with InterviewStep model
+- `maintenances`: One-to-many relationship with Maintenance
 
-### 8. InterviewFlow
-Represents a sequence of interview steps that define the hiring process.
+### 8. tickets
+Core entity representing a service ticket.
+
+**Enums:**
+- `priority_type`: `LOW`, `MEDIUM`, `HIGH`
+- `status_type`: `OPEN`, `ASSIGNED`, `CANCELLED`, `IN PROGRESS`, `PAUSED`, `CLOSED`
 
 **Fields:**
-- `id`: Unique identifier for the interview flow (Primary Key)
-- `description`: Description of the interview flow process (optional)
+- `ticket_id`: Unique identifier (Primary Key, INT)
+- `priority`: Priority level (enum)
+- `market_id`: FK to Market
+- `ticket_date`: Ticket creation date
+- `equipment_id`: FK to Equipment
+- `ticket_description`: Problem description (TEXT)
+- `status`: Current status (enum)
+- `assigned_to`: FK to Technician (nullable)
+- `created_at`: Timestamp (TIMESTAMPTZ, auto)
+- `created_by`: FK to fsm_users (VARCHAR)
+- `updated_at`: Last update timestamp (TIMESTAMPTZ, nullable)
+- `updated_by`: FK to fsm_users (VARCHAR)
 
 **Relationships:**
-- `interviewSteps`: One-to-many relationship with InterviewStep model
-- `positions`: One-to-many relationship with Position model
+- `maintenance`: One-to-one relationship with Maintenance
+- `market`: Many-to-one relationship with Market
+- `equipment`: Many-to-one relationship with Equipment
+- `cancellation`: One-to-one relationship with Cancellation
+- `technician`: Many-to-one relationship with Technician
+- `add_wkd`: One-to-one relationship with AddWkd
 
-### 9. InterviewStep
-Represents individual steps within an interview flow.
+### 9. cancellations
+Tracks ticket cancellation details.
 
 **Fields:**
-- `id`: Unique identifier for the interview step (Primary Key)
-- `name`: Name of the interview step
-- `orderIndex`: Numeric order of this step within the flow
-- `interviewFlowId`: Foreign key referencing the InterviewFlow
-- `interviewTypeId`: Foreign key referencing the InterviewType
+- `ticket_id`: FK to Ticket (Primary Key, INT)
+- `cancellation_reason`: Cancellation justification (TEXT)
+- `created_at`: Timestamp (auto)
+- `created_by`: FK to fsm_users (VARCHAR)
+- `updated_at`: Last update (nullable)
+- `updated_by`: FK to fsm_users (VARCHAR)
 
 **Relationships:**
-- `interviewFlow`: Many-to-one relationship with InterviewFlow model
-- `interviewType`: Many-to-one relationship with InterviewType model
-- `applications`: One-to-many relationship with Application model
-- `interviews`: One-to-many relationship with Interview model
+- `ticket`: Many-to-one relationship with Ticket
 
-### 10. Position
-Represents job positions available for application.
+### 10. maintenances
+Represents actual maintenance work performed for a ticket. Uses UUID v7 as primary key.
 
 **Fields:**
-- `id`: Unique identifier for the position (Primary Key)
-- `companyId`: Foreign key referencing the Company (required)
-- `interviewFlowId`: Foreign key referencing the InterviewFlow (required)
-- `title`: Job title (required, max 100 characters)
-- `description`: Brief description of the position (required)
-- `status`: Current status of the position (default: "Draft", valid values: Open, Contratado, Cerrado, Borrador)
-- `isVisible`: Boolean indicating if the position is publicly visible (default: false)
-- `location`: Job location (required)
-- `jobDescription`: Detailed job description (required)
-- `requirements`: Job requirements and qualifications (optional)
-- `responsibilities`: Job responsibilities (optional)
-- `salaryMin`: Minimum salary range (optional, must be >= 0)
-- `salaryMax`: Maximum salary range (optional, must be >= 0 and >= salaryMin)
-- `employmentType`: Type of employment (e.g., "Full-time", "Part-time", "Contract") (optional)
-- `benefits`: Job benefits description (optional)
-- `companyDescription`: Description of the hiring company (optional)
-- `applicationDeadline`: Deadline for applications (optional, must be a future date)
-- `contactInfo`: Contact information for inquiries (optional)
-
-**Validation Rules:**
-- Title is required and cannot exceed 100 characters
-- Description, location, and jobDescription are required fields
-- Status must be one of: Open, Contratado, Cerrado, Borrador
-- Company and interview flow references must exist in the database
-- Salary values must be non-negative numbers
-- Application deadline must be a future date if provided
+- `maintenance_id`: UUID v7 (Primary Key, auto-generated via uuid6)
+- `ticket_id`: FK to Ticket (INT, UNIQUE)
+- `maintenance_date`: Date of maintenance
+- `maintenance_description`: Work description (TEXT)
+- `labsdl_id`: FK to LabSchedule
+- `initial_photo_path`: MinIO path for initial photo
+- `real_mark_as`: Real mark/rating
+- `observations`: Observations (TEXT)
+- `edition_start`: Timestamp when edition started
+- `created_at`, `updated_at`, `created_by`, `updated_by`: Audit fields
 
 **Relationships:**
-- `company`: Many-to-one relationship with Company model
-- `interviewFlow`: Many-to-one relationship with InterviewFlow model
-- `applications`: One-to-many relationship with Application model
+- `ticket`: Many-to-one relationship with Ticket
+- `pauses`: One-to-many relationship with Pause
+- `photos`: One-to-many relationship with Photo
+- `worksheet`: One-to-one relationship with Worksheet
+- `labsdl`: Many-to-one relationship with Labsdl
+- `technicians`: One-to-many through MaintenanceTechnician
+- `spares`: One-to-many through MaintenanceSpare
 
-### 11. Application
-Represents a candidate's application to a specific position.
+### 11. maintenances_technicians
+Join table linking maintenance work to technicians with time tracking.
 
 **Fields:**
-- `id`: Unique identifier for the application (Primary Key)
-- `applicationDate`: Date when the application was submitted
-- `currentInterviewStep`: Current step in the interview process
-- `notes`: Additional notes about the application (optional)
-- `positionId`: Foreign key referencing the Position
-- `candidateId`: Foreign key referencing the Candidate
-- `interviewStepId`: Foreign key referencing the current InterviewStep
+- `maintenance_id`: FK to Maintenance (UUID, composite PK)
+- `technician_id`: FK to Technician (INT, composite PK)
+- `start_hour`: Start time (TIMETZ)
+- `end_hour`: End time (TIMETZ)
+- Audit fields
 
-**Relationships:**
-- `position`: Many-to-one relationship with Position model
-- `candidate`: Many-to-one relationship with Candidate model
-- `interviewStep`: Many-to-one relationship with InterviewStep model
-- `interviews`: One-to-many relationship with Interview model
-
-### 12. Interview
-Represents individual interview sessions conducted as part of an application.
+### 12. maintenances_spares
+Join table linking maintenance work to spare parts used.
 
 **Fields:**
-- `id`: Unique identifier for the interview (Primary Key)
-- `interviewDate`: Date and time of the interview
-- `result`: Interview result or outcome (optional)
-- `score`: Numeric score or rating from the interview (optional)
-- `notes`: Interview notes and feedback (optional)
-- `applicationId`: Foreign key referencing the Application
-- `interviewStepId`: Foreign key referencing the InterviewStep
-- `employeeId`: Foreign key referencing the conducting Employee
+- `maintenance_id`: FK to Maintenance (UUID, composite PK)
+- `spare_id`: FK to Spare (INT, composite PK)
+- `qty`: Quantity used (NUMERIC 6,2)
+- Audit fields
 
-**Relationships:**
-- `application`: Many-to-one relationship with Application model
-- `interviewStep`: Many-to-one relationship with InterviewStep model
-- `employee`: Many-to-one relationship with Employee model
+### 13. photos
+Photos associated with maintenance work.
+
+**Fields:**
+- `photo_id`: Unique identifier (Primary Key, TEXT)
+- `maintenance_id`: FK to Maintenance (UUID)
+- `photo_path`: MinIO object path (TEXT)
+- `processed`: Boolean flag indicating processing state
+- Audit fields
+
+### 14. pauses
+Tracks pause events during maintenance work.
+
+**Fields:**
+- `pause_id`: Unique identifier (Primary Key, TEXT)
+- `maintenance_id`: FK to Maintenance (UUID)
+- `pause_reason`: Reason for pause (TEXT)
+- Audit fields
+
+### 15. adticketswkd
+Additional weekend ticket information.
+
+**Fields:**
+- `ticket_id`: FK to Ticket (Primary Key, INT)
+- `operation_percentage`: Operation percentage (NUMERIC)
+- `market_temperature`: Market temperature (NUMERIC)
+- `operation_damage`: Boolean flag
+- `completed`: Boolean flag
+- `observations_wkd`: Weekend observations (TEXT)
+- Audit fields
+
+### 16. materials
+Materials used during maintenance (non-inventory items).
+
+**Fields:**
+- `material_id`: Unique identifier (Primary Key, SERIAL)
+- `ticket_id`: FK to Ticket
+- `maintenance_id`: FK to Maintenance (UUID)
+- `spare_id`: FK to Spare (reset reference)
+- `material_description`: Description (TEXT)
+- `qty`: Quantity (NUMERIC)
+- `price`: Unit price (NUMERIC)
+
+### 17. services
+Services performed during maintenance.
+
+**Fields:**
+- `service_id`: Unique identifier (Primary Key, SERIAL)
+- `ticket_id`: FK to Ticket
+- `maintenance_id`: FK to Maintenance (UUID)
+- `service_description`: Description (TEXT)
+- `qty`: Quantity (NUMERIC)
+- `price`: Unit price (NUMERIC)
+
+### 18. uploads_sessions
+Tracks chunked file upload sessions for reliable large file transfers.
+
+**Fields:**
+- `upload_id`: UUID v7 (Primary Key)
+- `user_id`: FK to fsm_users
+- `parent_tab`: Source tab identifier (UUID)
+- `parent_id`: Parent entity ID (UUID)
+- `tab_name`: Tab name (TEXT)
+- `col_name`: Column name (TEXT)
+- `content_type`: MIME type (TEXT)
+- `total_size`: Total file size (INT)
+- `total_chunks`: Total chunk count (INT)
+- `received_chunks`: Chunks received (INT)
+- `expires_at`: Expiration timestamp (TIMESTAMPTZ)
+- `completed`: Boolean flag
+
+### 19. worksheets
+PDF worksheets/support documents generated for maintenance.
+
+**Fields:**
+- `worksheet_id`: Unique identifier (Primary Key, INT)
+- `maintenance_id`: FK to Maintenance (UUID, UNIQUE)
+- `receiver_name`: Person who received (VARCHAR 150)
+- `receiver_doc_id`: ID document number (VARCHAR 50)
+- `receiver_position`: Job position (VARCHAR 100)
+- `receiver_sap`: SAP code (VARCHAR 50)
+- `receiver_signature`: Signature data (TEXT)
+- `receiver_signature_timestamp`: Signature timestamp (TIMESTAMPTZ)
+- `sheet_number`: Sequential sheet number (VARCHAR 30, UNIQUE)
+- `pdf_url`: URL to generated PDF (VARCHAR 100)
+- `generated_at`: PDF generation timestamp (TIMESTAMPTZ)
+- `closed`: Boolean flag
+
+### 20. preliquidated
+Tracks tickets already processed for pre-liquidation.
+
+**Fields:**
+- `ticket_id`: FK to Ticket (Primary Key, INT)
+- `timestamp_write_form`: Form write timestamp (TIMESTAMPTZ)
+
+### 21. hollidays
+Holidays calendar (note: the project uses the `holidays` Python package as primary source).
+
+**Fields:**
+- `holliday_date`: Date (Primary Key, DATE)
+- `title`: Holiday name (TEXT)
 
 ## Entity Relationship Diagram
 
 ```mermaid
 erDiagram
-    Candidate {
-        Int id PK
-        String firstName
-        String lastName
-        String email UK
-        String phone
-        String address
+    fsm_users {
+        int user_id PK
+        string email UK
+        string user_name
+        string passwd
+        string user_role
+        string photo_path
+        datetime created_at
     }
-    Education {
-        Int id PK
-        String institution
-        String title
-        DateTime startDate
-        DateTime endDate
-        Int candidateId FK
+    technicians {
+        int technician_id PK
+        int user_id FK UK
     }
-    WorkExperience {
-        Int id PK
-        String company
-        String position
-        String description
-        DateTime startDate
-        DateTime endDate
-        Int candidateId FK
+    markets {
+        int market_id PK
+        string market_name
+        string city
+        numeric transport_cost
     }
-    Resume {
-        Int id PK
-        String filePath
-        String fileType
-        DateTime uploadDate
-        Int candidateId FK
+    equipments {
+        int equipment_id PK
+        string equipment_name
     }
-    Company {
-        Int id PK
-        String name UK
+    uom {
+        string unit PK
+        string magnitude
+        text uom_description
+        string ref_unit FK
+        numeric factor_conversion
     }
-    Employee {
-        Int id PK
-        String name
-        String email UK
-        String role
-        Boolean isActive
-        Int companyId FK
+    spares {
+        int spare_id PK
+        string spare_name
+        string unit FK
+        numeric price
     }
-    InterviewType {
-        Int id PK
-        String name
-        String description
+    labsdls {
+        int labsdl_id PK
+        string labsdl_name
+        string labsdl_description
+        numeric hourly_rate
     }
-    InterviewFlow {
-        Int id PK
-        String description
+    tickets {
+        int ticket_id PK
+        string priority
+        int market_id FK
+        date ticket_date
+        int equipment_id FK
+        text ticket_description
+        string status
+        int assigned_to FK
+        datetime created_at
+        int created_by FK
+        datetime updated_at
+        int updated_by FK
     }
-    InterviewStep {
-        Int id PK
-        String name
-        Int orderIndex
-        Int interviewFlowId FK
-        Int interviewTypeId FK
+    cancellations {
+        int ticket_id PK FK
+        text cancellation_reason
+        datetime created_at
+        int created_by FK
+        datetime updated_at
+        int updated_by FK
     }
-    Position {
-        Int id PK
-        String title
-        String description
-        String status
-        Boolean isVisible
-        String location
-        String jobDescription
-        String requirements
-        String responsibilities
-        Float salaryMin
-        Float salaryMax
-        String employmentType
-        String benefits
-        String companyDescription
-        DateTime applicationDeadline
-        String contactInfo
-        Int companyId FK
-        Int interviewFlowId FK
+    maintenances {
+        uuid maintenance_id PK
+        int ticket_id FK UK
+        date maintenance_date
+        text maintenance_description
+        int labsdl_id FK
+        string initial_photo_path
+        string real_mark_as
+        text observations
+        datetime edition_start
+        datetime created_at
+        int created_by FK
+        datetime updated_at
+        int updated_by FK
     }
-    Application {
-        Int id PK
-        DateTime applicationDate
-        Int currentInterviewStep
-        String notes
-        Int positionId FK
-        Int candidateId FK
-        Int interviewStepId FK
+    maintenances_technicians {
+        uuid maintenance_id PK FK
+        int technician_id PK FK
+        time start_hour
+        time end_hour
+        datetime created_at
+        int created_by FK
     }
-    Interview {
-        Int id PK
-        DateTime interviewDate
-        String result
-        Int score
-        String notes
-        Int applicationId FK
-        Int interviewStepId FK
-        Int employeeId FK
+    maintenances_spares {
+        uuid maintenance_id PK FK
+        int spare_id PK FK
+        numeric qty
+        datetime created_at
+        int created_by FK
+    }
+    photos {
+        text photo_id PK
+        uuid maintenance_id FK
+        text photo_path
+        boolean processed
+        datetime created_at
+        int created_by FK
+    }
+    pauses {
+        text pause_id PK
+        uuid maintenance_id FK
+        text pause_reason
+        datetime created_at
+        int created_by FK
+    }
+    adticketswkd {
+        int ticket_id PK FK
+        numeric operation_percentage
+        numeric market_temperature
+        boolean operation_damage
+        boolean completed
+        text observations_wkd
+        datetime created_at
+        int created_by FK
+    }
+    materials {
+        int material_id PK
+        int ticket_id FK
+        uuid maintenance_id FK
+        int spare_id FK
+        text material_description
+        numeric qty
+        numeric price
+    }
+    services {
+        int service_id PK
+        int ticket_id FK
+        uuid maintenance_id FK
+        text service_description
+        numeric qty
+        numeric price
+    }
+    uploads_sessions {
+        uuid upload_id PK
+        int user_id FK
+        uuid parent_tab
+        uuid parent_id
+        text tab_name
+        text col_name
+        text content_type
+        int total_size
+        int total_chunks
+        int received_chunks
+        datetime expires_at
+        boolean completed
+    }
+    worksheets {
+        int worksheet_id PK
+        uuid maintenance_id FK UK
+        varchar receiver_name
+        varchar receiver_doc_id
+        varchar receiver_position
+        varchar receiver_sap
+        text receiver_signature
+        datetime receiver_signature_timestamp
+        varchar sheet_number UK
+        varchar pdf_url
+        datetime generated_at
+        boolean closed
+    }
+    preliquidated {
+        int ticket_id PK FK
+        datetime timestamp_write_form
+    }
+    hollidays {
+        date holliday_date PK
+        text title
     }
 
-    Candidate ||--o{ Education : "has"
-    Candidate ||--o{ WorkExperience : "has"
-    Candidate ||--o{ Resume : "has"
-    Candidate ||--o{ Application : "submits"
-    
-    Company ||--o{ Employee : "employs"
-    Company ||--o{ Position : "offers"
-    
-    InterviewType ||--o{ InterviewStep : "defines"
-    InterviewFlow ||--o{ InterviewStep : "includes"
-    InterviewFlow ||--o{ Position : "guides"
-    
-    Position ||--o{ Application : "receives"
-    Application ||--o{ Interview : "includes"
-    
-    InterviewStep ||--o{ Application : "current_step"
-    InterviewStep ||--o{ Interview : "conducted_at"
-    
-    Employee ||--o{ Interview : "conducts"
+    fsm_users ||--o| technicians : "has"
+    fsm_users ||--o{ tickets : "creates"
+    technicians ||--o{ tickets : "assigned_to"
+    technicians ||--o{ maintenances_technicians : "works_on"
+
+    markets ||--o{ tickets : "located_in"
+    equipments ||--o{ tickets : "equipment"
+    uom ||--o{ spares : "measures"
+    labsdls ||--o{ maintenances : "labor_rate"
+
+    tickets ||--o| cancellations : "cancelled_by"
+    tickets ||--o| maintenances : "has"
+    tickets ||--o| adticketswkd : "weekend_data"
+    tickets ||--o| preliquidated : "preliquidated"
+
+    maintenances ||--o{ maintenances_technicians : "assigned"
+    maintenances ||--o{ maintenances_spares : "uses"
+    maintenances ||--o{ photos : "photos"
+    maintenances ||--o{ pauses : "pauses"
+    maintenances ||--o| worksheets : "document"
+
+    spares ||--o{ maintenances_spares : "used_in"
+    spares ||--o{ materials : "catalog_reference"
 ```
 
 ## Key Design Principles
 
-1. **Referential Integrity**: All foreign key relationships ensure data consistency across the system.
+1. **Audit Trail**: All transactional tables include `AuditMixin` with `created_at`, `updated_at`, `created_by`, `updated_by` and relationships to `fsm_users`.
 
-2. **Flexibility**: The interview flow system allows for customizable hiring processes per position.
+2. **UUID v7 for Distributed IDs**: The `maintenances` table uses `uuid6.uuid7()` as primary key, enabling distributed/offline ID generation without collisions.
 
-3. **Audit Trail**: Application and interview dates provide a complete timeline of the hiring process.
+3. **Join Tables with Compound Keys**: Many-to-many relationships (maintenances_technicians, maintenances_spares) use compound primary keys with `PrimaryKeyConstraint`.
 
-4. **Extensibility**: The modular design allows for easy addition of new features and data points.
+4. **Soft References**: Some fields reference users via VARCHAR (not FK) in `created_by`/`updated_by` audit fields, allowing flexibility across systems. The actual FK constraint is to `fsm_users(user_id)` via INTEGER.
 
-5. **Data Normalization**: The model follows database normalization principles to minimize redundancy and ensure data integrity.
+5. **Chunked Uploads**: The `uploads_sessions` table supports resumable chunked file uploads to handle large files and unreliable connections.
+
+6. **Time Zone Awareness**: Timestamps use `TIMESTAMPTZ` (PostgreSQL timezone-aware type). Conversion to local time is done in the application layer with the configured `TZ_COMPANY`.
+
+7. **Dual Price Tracking**: Materials and services are tracked both as inventory items (spares with unit price) and as free-form entries (materials/services with direct price entry).
 
 ## Notes
 
-- All `id` fields serve as primary keys with auto-increment functionality
-- Foreign key relationships maintain referential integrity
-- Optional fields allow for flexible data entry while maintaining required core information
-- The interview system supports multi-step hiring processes with different types of interviews
-- Email fields have unique constraints to prevent duplicate accounts 
+- All `SERIAL` primary keys are database-managed auto-increment integers
+- UUID v7 values are generated client-side via the `uuid6` Python package
+- The `AuditMixin` provides consistent `created_at` / `updated_at` / `created_by` / `updated_by` across all transactional tables
+- The `uom` table supports self-referencing conversion between units
+- File/physical paths reference MinIO object keys, not local filesystem paths
+- The `hollidays` table is auxiliary; the `holidays` Python package is the primary data source for holiday calculations

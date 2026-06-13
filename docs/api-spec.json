@@ -86,7 +86,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TicketItemResponse"
+                }
               }
             }
           },
@@ -166,13 +168,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -222,7 +219,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TicketItemResponse"
+                }
               }
             }
           },
@@ -264,7 +263,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceCreate"
+                }
               }
             }
           },
@@ -316,7 +317,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TicketItemResponse"
+                }
               }
             }
           },
@@ -368,7 +371,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TicketItemResponse"
+                }
               }
             }
           },
@@ -545,53 +550,10 @@
               "format": "uuid7",
               "title": "Maintenance Id"
             }
-          },
-          {
-            "name": "ticket_id",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Ticket Id"
-            }
-          },
-          {
-            "name": "maintenance_date",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "date"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Maintenance Date"
-            }
-          },
-          {
-            "name": "maintenance_description",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Maintenance Description"
-            }
-          },
-          {
-            "name": "initial_photo_path",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Initial Photo Path"
-            }
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
@@ -605,7 +567,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceItemResponse"
+                }
               }
             }
           },
@@ -642,13 +606,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -699,7 +658,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/TicketItemResponse"
+                }
               }
             }
           },
@@ -826,6 +787,100 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "$ref": "#/components/schemas/ChunkResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/uploads/status/{upload_id}": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Upload Status",
+        "operationId": "upload_status_uploads_status__upload_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChunkStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/uploads/complete": {
+      "post": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Complete Upload",
+        "operationId": "complete_upload_uploads_complete_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "upload_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Upload Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
                   "$ref": "#/components/schemas/ChunkStatusResponse"
                 }
               }
@@ -915,6 +970,10 @@
       },
       "Body_update_maintenance_maintenances__maintenance_id__patch": {
         "properties": {
+          "payload": {
+            "type": "string",
+            "title": "Payload"
+          },
           "initial_photo_file": {
             "anyOf": [
               {
@@ -926,39 +985,12 @@
               }
             ],
             "title": "Initial Photo File"
-          },
-          "spares": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/SpareIn"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Spares",
-            "default": []
-          },
-          "technicians": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/TechnicianIn"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Technicians",
-            "default": []
           }
         },
         "type": "object",
+        "required": [
+          "payload"
+        ],
         "title": "Body_update_maintenance_maintenances__maintenance_id__patch"
       },
       "Body_upload_chunk_uploads_chunk_post": {
@@ -987,6 +1019,34 @@
           "cancellation_reason"
         ],
         "title": "CancellationRequest"
+      },
+      "ChunkResponse": {
+        "properties": {
+          "upload_id": {
+            "type": "string",
+            "title": "Upload Id"
+          },
+          "chunk_index": {
+            "type": "integer",
+            "title": "Chunk Index"
+          },
+          "received_chunks": {
+            "type": "integer",
+            "title": "Received Chunks"
+          },
+          "total_chunks": {
+            "type": "integer",
+            "title": "Total Chunks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "upload_id",
+          "chunk_index",
+          "received_chunks",
+          "total_chunks"
+        ],
+        "title": "ChunkResponse"
       },
       "ChunkStatusResponse": {
         "properties": {
@@ -1042,14 +1102,26 @@
       },
       "MaintenanceCreate": {
         "properties": {
+          "maintenance_id": {
+            "type": "string",
+            "format": "uuid7",
+            "title": "Maintenance Id"
+          },
           "ticket_id": {
             "type": "integer",
             "title": "Ticket Id"
+          },
+          "maintenance_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Maintenance Date"
           }
         },
         "type": "object",
         "required": [
-          "ticket_id"
+          "maintenance_id",
+          "ticket_id",
+          "maintenance_date"
         ],
         "title": "MaintenanceCreate"
       },
@@ -1170,32 +1242,6 @@
         ],
         "title": "PhotoOut"
       },
-      "SpareIn": {
-        "properties": {
-          "spare_id": {
-            "type": "integer",
-            "title": "Spare Id"
-          },
-          "qty": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Qty"
-          }
-        },
-        "type": "object",
-        "required": [
-          "spare_id",
-          "qty"
-        ],
-        "title": "SpareIn"
-      },
       "SpareOut": {
         "properties": {
           "spare_id": {
@@ -1225,31 +1271,6 @@
           "qty"
         ],
         "title": "SpareOut"
-      },
-      "TechnicianIn": {
-        "properties": {
-          "technician_id": {
-            "type": "integer",
-            "title": "Technician Id"
-          },
-          "start_hour": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Start Hour"
-          },
-          "end_hour": {
-            "type": "string",
-            "format": "date-time",
-            "title": "End Hour"
-          }
-        },
-        "type": "object",
-        "required": [
-          "technician_id",
-          "start_hour",
-          "end_hour"
-        ],
-        "title": "TechnicianIn"
       },
       "TechnicianOut": {
         "properties": {

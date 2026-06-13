@@ -1,153 +1,292 @@
 # Development Guide
 
-This guide provides step-by-step instructions for setting up the development environment and running tests for the LTI ATS system.
+This guide provides step-by-step instructions for setting up the development environment and running tests for the Field Service Management (FSM) API backend.
 
-## 🚀 Setup Instructions
-
-### Prerequisites
+## Prerequisites
 
 Ensure you have the following installed:
-- **Node.js** (v16 or higher)
-- **npm** (v8 or higher)
+- **Python 3.12+**
 - **Docker** and **Docker Compose**
 - **Git**
+- **pip** (Python package manager)
 
-### 1. Clone the Repository
+## Quick Start
 
 ```bash
-git clone git@github.com:LIDR-academy/AI4Devs-LTI-extended.git
-cd AI4Devs-LTI-extended
+# 1. Clone and enter project
+git clone <repo-url> app-tickets-backend
+cd app-tickets-backend
+
+# 2. Start PostgreSQL (Docker)
+docker compose up -d postgres
+
+# 3. Run database init script
+# (executed once to create schema and extensions)
+docker compose exec postgres psql -U postgres -d db_gestiket_acme -f /init.sql
+
+# 4. Install Python dependencies
+pip install -r requirements.txt
+
+# 5. Start development server
+uvicorn app.main:app --reload
 ```
 
-### 2. Environment Configuration
+The API will be available at `http://localhost:8000` with interactive docs at `http://localhost:8000/docs`.
 
-Create environment files for both backend and frontend:
+## Detailed Setup
 
-**Backend Environment** (`backend/.env`):
-```env
-# Database Configuration
+### 1. Environment Configuration
+
+Copy the example environment file and configure:
+
+```bash
+cp .env.example .env
+# Edit .env with your local configuration
+```
+
+Required environment variables in `.env`:
+
+```bash
+# PostgreSQL
 DB_HOST=localhost
 DB_PORT=5432
-DB_USER=LTIdbUser
-DB_PASSWORD=D1ymf8wyQEGthFR1E9xhCq
-DB_NAME=LTIdb
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=db_gestiket_acme
 
-# Application Configuration
-PORT=3000
-NODE_ENV=development
+# MinIO (optional for development)
+MINIO_ENDPOINT=localhost
+MINIO_PORT=9000
+MINIO_ACCESS_KEY=<your-key>
+MINIO_SECRET_KEY=<your-secret>
+MINIO_DEFAULT_BUCKET=company-uploads
+BASE_OBJECT_PATH="Maintenances/Correctivos"
+EXT_BY_TYPE={"image/jpeg":".jpg","image/png":".png","application/pdf":".pdf"}
+ALLOWED_TYPES=["image/jpeg","image/png","application/pdf"]
+PRESIGNED_TTL=3600
 
-# Prisma Database URL
-DATABASE_URL="postgresql://LTIdbUser:D1ymf8wyQEGthFR1E9xhCq@localhost:5432/LTIdb"
+# JWT
+JWT_SECRET=<your-secret>
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_MINUTES=15
+
+# Company Settings
+COUNTRY=CO
+TZ_COMPANY=America/Bogota
+CONTRACTOR_NAME="Your Company S.A.S"
+CONTRACTOR_NIT="123456789-0"
+CLIENT_COMPANY_NAME=CLIENT
+CLIENT_FORMAT_NAME=FUS
+
+# Templates & PDF
+TEMPLATES_DIR=app/templates/reports
+PDF_SUFFIX=Soporte
 ```
 
-**Frontend Environment** (`frontend/.env`):
-```env
-REACT_APP_API_URL=http://localhost:3000
-```
-
-### 3. Database Setup (PostgreSQL with Docker)
-
-Start the PostgreSQL database using Docker Compose:
+### 2. Start Dependencies
 
 ```bash
-# Start PostgreSQL container
-docker-compose up -d
+# Start PostgreSQL
+docker compose up -d postgres
 
-# Verify the database is running
-docker-compose ps
+# Verify it's running
+docker compose ps
 ```
 
-The PostgreSQL database will be available at:
-- **Host**: `localhost`
-- **Port**: `5432`
-- **Database**: `LTIdb`
-- **Username**: `LTIdbUser`
-- **Password**: `D1ymf8wyQEGthFR1E9xhCq`
-
-### 4. Backend Setup
+### 3. Initialize Database
 
 ```bash
-# Navigate to backend directory
-cd backend
-
-# Install dependencies
-npm install
-
-# Generate Prisma client
-npm run prisma:generate
-
-# Run database migrations
-npx prisma migrate deploy
-
-# (Optional) Seed the database with sample data
-npx prisma db seed
-
-# Start the development server
-npm run dev
+docker compose exec postgres psql -U postgres -d db_gestiket_acme -f init.sql
 ```
 
-The backend API will be available at `http://localhost:3000`
+This creates:
+- PostgreSQL extensions (`pg_uuidv7`)
+- All tables (users, tickets, maintenances, catalogs, etc.)
+- Enum types (priority, status)
+- Audit columns and foreign keys
 
-### 5. Frontend Setup
+### 4. Install Python Dependencies
 
 ```bash
-# Navigate to frontend directory (from project root)
-cd frontend
-
-# Install dependencies
-npm install
-
-# Start the development server
-npm start
+pip install -r requirements.txt
 ```
 
-The frontend application will be available at `http://localhost:3001`
+Key packages:
+- `fastapi==0.124.4` — Web framework
+- `sqlalchemy==2.0.40` — ORM
+- `psycopg2-binary==2.9.10` — PostgreSQL driver
+- `alembic==1.15.2` — Migrations
+- `jose[cryptography]==3.5.0` — JWT tokens
+- `passlib[bcrypt]==1.7.4` — Password hashing
+- `uvicorn[standard]==0.34.0` — ASGI server
+- `pydantic-settings==2.9.1` — Settings management
+- `structlog==25.5.0` — Structured logging
+- `minio==7.2.7` — S3-compatible storage client
 
-### 6. Cypress Testing Suite Setup
+### 5. Start Development Server
 
 ```bash
-# From the frontend directory
-cd frontend
-
-# Install Cypress (if not already installed)
-npm install
-
-# Open Cypress Test Runner (Interactive)
-npm run cypress:open
-
-# Or run tests headlessly
-npm run cypress:run
+uvicorn app.main:app --reload
 ```
 
-## 🧪 Testing
+The API will be available at:
+- **API**: `http://localhost:8000`
+- **Swagger UI**: `http://localhost:8000/docs`
+- **ReDoc**: `http://localhost:8000/redoc`
+- **OpenAPI JSON**: `http://localhost:8000/openapi.json`
 
-### Backend Testing
+## Testing
 
 ```bash
-cd backend
-
 # Run all tests
-npm test
+pytest -v
 
-# Run tests in watch mode
-npm run test:watch
+# Run with coverage
+pytest --cov=app --cov-report=term-missing
 
-# Run tests with coverage
-npm run test:coverage
+# Run specific test file
+pytest tests/test_ticket_service.py -v
+
+# Run tests matching keyword
+pytest -k "ticket"
+
+# Stop on first failure
+pytest -x
+
+# Run last failed tests only
+pytest --last-failed
 ```
 
-### Frontend Testing
+### Test Configuration
+
+Tests use:
+- **pytest** as the test runner
+- **httpx.AsyncClient** with FastAPI's `TestClient`
+- **factory_boy** for test data factories
+- **pytest-mock** for mocking
+- **pytest-cov** for coverage reporting
+
+Coverage threshold: **80%** minimum.
+
+### Writing Tests
+
+Create test files in the `tests/` directory following naming convention `test_*.py`:
+
+```python
+import pytest
+from httpx import AsyncClient, ASGITransport
+from app.main import app
+
+
+@pytest.fixture
+def client():
+    transport = ASGITransport(app=app)
+    with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+
+@pytest.mark.asyncio
+class TestTickets:
+    async def test_list_tickets_returns_200(self, client):
+        response = await client.get("/tickets")
+        assert response.status_code == 200
+```
+
+## Database Migrations (Alembic)
 
 ```bash
-cd frontend
+# Create a new migration (auto-detect changes)
+alembic revision --autogenerate -m "description_of_change"
 
-# Run unit tests
-npm test
+# Apply pending migrations
+alembic upgrade head
 
-# Run E2E tests with Cypress
-npm run cypress:run
+# Rollback one migration
+alembic downgrade -1
 
-# Open Cypress Test Runner
-npm run cypress:open
+# View migration history
+alembic history
 ```
 
+## Linting and Type Checking
+
+```bash
+# Lint check
+ruff check .
+
+# Auto-fix lint issues
+ruff check --fix .
+
+# Format code
+ruff format .
+
+# Type check
+mypy app
+```
+
+## API Documentation
+
+The API specification is exported manually:
+
+```bash
+# Start the server
+uvicorn app.main:app --reload
+
+# Export OpenAPI spec
+curl http://localhost:8000/openapi.json -o docs/api-spec.json
+```
+
+The canonical API contract lives in:
+- `docs/api-spec.json` — Machine-readable OpenAPI spec
+- `docs/api-spec.yml` — YAML version of the same spec
+
+Both backend and the separate React Native frontend project consume this spec.
+
+## Full Stack with Docker
+
+```bash
+# Start all services (API + PostgreSQL)
+docker compose up --build
+
+# View logs
+docker compose logs -f api
+
+# Stop all services
+docker compose down
+
+# Stop and remove volumes (reset DB)
+docker compose down -v
+```
+
+## Common Tasks
+
+```bash
+# Generate PDF worksheet
+# (triggered via API endpoint, uses WeasyPrint + Jinja2 templates)
+
+# Upload file with chunking
+# (POST /uploads with multipart chunks, reassembled server-side)
+
+# Export OpenAPI spec to docs/
+curl http://localhost:8000/openapi.json -o docs/api-spec.json
+
+# Create new SQLAlchemy model
+# 1. Create app/models/<name>.py
+# 2. Create app/schemas/<name>.py
+# 3. Create app/repositories/<name>_repo.py
+# 4. Create app/services/<name>_service.py
+# 5. Create app/api/routes/<name>.py
+# 6. Register router in app/api/routes/__init__.py
+# 7. Add init.sql entry (if new table)
+# 8. Generate Alembic migration
+# 9. Write tests
+```
+
+## Project Conventions
+
+- **Python**: 3.12+, type hints required on all functions
+- **Code style**: ruff (compatible with Black + isort)
+- **Testing**: pytest with factory_boy data factories
+- **Migrations**: Alembic auto-generated, reviewed before apply
+- **API contract**: OpenAPI 3.1 via FastAPI, exported to `docs/`
+- **Frontend**: React Native (separate project, communicates via this API)
