@@ -137,12 +137,29 @@ The API will be available at:
 
 ## Testing
 
+### Prerequisites
+Test dependencies are included in `requirements.txt`. Ensure they're installed:
+
 ```bash
-# Run all tests
+pip install -r requirements.txt
+```
+
+Key test packages:
+- `pytest==8.2.1` — Test runner
+- `pytest-asyncio==0.24.0` — Async test support
+- `httpx==0.27.0` — HTTP client for endpoint testing
+- `factory_boy==3.3.0` — Test data factories
+- `pytest-mock==3.14.0` — Mocking utilities
+- `pytest-cov==5.0.0` — Coverage reporting
+
+### Running Tests
+
+```bash
+# Run all tests with verbose output
 pytest -v
 
-# Run with coverage
-pytest --cov=app --cov-report=term-missing
+# Run all tests and generate coverage report
+pytest --cov=app --cov-report=html --cov-report=term-missing
 
 # Run specific test file
 pytest tests/test_ticket_service.py -v

@@ -410,9 +410,12 @@ class TicketRepository:
 - Test files: `tests/test_*.py`
 - Use `httpx.AsyncClient` with FastAPI `TestClient` for endpoint testing
 - Use `factory_boy` for test data factories
-- Coverage target: **80%+**
+- **Coverage target: 80% minimum** for branches, functions, lines, and statements
+- **Dependencies**: pytest, pytest-asyncio, httpx, factory_boy, pytest-mock, pytest-cov (see `requirements.txt`)
 
 ### Test Structure
+
+#### Async Endpoint Testing
 
 ```python
 import pytest
@@ -421,20 +424,89 @@ from app.main import app
 
 
 @pytest.fixture
-def client():
+async def client():
+    """FastAPI test client with async support."""
     transport = ASGITransport(app=app)
-    with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
 
 
 @pytest.mark.asyncio
-class TestTicketService:
+class TestTicketEndpoints:
     async def test_get_ticket_returns_ticket_when_found(self, client):
+        """Happy path: Valid ticket ID returns 200 with ticket data."""
         ticket_id = 1
         response = await client.get(f"/tickets/{ticket_id}")
         assert response.status_code == 200
         data = response.json()
         assert data["ticket_id"] == ticket_id
+
+    async def test_get_ticket_returns_404_when_not_found(self, client):
+        """Error handling: Nonexistent ticket returns 404."""
+        response = await client.get("/tickets/99999")
+        assert response.status_code == 404
+```
+
+#### Database Testing with Rollback
+
+```python
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+from app.models.base import Base
+
+
+@pytest.fixture
+def db_session() -> Session:
+    """In-memory SQLite session for unit tests; auto-rolls back after each test."""
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    SessionLocal = sessionmaker(bind=engine)
+    session = SessionLocal()
+
+    yield session
+
+    session.rollback()
+    session.close()
+
+
+class TestTicketRepository:
+    def test_find_by_id_returns_ticket_when_exists(self, db_session):
+        """Happy path: Repository returns ticket for valid ID."""
+        ticket = Ticket(ticket_id=1, ticket_date=datetime.now(), status="OPEN")
+        db_session.add(ticket)
+        db_session.flush()
+
+        repo = TicketRepository(db_session)
+        result = repo.find_by_id(1)
+        assert result is not None
+        assert result.ticket_id == 1
+```
+
+#### Test Factories (factory_boy)
+
+```python
+import factory
+from factory.sqlalchemy import SQLAlchemyModelFactory
+from app.models.ticket import Ticket
+
+
+class TicketFactory(SQLAlchemyModelFactory):
+    class Meta:
+        model = Ticket
+        sqlalchemy_session = db_session  # Injected from fixture
+
+    ticket_id = factory.Sequence(lambda n: n)
+    ticket_date = factory.Faker('date_time')
+    status = "OPEN"
+    priority = "MEDIUM"
+    ticket_description = factory.Faker('text')
+
+
+# Usage in tests
+def test_list_tickets(db_session):
+    tickets = TicketFactory.create_batch(5)
+    assert len(tickets) == 5
 ```
 
 ### Categories Required for Each Feature
@@ -464,22 +536,57 @@ def db_session():
 ### Coverage Configuration
 
 ```ini
-# pyproject.toml
+# pytest.ini or pyproject.toml [tool.pytest.ini_options]
 [tool.coverage.run]
 source = ["app"]
-omit = ["app/tests/*"]
+omit = ["app/tests/*", "app/main.py"]
 
 [tool.coverage.report]
+precision = 2
 fail_under = 80
+show_missing = True
+skip_covered = False
 ```
 
 ### Running Tests
 
 ```bash
-pytest -v                          # Verbose output
-pytest --cov=app --cov-report=term-missing   # Coverage
-pytest -k "test_ticket"           # Specific tests
-pytest -x                          # Stop on first failure
+# Verbose output with test names
+pytest -v
+
+# Generate HTML coverage report (opens in htmlcov/index.html)
+pytest --cov=app --cov-report=html --cov-report=term-missing
+
+# Run specific test file or class
+pytest tests/test_ticket_service.py::TestTicketService -v
+pytest -k "test_ticket"           # Run tests matching keyword
+
+# Stop on first failure
+pytest -x
+
+# Run with detailed output + print statements
+pytest -vv -s
+
+# CI/CD: Fail if coverage below 80%
+pytest --cov=app --cov-report=term-missing --cov-fail-under=80
+```
+
+### Test Naming Convention
+
+Use descriptive names following the pattern: `test_<unit>_<scenario>_<expected_result>`
+
+```python
+def test_create_ticket_with_valid_data_returns_ticket_id():
+    """Happy path."""
+    ...
+
+def test_create_ticket_with_missing_description_raises_validation_error():
+    """Error handling."""
+    ...
+
+def test_ticket_status_transition_from_open_to_in_progress_succeeds():
+    """Business rule."""
+    ...
 ```
 
 ## Performance Best Practices
