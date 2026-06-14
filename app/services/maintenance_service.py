@@ -94,31 +94,21 @@ async def update_existing(db: Session,
             )
         )
 
-    ### Get values of computed or derivate fields ###
-    start_edition = datetime.now().strftime("%Y-%m-%d %H:%M:%S+00") # TODO: Inject TZ from environment and datetime.now()
-
-    # laboral schedule #
-    labsdl_id = 1 # default
+    ### Compute server-side fields ###
     ticket_date = ticket.ticket_date
-    if ticket_date.weekday() >= 5 or ticket_date in get_holidays(settings.country_company):
-        labsdl_id = 3
+    labsdl_id = 3 if (ticket_date.weekday() >= 5 or ticket_date in get_holidays(settings.country_company)) else 1
 
-    # next status #
-    maintenance_id = maintenance.maintenance_id
-    last_pause = db.query(Pause).filter(
-        Pause.maintenance_id == maintenance_id
-    ).order_by(Pause.created_at.desc()).first()
+    last_pause = (
+        db.query(Pause)
+        .filter(Pause.maintenance_id == maintenance.maintenance_id)
+        .order_by(Pause.created_at.desc())
+        .first()
+    )
+    real_mark_as = "PAUSED" if (last_pause and last_pause.created_at > maintenance.updated_at) else "CLOSED"
 
-    if start_edition < last_pause.created_at:
-        real_mark_as = "PAUSED"
-    else:
-        real_mark_as = "CLOSED"
-
-    data = SimpleNamespace(**payload.model_dump(), 
-                           start_edition=start_edition, # Is it necessary to have this field in table?
-                           labsdl_id=labsdl_id, # Is it necessary to have this field in table? But, it's neccesary calculate if ticket_date is wkd or hld
-                           real_mark_as=real_mark_as, # Is it necessary to have this field in table?
-                           initial_photo_path=full_object_path
+    data = SimpleNamespace(**payload.model_dump(),
+                           labsdl_id=labsdl_id,
+                           initial_photo_path=full_object_path,
                            )
     
     ##################################################

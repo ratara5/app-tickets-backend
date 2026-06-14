@@ -10,6 +10,7 @@ import app.repositories.ticket_repo as ticket_repo
 
 from app.models.ticket import Ticket
 from app.models.maintenance import Maintenance
+from app.models.pause import Pause
 from app.models.master import Technician
 
 from app.schemas.user import CurrentUser, UserRole
@@ -139,10 +140,14 @@ def create_new_add_wkd(ticket_id: int, payload: None,
     data = SimpleNamespace(ticket_id=ticket_id, **payload.model_dump())
     ticket = ticket_repo.save_add_wkd(db, data, current_user)   
 
-    if maintenance.real_mark_as == "PAUSED":
-        ticket.status = TicketStatus.paused
-    else:
-        ticket.status = TicketStatus.closed
+    last_pause = (
+        db.query(Pause)
+        .filter(Pause.maintenance_id == maintenance.maintenance_id)
+        .order_by(Pause.created_at.desc())
+        .first()
+    )
+    is_paused = last_pause and (not maintenance.updated_at or last_pause.created_at > maintenance.updated_at)
+    ticket.status = TicketStatus.paused if is_paused else TicketStatus.closed
 
     return ticket
 

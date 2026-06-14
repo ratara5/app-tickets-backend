@@ -46,11 +46,7 @@ class MaintenanceUpdate(BaseModel):
     # Mandatory fields in order to updates existing maintenance
     maintenance_description: str
 
-    # computed or derived fields (within service)
-    # maintenance_start: Optional[datetime] = None # This field doesn't exist more  # automatically assign when update
-    # start_edicion: Optional[datetime] = None
-    # labsdl_id: Optional[int] = None 
-    # real_mark_as: Optional[str] = None
+    # labsdl_id and initial_photo_path are set server-side from ticket_date and file upload
 
     # Campos técnicos (Technical columns) # These aren't neccesary
     # carpeta_soporte: Optional[str] = None

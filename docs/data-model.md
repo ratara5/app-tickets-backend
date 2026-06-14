@@ -144,11 +144,9 @@ Represents actual maintenance work performed for a ticket. Uses UUID v7 as prima
 - `ticket_id`: FK to Ticket (INT, UNIQUE)
 - `maintenance_date`: Date of maintenance
 - `maintenance_description`: Work description (TEXT)
-- `labsdl_id`: FK to LabSchedule
-- `initial_photo_path`: MinIO path for initial photo
-- `real_mark_as`: Real mark/rating
+- `labsdl_id`: FK to LabSchedule (set server-side from ticket date — weekend/holiday check)
+- `initial_photo_path`: MinIO path for initial photo (set server-side from file upload)
 - `observations`: Observations (TEXT)
-- `edition_start`: Timestamp when edition started
 - `created_at`, `updated_at`, `created_by`, `updated_by`: Audit fields
 
 **Relationships:**
@@ -356,9 +354,7 @@ erDiagram
         text maintenance_description
         int labsdl_id FK
         string initial_photo_path
-        string real_mark_as
         text observations
-        datetime edition_start
         datetime created_at
         int created_by FK
         datetime updated_at
