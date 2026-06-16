@@ -1,0 +1,122 @@
+---
+# OpenSpec Configuration for FSM (Field Service Management) Backend
+# Defines context, standards, and implementation guidelines for the agentic layer
+
+context: |
+  Tech stack: Python 3.12+, FastAPI 0.124.4, SQLAlchemy 2.0.40, PostgreSQL 16, pytest 8.2.1
+  Architecture: FastAPI with Domain-Driven Design (DDD), layered architecture (Presentation, Application, Domain, Infrastructure)
+  Database: PostgreSQL with Alembic migrations, UUID v7 for distributed IDs
+  Testing: pytest with async support, httpx for endpoint testing, factory_boy for test data, pytest-cov for coverage
+  Authentication: JWT tokens (python-jose), password hashing (passlib + bcrypt)
+  Storage: MinIO S3-compatible object storage, WeasyPrint for PDF generation
+  Backend domain: FSM (Field Service Management) — tickets, maintenance work, technicians, spare parts, PDF worksheets
+  Frontend domain: React Native mobile app (SEPARATE PROJECT) — consumes this backend via docs/api-spec.yml
+  All code, comments, documentation, and technical artifacts must be in English
+  Conventional commits required (commit messages in English)
+
+standards: |
+  Project specs (single source of truth): All artifact creation and implementation MUST follow the project's technical context in docs/ and ai-specs/. Read and apply these when creating, updating, or implementing:
+  
+  Core Standards:
+  - docs/base-standards.md — Universal rules for all AI agents: core principles (TDD, type safety, incremental changes), language standards (English-only), references to domain-specific standards
+  
+  Backend Development (Python/FastAPI):
+  - docs/backend-standards.md — API design, database patterns (SQLAlchemy, Alembic), testing standards (pytest with async fixtures, coverage 80%+), security, performance, SOLID/DRY principles
+  - docs/development_guide.md — Setup instructions, environment configuration, running tests, common tasks
+  
+  Frontend Development (React Native — separate project):
+  - docs/frontend-standards.md — React Native components, state management, UI/UX, API integration, testing (Jest, React Native Testing Library)
+  
+  Data & API Contracts:
+  - docs/api-spec.yml — Canonical OpenAPI 3.1 contract between backend and React Native frontend; both projects consume this spec
+  - docs/api-spec.json — Machine-readable JSON version (auto-exported from running backend)
+  - docs/data-model.md — Database schema, entities, relationships, ER diagram
+  
+  Documentation Standards:
+  - docs/documentation-standards.md — Technical documentation structure, update processes, AI feedback rules
+  - docs/openspec-tasks-mandatory-steps.md — Mandatory steps for OpenSpec task generation (unit tests, manual testing, documentation updates)
+
+implementation: |
+  For backend features/fixes (Python/FastAPI):
+  1. Adopt ai-specs/agents/backend-developer.md for context and task sequencing
+  2. Reference docs/backend-standards.md for API, database, testing, and security patterns
+  3. Write all code with full type hints (mypy-compliant)
+  4. Follow TDD: write failing tests first, then implement
+  5. Ensure 80%+ test coverage (branches, functions, lines, statements)
+  6. Update docs/api-spec.yml if endpoints change; regenerate docs/api-spec.json
+  7. Update docs/data-model.md if schema changes; use Alembic migrations (never manual SQL)
+  8. Update docs/development_guide.md if setup/environment changes
+  9. Use ai-specs/skills/ for workflow guidance when applicable
+
+  For frontend features (React Native — separate project):
+  1. Adopt ai-specs/agents/frontend-developer.md for context and task sequencing
+  2. Reference docs/frontend-standards.md for component, state, and testing patterns
+  3. Consume docs/api-spec.yml as the API contract (both projects stay in sync)
+  4. Do not modify backend-specific files (this project); work in the separate React Native repository
+
+branch_naming: |
+  feature/<ticket-id> or feature/<change-name>   # New features
+  fix/<ticket-id> or fix/<change-name>           # Bug fixes
+  docs/<change-name>                              # Documentation updates
+  refactor/<change-name>                          # Code refactoring
+
+mandatory_steps: |
+  All implementation tasks MUST include (in order):
+  Step 0: Create feature branch
+  Step N: Review and update existing unit tests (MANDATORY)
+  Step N+1: Run unit tests and verify database state (agent must execute)
+  Step N+2: Manual endpoint testing with curl (agent must execute)
+  Step N+3: E2E testing if applicable (agent must execute)
+  Step N+4: Update technical documentation (MANDATORY)
+  See docs/openspec-tasks-mandatory-steps.md for detailed requirements
+
+test_coverage: |
+  Minimum: 80% (branches, functions, lines, statements)
+  Categories required per feature:
+  - Happy path: valid inputs, expected outputs
+  - Error handling: invalid inputs, missing data, auth failures
+  - Edge cases: boundary values, empty data, nulls
+  - Validation: Pydantic schema, business rules
+  - Integration: DB operations, external services
+  Tools: pytest, pytest-asyncio, httpx.AsyncClient, factory_boy, pytest-mock, pytest-cov
+  Command: pytest --cov=app --cov-report=html --cov-fail-under=80
+
+ai_specs_structure: |
+  ai-specs/
+  ├── agents/
+  │   ├── backend-developer.md      ← For backend (Python/FastAPI) work
+  │   ├── frontend-developer.md     ← For frontend (React Native) work — separate project
+  │   └── product-strategy-analyst.md
+  ├── skills/                        ← Workflow guidance and specialized knowledge
+  │   ├── adversarial-review/
+  │   ├── code-auditing/
+  │   ├── commit/
+  │   ├── enrich-us/
+  │   ├── explain/
+  │   ├── meta-prompt/
+  │   ├── openspec-sync-specs/
+  │   ├── show-spec-working/
+  │   ├── sync-agent-symlinks/
+  │   ├── update-docs/
+  │   ├── using-git-worktrees/
+  │   └── writing-skills/
+  └── specboot-instructions.md
+
+paths: |
+  All paths relative to project root.
+  Backend source: app/
+  Tests: tests/
+  Migrations: (Alembic manages via alembic/versions/)
+  Documentation: docs/
+  OpenSpec changes: openspec/changes/<change-name>/
+  AI specs: ai-specs/
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+rules:
+  # Global: apply ai-specs when creating any artifact
+  _global:
+    - Before creating any artifact, read and apply docs/base-standards.md
+    - For backend-related artifacts, read docs/backend-standards.md and adopt guidelines from ai-specs/agents/backend-developer.md
+    - For frontend-related artifacts, read docs/frontend-standards.md and adopt guidelines from ai-specs/agents/frontend-developer.md
+    - Use docs/api-spec.yml and docs/data-model.md for API and data consistency in specs and tasks
