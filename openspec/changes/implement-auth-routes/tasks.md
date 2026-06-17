@@ -3,7 +3,7 @@
 - [ ] 1.1 Create `TokenBlacklist` SQLAlchemy model with `jti`, `expires_at` columns
 - [ ] 1.2 Add Alembic migration for `token_blacklist` table
 - [ ] 1.3 Add `RegisterRequest`, `UserProfileResponse`, `UserUpdateRequest` Pydantic schemas in `app/schemas/auth.py` and `app/schemas/user.py`
-- [ ] 1.4 Extend `create_access_token` in `app/core/security.py` to include `jti` (UUID v4) in JWT payload
+- [ ] 1.4 Extend `create_access_token` in `app/core/security.py` to include `jti` 7(UUID v7) in JWT payload
 
 ## 2. Repository Layer
 

@@ -36,7 +36,7 @@ The `POST /auth/register` endpoint accepts email, password, and user_name. Passw
 Full profile update via PUT since the profile model is small (name + photo). If partial updates are needed later, PATCH can be added.
 
 ### 5. Add `jti` to JWT payload
-The `create_access_token` function will be extended to include a `jti` claim (UUID v4) so tokens can be uniquely identified for blacklisting.
+The `create_access_token` function will be extended to include a `jti` claim (UUID v7) so tokens can be uniquely identified for blacklisting.
 
 ### 6. Remove `bearer` middleware — keep `HTTPBearer` in dependency
 The existing pattern (HTTPBearer as Security dependency) works correctly. No change needed.
