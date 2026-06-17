@@ -6,3 +6,6 @@ venv/
 **/data/*
 !**/data/.gitkeep
 prompts/
+
+**/.claude_example/
+**/openspec_example/
