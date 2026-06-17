@@ -8,6 +8,8 @@ from app.core.database import get_db
 
 from app.models.fsm_user import FSMUser
 
+from app.repositories.token_blacklist_repo import is_blacklisted
+
 from app.schemas.user import CurrentUser
 
 
@@ -19,7 +21,10 @@ async def get_current_user(
 ) -> CurrentUser:
     try:
         payload = decode_token(credentials.credentials)
-        user = db.query(FSMUser).filter(FSMUser.user_id == payload["sub"]).first() # query here is widely accepted for convenience
+        jti = payload.get("jti")
+        if jti and is_blacklisted(db, jti):
+            raise HTTPException(401, "Token has been revoked")
+        user = db.query(FSMUser).filter(FSMUser.user_id == payload["sub"]).first()
         if not user:
             raise HTTPException(401, "User not found")
         return CurrentUser.model_validate(user)
