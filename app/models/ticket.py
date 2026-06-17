@@ -29,7 +29,7 @@ class Ticket(Base, AuditMixin):
 class AddWkd(Base, AuditMixin):
     __tablename__ = "adticketswkd"
 
-    ticket_id = Column(Integer, primary_key=True)
+    ticket_id = Column(Integer, ForeignKey("tickets.ticket_id"), primary_key=True)
 
     operation_percentage = Column(Numeric)
     market_temperature = Column(Numeric)
