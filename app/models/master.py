@@ -52,7 +52,7 @@ class Equipment(Base):
     tickets = relationship("Ticket", back_populates="equipment") # One equipment Many tickets
 
 # Catalog
-class Labsdls(Base):
+class Labsdl(Base):
     __tablename__ = "labsdls"
 
     labsdl_id = Column(Integer, primary_key=True)
