@@ -27,10 +27,10 @@ alwaysApply: true
 
 For detailed standards and guidelines specific to different areas of the project, refer to:
 
-- [Backend Standards](./backend-standards.md) - API development, database patterns, testing, security and backend best practices
-- [Frontend Standards](./frontend-standards.md) - React Native components, UI/UX guidelines, and mobile architecture (SEPARATE PROJECT)
-- [Documentation Standards](./documentation-standards.md) - Technical documentation structure, formatting, and maintenance guidelines, including AI standards like this document
-- [OpenSpec Tasks Mandatory Steps](./openspec-tasks-mandatory-steps.md) - Required checklist and execution rules when creating or updating OpenSpec `tasks.md` files
+- [Backend Standards](./docs/backend-standards.md) - API development, database patterns, testing, security and backend best practices
+- [Frontend Standards](./docs/frontend-standards.md) - React Native components, UI/UX guidelines, and mobile architecture (SEPARATE PROJECT)
+- [Documentation Standards](./docs/documentation-standards.md) - Technical documentation structure, formatting, and maintenance guidelines, including AI standards like this document
+- [OpenSpec Tasks Mandatory Steps](./docs/openspec-tasks-mandatory-steps.md) - Required checklist and execution rules when creating or updating OpenSpec `tasks.md` files
 
 ## 4. Project Skills
 
