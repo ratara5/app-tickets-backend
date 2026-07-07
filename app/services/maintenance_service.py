@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from app.models.ticket import Ticket
 from app.models.maintenance import Maintenance
 from app.models.pause import Pause
+from app.models.master import Technician
 
 from app.schemas.user import CurrentUser, UserRole
 from app.schemas.maintenance import MaintenanceUpdate
@@ -48,7 +49,7 @@ def get_maintenance(db: Session, maintenance_id: UUID7, current_user):
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
     if not maintenance:
         raise HTTPException(404, "Maintenance not found")
-    assert_ownership(maintenance, current_user)
+    assert_ownership(maintenance, current_user, db)
     return _serialize_maintenance_item(maintenance)
 
 def list_maintenances(db, current_user, page: int = 1, page_size: int = 50):
@@ -61,7 +62,7 @@ async def update_existing(db: Session,
                           current_user, 
                           files: dict):
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
-    assert_ownership(maintenance, current_user)
+    assert_ownership(maintenance, current_user, db)
     # Verify if associated ticket exists and its status is IN PROGRESS o PAUSED
     ticket = ticket_repo.get_ticket_by_id(db, maintenance.ticket_id, current_user)
     if not ticket:
@@ -146,7 +147,7 @@ async def update_existing(db: Session,
 def pause_ticket(maintenance_id: UUID7, payload: PauseRequest,
                   current_user, db: Session):
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
-    assert_ownership(maintenance, current_user)
+    assert_ownership(maintenance, current_user, db)
     ticket = ticket_repo.get_ticket_by_id(db, maintenance.ticket_id, current_user)
     if not ticket:
         raise HTTPException(404, "Ticket not found")
@@ -168,10 +169,11 @@ def delete_maintenance(maintenance_id: UUID7, current_user, db: Session):
 
 
 # Helpers
-def assert_ownership(mnt: Maintenance, current_user: CurrentUser):
+def assert_ownership(mnt: Maintenance, current_user: CurrentUser, db: Session):
     if current_user.user_role == UserRole.director:
         return
-    if mnt.ticket.assigned_to != current_user.technician.technician_id:
+    technician = db.query(Technician).filter(Technician.user_id == current_user.user_id).first()
+    if technician and mnt.ticket.assigned_to != technician.technician_id:
         raise HTTPException(403, "Forbidden")
 
 @service(schema=Maintenance)

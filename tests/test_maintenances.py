@@ -11,6 +11,8 @@ TICKET_PAYLOAD = {
     "ticket_description": "Test ticket for maintenance",
     "priority": "NORMAL",
     "status": "OPEN",
+    "market_id": 1,
+    "equipment_id": 1,
 }
 
 

@@ -30,7 +30,8 @@ def create_maintenance(db, data, current_user):
     )
 
     db.add(maintenance)
-    db.flush()
+    # db.flush()
+    db.commit()
     db.refresh(maintenance)
 
     return maintenance
@@ -43,6 +44,11 @@ def update_maintenance(db, maintenance, data, current_user):
 
     return maintenance
 
+def _get_technician_id(db: Session, current_user) -> int | None:
+    technician = db.query(Technician).filter(Technician.user_id == current_user.user_id).first()
+    return technician.technician_id if technician else None
+
+
 def get_visible_maintenances(db, 
                              current_user, 
                              page: int = 1, 
@@ -50,11 +56,12 @@ def get_visible_maintenances(db,
     query = _get_query(db, current_user)
 
     if current_user.user_role == UserRole.technician:
+        technician_id = _get_technician_id(db, current_user)
         query = query.filter(
             and_(
                 or_(
                     Ticket.assigned_to == None,
-                    Ticket.assigned_to == current_user.technician.technician_id
+                    Ticket.assigned_to == technician_id
                 ),
                 Ticket.status != TicketStatus.cancelled
             )
@@ -102,11 +109,10 @@ def _get_query(db, current_user):
         db.query(Maintenance)
         .join(Maintenance.ticket)
         .options(
-            joinedload(Maintenance.ticket)
-                .joinedload(Ticket.market)
-                .joinedload(Ticket.equipment)
-                .joinedload(Ticket.cancellation),
-            joinedload(Maintenance.worksheet),
+            joinedload(Maintenance.ticket).joinedload(Ticket.market),
+            joinedload(Maintenance.ticket).joinedload(Ticket.equipment),
+            joinedload(Maintenance.ticket).joinedload(Ticket.cancellation),
+            # joinedload(Maintenance.worksheet),
             selectinload(Maintenance.photos),
             selectinload(Maintenance.technicians)
                 .joinedload(MaintenanceTechnician.technician)
