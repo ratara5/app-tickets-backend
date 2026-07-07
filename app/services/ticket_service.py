@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from types import SimpleNamespace
 
 from sqlalchemy.orm import Session
@@ -37,7 +37,8 @@ VALID_TRANSITIONS = {
   
 def create_new_ticket(db, data, current_user):
     ticket = ticket_repo.save_ticket(db, data, current_user)
-    return ticket_repo.get_ticket_by_id(ticket.ticket_id)
+    ticket = ticket_repo.get_ticket_by_id(db, ticket.ticket_id, current_user)
+    return _serialize_ticket_item(ticket)
 
 def get_ticket(db: Session, ticket_id: int, current_user):
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user)
@@ -177,9 +178,12 @@ def validate_transition(current_state: str, new_state: str):
         )
 
 def _serialize_ticket_item(ticket: Ticket):
-    return SimpleNamespace(**ticket.model_dump(),
+    columns = {c.name: getattr(ticket, c.name) for c in ticket.__table__.columns}
+    if isinstance(columns.get("ticket_date"), datetime):
+        columns["ticket_date"] = columns["ticket_date"].date()
+    return SimpleNamespace(**columns,
                            market_name=ticket.market.market_name if ticket.market else None,
-                           market_city=ticket.market.market_city if ticket.market else None,
+                           market_city=ticket.market.city if ticket.market else None,
                            equipment_name=ticket.equipment.equipment_name if ticket.equipment else None,
                            # cancellation_reason=ticket.cancellation.reason if ticket.cancellation else None,
                            assigned_name=ticket.technician.fsm_user.user_name if ticket.technician and ticket.technician.fsm_user else None

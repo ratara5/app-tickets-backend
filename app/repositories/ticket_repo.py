@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 
 from sqlalchemy import or_, and_, select
 from sqlalchemy.orm import Session, joinedload
@@ -13,15 +13,22 @@ from app.schemas.user import UserRole
 
 
 def save_ticket(db, data, current_user):
+    ticket_date = data.ticket_date
+    if ticket_date is None:
+        ticket_date = datetime.now()
+    elif isinstance(ticket_date, str):
+        ticket_date = datetime.fromisoformat(ticket_date)
+
     ticket = Ticket(
         ticket_id=data.ticket_id,
-        ticket_date=data.ticket_date or datetime.now().strftime("%d/%m/%Y"), # TODO: To inject TZ from environment and apply .strftime("%d/%m/%Y") 
+        ticket_date=ticket_date,
         ticket_description=data.ticket_description,
         priority=data.priority,
-        status=TicketStatus.open, # "OPEN"
+        status=TicketStatus.open,
         market_id=data.market_id,
-        equipment_id=data.equipment_id
-        # created_by=current_user.user_id # It's not necessary overwrite auditmixin
+        equipment_id=data.equipment_id,
+        created_by=current_user.user_id,
+        updated_by=current_user.user_id,
     )
 
     db.add(ticket)
@@ -57,7 +64,7 @@ def get_ticket_by_id( # The client side cache eliminates 90% calls to this endpo
     ticket_id: int, 
     current_user
 ) -> Ticket | None:
-    query = _get_query(db, current_user, ticket_id)
+    query = _get_query(db, current_user)
     query = query.filter(Ticket.ticket_id == ticket_id)
     # The Logic for filter by user_role now is a validation in ticket_service
     

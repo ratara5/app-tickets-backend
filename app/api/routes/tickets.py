@@ -30,7 +30,7 @@ def get_ticket(
 ):
     return get_ticket(db, ticket_id, current_user)
 
-@router.post("", response_model=TicketItemResponse)
+@router.post("", response_model=TicketItemResponse, status_code=201)
 def create_ticket(
     data: TicketCreate,
     current_user = Depends(get_current_user),

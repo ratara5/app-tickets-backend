@@ -12,6 +12,8 @@ class TicketCreate(BaseModel):
     ticket_description: str
     priority: str 
     status: str
+    market_id: int
+    equipment_id: int
 
 class TicketStatus(str, Enum):
     open = "OPEN"
