@@ -162,7 +162,7 @@ def pause_ticket(maintenance_id: UUID7, payload: PauseRequest,
     return ticket
 
 def delete_maintenance(maintenance_id: UUID7, current_user, db: Session):
-    maintenance = maintenance_repo.get_ticket_by_id(db, maintenance_id, current_user) 
+    maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user) 
     if not maintenance:
         raise HTTPException(404, "Maintenance not found")
     return maintenance_repo.delete_maintenance_by_id(db, maintenance, current_user)
