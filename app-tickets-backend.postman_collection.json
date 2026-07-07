@@ -1,0 +1,694 @@
+{
+  "info": {
+    "name": "App Tickets Backend",
+    "description": "Production-grade collection for the tickets management API.\n\n## Authentication\nAll endpoints except `/auth/login` and `/auth/register` require a Bearer JWT token.\n\n## Workflow\n1. Use **Auth > Register** to create a user (or **Login** if already registered).\n2. The token is **automatically stored** into the `token` variable via the test script.\n3. All subsequent requests inherit the token via the collection-level Authorization header.\n4. Create a Market and Equipment first, then create a Ticket referencing them.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ticket_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "market_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "equipment_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "technician_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "maintenance_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Authentication endpoints — public (no token required).",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('token', json.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"technician@example.com\",\n    \"password\": \"Secret123!\",\n    \"user_name\": \"John Technician\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Create a new user account. Returns JWT token."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('token', json.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"technician@example.com\",\n    \"password\": \"Secret123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Authenticate with email and password."
+          }
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Get the currently authenticated user's profile."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Invalidate the current JWT token."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tickets",
+      "description": "Ticket CRUD and workflow management.",
+      "item": [
+        {
+          "name": "Create Ticket",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('ticket_id', json.ticket_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"ticket_id\": \"TK-001\",\n    \"ticket_date\": \"2026-07-07T10:30:00\",\n    \"ticket_description\": \"Air conditioning unit not cooling \\u2014 intermittent fault reported\",\n    \"priority\": \"HIGH\",\n    \"status\": \"OPEN\",\n    \"market_id\": 1,\n    \"equipment_id\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets"
+              ]
+            },
+            "description": "Create a new ticket. Requires market_id and equipment_id referencing existing rows."
+          }
+        },
+        {
+          "name": "List Tickets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tickets?page=1&page_size=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "List visible tickets with pagination."
+          }
+        },
+        {
+          "name": "Get Ticket By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}"
+              ]
+            },
+            "description": "Get a single ticket with full details."
+          }
+        },
+        {
+          "name": "Assign Ticket",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"technician_id\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/assign",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "assign"
+              ]
+            },
+            "description": "Assign ticket. Send null for self-assignment (technician) or specific ID (director)."
+          }
+        },
+        {
+          "name": "Start Ticket",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/start",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "start"
+              ]
+            },
+            "description": "Transition ASSIGNED → IN PROGRESS. Creates a maintenance record."
+          }
+        },
+        {
+          "name": "Cancel Ticket",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"cancellation_reason\": \"Customer requested cancellation due to lack of budget approval\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "cancel"
+              ]
+            },
+            "description": "Cancel a ticket with a required reason."
+          }
+        },
+        {
+          "name": "Add Weekend Work",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"operation_percentage\": 75.5,\n    \"market_temperature\": 32.0,\n    \"operation_damage\": false,\n    \"completed\": true,\n    \"observations_wkd\": \"Completed preventive maintenance on schedule\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}/addwkd",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}",
+                "addwkd"
+              ]
+            },
+            "description": "Register weekend/holiday work. Ticket date must fall on a weekend or holiday."
+          }
+        },
+        {
+          "name": "Delete Ticket",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tickets/{{ticket_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "tickets",
+                "{{ticket_id}}"
+              ]
+            },
+            "description": "Permanently delete a ticket. Returns 204."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Maintenances",
+      "description": "Maintenance management for tickets in IN PROGRESS state.",
+      "item": [
+        {
+          "name": "List Maintenances",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/maintenances?page=1&page_size=50",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "maintenances"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "List all visible maintenances."
+          }
+        },
+        {
+          "name": "Get Maintenance By ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('maintenance_id', json.maintenance_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/maintenances/{{maintenance_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "maintenances",
+                "{{maintenance_id}}"
+              ]
+            },
+            "description": "Get a single maintenance by UUID."
+          }
+        },
+        {
+          "name": "Update Maintenance",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "payload",
+                  "value": "{\n    \"maintenance_description\": \"Replaced condenser fan motor and capacitor\",\n    \"spares\": [\n        {\n            \"spare_id\": 1,\n            \"qty\": 2.0\n        }\n    ],\n    \"technicians\": [\n        {\n            \"technician_id\": 1,\n            \"start_hour\": \"2026-07-07T09:00:00\",\n            \"end_hour\": \"2026-07-07T11:30:00\"\n        }\n    ]\n}",
+                  "type": "text",
+                  "description": "MaintenanceUpdate fields as JSON string"
+                },
+                {
+                  "key": "initial_photo_file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Optional initial photo upload"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/maintenances/{{maintenance_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "maintenances",
+                "{{maintenance_id}}"
+              ]
+            },
+            "description": "Update maintenance via multipart/form-data. payload is a JSON string field."
+          }
+        },
+        {
+          "name": "Pause Maintenance",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"pause_reason\": \"Waiting for spare part delivery \\u2014 estimated 48 hours\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/maintenances/{{maintenance_id}}/pause",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "maintenances",
+                "{{maintenance_id}}",
+                "pause"
+              ]
+            },
+            "description": "Pause a maintenance. Ticket status auto-updates to PAUSED."
+          }
+        },
+        {
+          "name": "Delete Maintenance",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/maintenances/{{maintenance_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "maintenances",
+                "{{maintenance_id}}"
+              ]
+            },
+            "description": "Permanently delete a maintenance. Returns 204."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Uploads",
+      "description": "Chunked file upload for photos and attachments.",
+      "item": [
+        {
+          "name": "Init Upload Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('upload_id', json.upload_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"parent_tab\": \"maintenances\",\n    \"parent_id\": \"0192a1b2-3c4d-5e6f-7a8b-9c0d1e2f3a4b\",\n    \"tab_name\": \"photos\",\n    \"col_name\": \"photo_file\",\n    \"content_type\": \"image/jpeg\",\n    \"total_size\": 5242880,\n    \"total_chunks\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/uploads/init",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "uploads",
+                "init"
+              ]
+            },
+            "description": "Initialize a chunked upload session."
+          }
+        },
+        {
+          "name": "Upload Chunk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-chunk-checksum",
+                "value": "sha256-base64-encoded-value",
+                "type": "text",
+                "description": "Optional SHA-256 checksum for integrity"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "upload_id",
+                  "value": "{{upload_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "chunk_index",
+                  "value": "0",
+                  "type": "text"
+                },
+                {
+                  "key": "chunk",
+                  "type": "file",
+                  "src": [],
+                  "description": "Binary chunk"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/uploads/chunk",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "uploads",
+                "chunk"
+              ]
+            },
+            "description": "Upload a single file chunk."
+          }
+        },
+        {
+          "name": "Upload Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/uploads/status/{{upload_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "uploads",
+                "status",
+                "{{upload_id}}"
+              ]
+            },
+            "description": "Get upload session status."
+          }
+        },
+        {
+          "name": "Complete Upload",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/uploads/complete?upload_id={{upload_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "uploads",
+                "complete"
+              ],
+              "query": [
+                {
+                  "key": "upload_id",
+                  "value": "{{upload_id}}"
+                }
+              ]
+            },
+            "description": "Finalize upload after all chunks received."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Utilities",
+      "description": "Helper requests.",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": [
+                "{{base_url}}"
+              ]
+            },
+            "description": "Quick check if the server is running."
+          }
+        }
+      ]
+    }
+  ]
+}
