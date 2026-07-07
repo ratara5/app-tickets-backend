@@ -198,28 +198,29 @@ def _sign(path: str | None) -> str | None:
         settings.minio_default_bucket, path, expires=timedelta(seconds=settings.presigned_ttl)
     )
 
-def _serialize_maintenance_item(m: Maintenance) -> dict:
-    initial_photo_url = _sign(m.initial_photo_path)
-    pdf_url = _sign(m.work_order.pdf_path if m.work_order else None)
+def _serialize_maintenance_item(maintenance: Maintenance) -> dict:
+    columns = {c.name: getattr(maintenance, c.name) for c in maintenance.__table__.columns}
+    initial_photo_url = _sign(maintenance.initial_photo_path)
+    pdf_url = _sign(maintenance.worksheet.pdf_path if maintenance.worksheet else None)
     photos = list(map(lambda p: {
                 "photo_id": p.id, 
                 "photo_url": _sign(p.photo_path)
-            }, m.photos))
+            }, maintenance.photos))
     
     spares=[{ # map or comprehension: are equivalent in terms of speed. But comprehension is more pythonic
         "spare_id": ms.spare.spare_id,
         "name": ms.spare.name,
         "price": ms.spare.price,
         "qty": ms.qty
-        } for ms in m.spares],
+        } for ms in maintenance.spares]
     technicians=[{
         "technician_id": mt.technician.technician_id,
         "technician_name": mt.technician.fsm_user.user_name,
         "start_hour": mt.start_hour,
         "end_hour": mt.end_hour
-    } for mt in m.technicians]
+    } for mt in maintenance.technicians]
     
-    return SimpleNamespace( **m.model_dump(), # The fields into maintenance table
+    return SimpleNamespace( **columns, # The fields into maintenance table
 
                             # presigned URLs from minIO path fields
                             initial_photo_url=initial_photo_url,
