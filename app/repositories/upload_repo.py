@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, timedelta
 from uuid6 import uuid7
 
 import os
@@ -36,7 +36,7 @@ def save_upload_session(db, upload_id, user_id, payload):
         total_chunks=payload.total_chunks,
         received_chunks=0,
 
-        expires_at=datetime.now() + datetime.timedelta(hours=24)
+        expires_at=datetime.now() + timedelta(hours=24)
     )
     db.add(upload_session)
     db.commit()

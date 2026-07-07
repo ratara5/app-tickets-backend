@@ -1,11 +1,15 @@
 from fastapi.testclient import TestClient
+from uuid6 import uuid7
 
 from app.models.master import Market, Equipment, Technician
 
 
+PARENT_ID = str(uuid7())
+BOGUS_UUID = str(uuid7())
+
 UPLOAD_INIT_PAYLOAD = {
     "parent_tab": "maintenances",
-    "parent_id": "00000000-0000-0000-0000-000000000001",
+    "parent_id": PARENT_ID,
     "tab_name": "photos",
     "col_name": "photo_file",
     "content_type": "image/jpeg",
@@ -84,7 +88,7 @@ def test_upload_chunk_not_found(
     client: TestClient, auth_headers: dict
 ) -> None:
     response = client.post(
-        "/uploads/chunk?upload_id=nonexistent&chunk_index=0",
+        f"/uploads/chunk?upload_id={BOGUS_UUID}&chunk_index=0",
         files={"chunk": ("test.jpg", b"data", "image/jpeg")},
         headers=auth_headers
     )
@@ -137,7 +141,7 @@ def test_upload_status_not_found(
     client: TestClient, auth_headers: dict
 ) -> None:
     response = client.get(
-        "/uploads/status/nonexistent-upload",
+        f"/uploads/status/{BOGUS_UUID}",
         headers=auth_headers
     )
     assert response.status_code == 404
@@ -154,7 +158,7 @@ def test_complete_upload_not_found(
     client: TestClient, auth_headers: dict
 ) -> None:
     response = client.post(
-        "/uploads/complete?upload_id=nonexistent",
+        f"/uploads/complete?upload_id={BOGUS_UUID}",
         headers=auth_headers
     )
     assert response.status_code == 404
