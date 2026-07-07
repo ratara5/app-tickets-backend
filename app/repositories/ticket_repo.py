@@ -37,26 +37,33 @@ def save_ticket(db, data, current_user):
 
     return ticket
 
+def _get_technician_id(db: Session, current_user) -> int | None:
+    technician = db.query(Technician).filter(Technician.user_id == current_user.user_id).first()
+    return technician.technician_id if technician else None
+
+
 def get_visible_tickets(db, current_user, page: int = 1, page_size: int = 50):
-    query = _get_query(db, current_user, None)
+    query = _get_query(db, current_user)
 
     if current_user.user_role == UserRole.technician:
+        technician_id = _get_technician_id(db, current_user)
         query = query.filter(
             and_(
                 or_(
                     Ticket.assigned_to == None,
-                    Ticket.assigned_to == current_user.technician.technician_id
+                    Ticket.assigned_to == technician_id
                 ),
-                Ticket.status != TicketStatus.cancelled # "CANCELLED"
+                Ticket.status != TicketStatus.cancelled
             )
         )
     
 
     return query.order_by(
         Ticket.ticket_date.desc()
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
+    ).offset(
+        (page - 1) * page_size
+    ).limit(
+        page_size
     ).all()
 
 def get_ticket_by_id( # The client side cache eliminates 90% calls to this endpoint.
@@ -91,10 +98,12 @@ def save_add_wkd(db, data, current_user):
     add_wkd = AddWkd(
         ticket_id=data.ticket_id,
         operation_percentage=data.operation_percentage,
-        market_temperature=data.temperature,
-        operation_damage=data.operatin_damage,
+        market_temperature=data.market_temperature,
+        operation_damage=data.operation_damage,
         completed=data.completed,
-        observations_wkd=data.observations_wkd
+        observations_wkd=data.observations_wkd,
+        created_by=current_user.user_id,
+        updated_by=current_user.user_id,
     )
 
     db.add(add_wkd)

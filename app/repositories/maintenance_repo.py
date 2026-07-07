@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 from typing import List
 from pydantic import UUID7
 
@@ -16,10 +16,17 @@ from app.schemas.user import UserRole
 
 
 def create_maintenance(db, data, current_user):
+    maintenance_date = data.maintenance_date
+    if maintenance_date is None:
+        maintenance_date = datetime.now()
+    elif isinstance(maintenance_date, str):
+        maintenance_date = datetime.fromisoformat(maintenance_date)
+
     maintenance = Maintenance(
         ticket_id=data.ticket_id,
-        maintenance_date=data.maintenance_date or datetime.now().strftime("%d/%m/%Y") # TODO: To inject TZ from environment and apply .strftime("%d/%m/%Y")
-        # created_by=current_user.user_id # It's not necessary overwrite auditmixin
+        maintenance_date=maintenance_date,
+        created_by=current_user.user_id,
+        updated_by=current_user.user_id,
     )
 
     db.add(maintenance)

@@ -109,7 +109,8 @@ def test_assign_ticket_not_found(
 
 def test_assign_ticket_invalid_state(
     client: TestClient, auth_headers: dict,
-    test_market: Market, test_equipment: Equipment
+    test_market: Market, test_equipment: Equipment,
+    test_technician: Technician
 ) -> None:
     create_resp = client.post("/tickets", json=TICKET_PAYLOAD, headers=auth_headers)
     ticket_id = create_resp.json()["ticket_id"]

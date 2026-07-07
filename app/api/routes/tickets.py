@@ -23,11 +23,11 @@ def get_tickets(
     return list_tickets(db, current_user, page, page_size)
 
 @router.get("/{ticket_id}", response_model=TicketItemResponse)
-def get_ticket(
+def get_ticket_by_id_route(
     ticket_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
-):
+) -> TicketItemResponse:
     return get_ticket(db, ticket_id, current_user)
 
 @router.post("", response_model=TicketItemResponse, status_code=201)
@@ -52,10 +52,10 @@ def assign(ticket_id: int,
     return assign_ticket(ticket_id, payload, current_user, db)
 
 @router.patch("/{ticket_id}/start", response_model=MaintenanceCreate)
-def start(ticket_id: int, 
+def start_maintenance_route(ticket_id: int, 
           current_user = Depends(get_current_user),
           db: Session = Depends(get_db)):
-    return start_maintenance(ticket_id, current_user, db)
+    return start_maintenance(ticket_id, None, current_user, db)
  
 @router.patch("/{ticket_id}/cancel", response_model=TicketItemResponse)
 def cancel(ticket_id: int, payload: CancellationRequest,

@@ -44,7 +44,7 @@ def get_ticket(db: Session, ticket_id: int, current_user):
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user)
     if not ticket:
         raise HTTPException(404, "Ticket not found")
-    assert_ownership(ticket, current_user)
+    assert_ownership(ticket, current_user, db)
     return _serialize_ticket_item(ticket)
     
 def list_tickets(db, current_user, page: int = 1, page_size: int = 50):
@@ -57,14 +57,11 @@ def start_maintenance(ticket_id: int, payload: None,
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     if not ticket:
         raise HTTPException(404, "Ticket not found")
-    assert_ownership(ticket, current_user)
+    assert_ownership(ticket, current_user, db)
 
     validate_transition(ticket.status, TicketStatus.in_progress)
-    
-    # Validate hollidays/weekend: Not necessary here
-    # ...
 
-    data = SimpleNamespace(ticket_id=ticket_id, **payload.model_dump() if payload else {})
+    data = SimpleNamespace(ticket_id=ticket_id, maintenance_date=datetime.now(), **(payload.model_dump() if payload else {}))
     ticket.status = TicketStatus.in_progress
     db.commit()
     # create_new_maintenance(db, data, current_user)
@@ -78,14 +75,14 @@ def _get_technician_id_by_user(db, current_user):
     ).first()
     if not technician:
         raise HTTPException(404, "Your ticket has not associated technician")
-    return technician.id_technician if technician else None
+    return technician.technician_id if technician else None
 
 def assign_ticket(ticket_id: int, payload: AssignRequest,
                   current_user, db: Session):
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     if not ticket:
         raise HTTPException(404, "Ticket not found")
-    assert_ownership(ticket, current_user)
+    assert_ownership(ticket, current_user, db)
 
     validate_transition(ticket.status, TicketStatus.assigned)
 
@@ -100,7 +97,7 @@ def assign_ticket(ticket_id: int, payload: AssignRequest,
     ticket.status = TicketStatus.assigned
     ticket.assigned_to = technician_id
     db.commit()
-    return ticket
+    return _serialize_ticket_item(ticket)
 
 # ── c. Cancel ───────────────────────────────────────────────────────────────
 def cancel_ticket(ticket_id: int, payload: CancellationRequest,
@@ -108,7 +105,7 @@ def cancel_ticket(ticket_id: int, payload: CancellationRequest,
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     if not ticket:
         raise HTTPException(404, "Ticket not found")
-    assert_ownership(ticket, current_user)
+    assert_ownership(ticket, current_user, db)
 
     validate_transition(ticket.status, TicketStatus.cancelled)
 
@@ -117,7 +114,7 @@ def cancel_ticket(ticket_id: int, payload: CancellationRequest,
     db.commit()
     create_new_cancellation(db, data, current_user)
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
-    return ticket
+    return _serialize_ticket_item(ticket)
     
 # ── c. Pause ───────────────────────────────────────────────────────────────
 # Now in maintenance_service.py
@@ -128,7 +125,7 @@ def create_new_add_wkd(ticket_id: int, payload: None,
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     if not ticket:
         raise HTTPException(404, "Ticket not found")
-    assert_ownership(ticket, current_user)
+    assert_ownership(ticket, current_user, db)
 
     maintenance = db.query(Maintenance).filter(Maintenance.ticket_id == ticket_id).first()
     # TODO: manage not maintenance ...
@@ -139,7 +136,7 @@ def create_new_add_wkd(ticket_id: int, payload: None,
         raise HTTPException(403, "Ticket is neither weekend ticket or holiday ticket")
     
     data = SimpleNamespace(ticket_id=ticket_id, **payload.model_dump())
-    ticket = ticket_repo.save_add_wkd(db, data, current_user)   
+    ticket_repo.save_add_wkd(db, data, current_user)
 
     last_pause = (
         db.query(Pause)
@@ -148,25 +145,29 @@ def create_new_add_wkd(ticket_id: int, payload: None,
         .first()
     )
     is_paused = last_pause and (not maintenance.updated_at or last_pause.created_at > maintenance.updated_at)
-    ticket.status = TicketStatus.paused if is_paused else TicketStatus.closed
+    new_status = TicketStatus.paused if is_paused else TicketStatus.closed
 
-    return ticket
+    ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user)
+    ticket.status = new_status
+    db.commit()
+    return _serialize_ticket_item(ticket)
 
 # ── e. Delete ───────────────────────────────────────────────────────────────
 def delete_ticket(ticket_id: int, current_user, db: Session):
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
     if not ticket:
         raise HTTPException(404, "Ticket not found")
-    assert_ownership(ticket, current_user)
+    assert_ownership(ticket, current_user, db)
     
     return ticket_repo.delete_ticket_by_id(db, ticket, current_user)
 
     
 # ── Helpers ───────────────────────────────────────────────────────────────
-def assert_ownership(tk: Ticket, current_user: CurrentUser):
-    if tk.assigned_to == "" or current_user.user_role == UserRole.director:
+def assert_ownership(tk: Ticket, current_user: CurrentUser, db: Session):
+    if tk.assigned_to is None or current_user.user_role == UserRole.director:
         return
-    if tk.assigned_to != current_user.technician.technician_id:
+    technician = db.query(Technician).filter(Technician.user_id == current_user.user_id).first()
+    if technician and tk.assigned_to != technician.technician_id:
         raise HTTPException(403, "Forbidden")
 
 def validate_transition(current_state: str, new_state: str):
