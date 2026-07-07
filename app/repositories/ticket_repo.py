@@ -45,7 +45,7 @@ def _get_technician_id(db: Session, current_user) -> int | None:
 def get_visible_tickets(db, current_user, page: int = 1, page_size: int = 50):
     query = _get_query(db, current_user)
 
-    if current_user.user_role == UserRole.technician:
+    if current_user.user_role in (UserRole.technician, UserRole.director):
         technician_id = _get_technician_id(db, current_user)
         query = query.filter(
             and_(

@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class TicketCreate(BaseModel):
-    ticket_id: str
+    ticket_id: int
     ticket_date: str
     ticket_description: str
     priority: str 
@@ -36,7 +36,7 @@ class TicketItemResponse(BaseModel):
     status: str
 
     market_name: str
-    market_city: str
+    market_city: Optional[str] = None
     equipment_name: str
 
     assigned_name: Optional[str] = None
