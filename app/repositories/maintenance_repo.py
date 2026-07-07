@@ -81,7 +81,7 @@ def get_maintenance_by_id( # The client side cache eliminates 90% calls to this 
     current_user
 ) -> Maintenance | None:   
     query = _get_query(db, current_user)
-    query.filter(Maintenance.id_maintenance == maintenance_id)
+    query = query.filter(Maintenance.maintenance_id == maintenance_id)
     # The Logic for filter by user_role now is a validation in maintenance_service
 
     return query.first()
@@ -112,7 +112,7 @@ def _get_query(db, current_user):
             joinedload(Maintenance.ticket).joinedload(Ticket.market),
             joinedload(Maintenance.ticket).joinedload(Ticket.equipment),
             joinedload(Maintenance.ticket).joinedload(Ticket.cancellation),
-            # joinedload(Maintenance.worksheet),
+            joinedload(Maintenance.worksheet),
             selectinload(Maintenance.photos),
             selectinload(Maintenance.technicians)
                 .joinedload(MaintenanceTechnician.technician)
