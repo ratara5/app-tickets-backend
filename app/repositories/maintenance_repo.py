@@ -40,7 +40,8 @@ def update_maintenance(db, maintenance, data, current_user):
     for field, value in data.model_dump(exclude_none=True, exclude={"spares", "technicians"}).items():
         setattr(maintenance, field, value)
 
-    db.flush()  # get ID without do commit
+    db.commit()
+    db.refresh(maintenance)
 
     return maintenance
 
@@ -95,7 +96,7 @@ def add_maintenance_spare(db, maintenance_id, r):
 
 def add_maintenance_technician(db, maintenance_id, t):
     db.add(MaintenanceTechnician(
-        maintenance_id_id=maintenance_id,
+        maintenance_id=maintenance_id,
         technician_id=t.technician_id,
         start_hour=t.start_hour,
         end_hour=t.end_hour

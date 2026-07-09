@@ -107,16 +107,14 @@ async def update_existing(db: Session,
     )
     real_mark_as = "PAUSED" if (last_pause and last_pause.created_at > maintenance.updated_at) else "CLOSED"
 
-    data = SimpleNamespace(**payload.model_dump(),
-                           labsdl_id=labsdl_id,
-                           initial_photo_path=full_object_path,
-                           )
+    maintenance.labsdl_id = labsdl_id
+    maintenance.initial_photo_path = full_object_path
     
     ##################################################
     ###### Save maintenance change (persistance) #####
     ##################################################
 
-    maintenance = maintenance_repo.update_maintenance(db, maintenance, data, current_user)
+    maintenance = maintenance_repo.update_maintenance(db, maintenance, payload, current_user)
 
     ##################################################
     ###### Business logic after data persistance #####
@@ -126,10 +124,10 @@ async def update_existing(db: Session,
 
     # Spares #
     for r in payload.spares:
-        maintenance_repo.add_maintenance_spare(db, maintenance.id, r)
+        maintenance_repo.add_maintenance_spare(db, maintenance.maintenance_id, r)
     # Technicians #
     for t in payload.technicians:
-        maintenance_repo.add_maintenance_technician(db, maintenance.id, t)
+        maintenance_repo.add_maintenance_technician(db, maintenance.maintenance_id, t)
 
     ### Finish ###
     if labsdl_id == 3:
@@ -195,7 +193,7 @@ def _sign(path: str | None) -> str | None:
     if not path:
         return None
     return get_presigned_url(
-        settings.minio_default_bucket, path, expires=timedelta(seconds=settings.presigned_ttl)
+        path, expires_hours=settings.presigned_ttl
     )
 
 def _serialize_maintenance_item(maintenance: Maintenance) -> dict:
@@ -209,7 +207,7 @@ def _serialize_maintenance_item(maintenance: Maintenance) -> dict:
     
     spares=[{ # map or comprehension: are equivalent in terms of speed. But comprehension is more pythonic
         "spare_id": ms.spare.spare_id,
-        "name": ms.spare.name,
+        "name": ms.spare.spare_name,
         "price": ms.spare.price,
         "qty": ms.qty
         } for ms in maintenance.spares]
