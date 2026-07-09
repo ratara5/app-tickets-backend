@@ -171,8 +171,8 @@ CREATE TABLE IF NOT EXISTS maintenances_technicians (
     -- id_mantenimiento_tecnico TEXT PRIMARY KEY, -- Necessary for appsheet, but here that is not the case 
     maintenance_id UUID,
     technician_id INT,
-    start_hour TIMETZ,
-    end_hour TIMETZ,
+    start_hour TIME,
+    end_hour TIME,
 
     created_at TIMESTAMPTZ DEFAULT NOW(),
     created_by VARCHAR,

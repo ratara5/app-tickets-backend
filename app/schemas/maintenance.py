@@ -1,5 +1,5 @@
 from decimal import Decimal
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Optional, List
 
 from pydantic import BaseModel, UUID7, ConfigDict
@@ -17,14 +17,14 @@ class SpareOut(BaseModel):
 
 class TechnicianIn(BaseModel):
     technician_id: int
-    start_hour: datetime 
-    end_hour: datetime
+    start_hour: time 
+    end_hour: time
 
 class TechnicianOut(BaseModel):
     technician_id: int
     technician_name: str
-    start_hour: datetime 
-    end_hour: datetime
+    start_hour: time 
+    end_hour: time
 
 # class PhotoIn(BaseModel): # The photos are uploaded apart (by file schema) of the maintenance saved process
     # photo_id: int
