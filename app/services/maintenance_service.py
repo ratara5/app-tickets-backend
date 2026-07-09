@@ -185,7 +185,7 @@ def build_object_path_maintenances(maintenance: Maintenance, col_name, content_t
     serial = secrets.token_hex(4)
     ext = settings.ext_by_type.get(content_type, "")
 
-    original_filename = f"{maintenance.id}.{col_name}.{serial}.{ext}"
+    original_filename = f"{maintenance.maintenance_id}.{col_name}.{serial}.{ext}"
     full_object_path = f"{settings.base_object_path}/{anio}/{mes}/{maintenance.ticket_id}/{original_filename}"
     
     return serial, original_filename, full_object_path
