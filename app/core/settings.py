@@ -4,12 +4,13 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-ENV_PATH = ROOT_DIR / ".env"
+ENV_PATH_CORE = ROOT_DIR / ".env"
+ENV_PATH_COMPANY = ROOT_DIR / "gtk-companies" / "gtk-acme" / ".env"
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=ENV_PATH,
+        env_file=(ENV_PATH_CORE, ENV_PATH_COMPANY),
         #env_file_encoding="utf-8",
         extra="ignore",
     )

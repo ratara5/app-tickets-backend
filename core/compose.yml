@@ -1,0 +1,114 @@
+#version: '3'
+#VARIACIONES EN RUTAS, REDES Y NOMBRES DE VOLÚMENES RESPECTO A ~/infraestructure
+
+# ========================================
+# YAML ANCHORS - Reutilización de configuración
+# ========================================
+x-common-variables: &common-variables
+  TZ: ${TZ}
+  
+x-healthcheck-common: &healthcheck-common
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 30s
+
+x-postgres-common: &postgres-common
+  restart: unless-stopped
+  shm_size: 256mb
+  environment:
+    <<: *common-variables
+  #networks:
+    #- db-external *
+  logging: &logging-json
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+# ========================================
+# SERVICIOS
+# ========================================
+services:
+
+  # ========================================
+  # POSTGRESQL - GTK
+  # ========================================
+  postgres-gtk:
+    <<: *postgres-common
+    build:
+      context: ./postgres-gci
+      dockerfile: Dockerfile
+    container_name: postgres-gci
+    ports:
+      - "5433:5432"
+    shm_size: 512mb  
+    environment:
+      <<: *common-variables
+      POSTGRES_USER: ${POSTGRES_GCI_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_GCI_PASSWORD}
+    volumes:
+      - postgres-gci-data:/var/lib/postgresql/data
+      - ${PROJECT_ROOT}/core/postgres-gci/init:/docker-entrypoint-initdb.d:ro
+      - ${PROJECT_ROOT}/core/postgres-gci/backups:/backups
+      - ${PROJECT_ROOT}/core/postgres-gci/configs/postgresql-gci.conf:/etc/postgresql/postgresql.conf:ro
+      - ${PROJECT_ROOT}/core/postgres-gci/configs/pg_hba-gci.conf:/etc/postgresql/pg_hba.conf:ro
+    command: >
+      postgres
+      -c config_file=/etc/postgresql/postgresql.conf
+      -c log_destination=stderr
+      -c logging_collector=on
+      -c log_directory=/var/lib/postgresql/data/log
+    networks:
+      - gci-db-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_GCI_USER}"]
+      <<: *healthcheck-common
+
+  # ========================================
+  # PGADMIN - GESTIÓN DE BASES DE DATOS (YA EXISTE UN SERVICIO pgadmin EN ESTA MAQUINA, SE RENOMBRA PARA EVITAR CONFLICTOS)
+  # ========================================
+  pgadmin-gci:
+    build:
+      context: ./pgadmin-gci
+      dockerfile: Dockerfile
+    container_name: pgadmin-gci
+    restart: unless-stopped
+    ports:
+      - "${PG_ADMIN_PORT:-8083}:80"
+    user: root
+    environment:
+      <<: *common-variables
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    volumes:
+      - pgadmin-gci-data:/var/lib/pgadmin
+      - ${PROJECT_ROOT}/core/configs/pgadmin-servers.json:/pgadmin4/servers.json:ro
+    networks:
+      #- db-external *
+      - gci-db-network
+    logging:
+      <<: *logging-json
+
+
+
+# ========================================
+# REDES
+# ========================================
+networks:
+  #db-external: #en infrastructure es internal
+    #driver: bridge
+    #*Solo comunicación entre servidores postgres (un servidor para apps, otro para integraciones google, otro para odoo, etc)
+  
+  gci-db-network:
+    driver: bridge
+  
+# ========================================
+# VOLÚMENES PERSISTENTES
+# ========================================
+volumes:
+  postgres-gci-data:
+  postgres-apps-data:
+  pgadmin-gci-data:

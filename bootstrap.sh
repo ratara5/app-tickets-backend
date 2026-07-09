@@ -124,6 +124,9 @@ CONFIG_DIR="$PROJECT_ROOT/app/config"
 log "Manual load of credential is required"
 CRED_DIR="$PROJECT_ROOT/app/credentials"
 
+# ── Start Minio Container ───────────────────────────────────
+cd "$PROJECT_ROOT/gtk-companies/gtk-base"
+docker compose up -d minio
 
 # ── End ───────────────────────────────────────────────────────
 echo -e "\n\033[1;32m✓ ¡¡¡Bootstrap completed!!!\033[0m"
