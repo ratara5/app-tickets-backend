@@ -67,6 +67,31 @@ IN PROGRESS -> PAUSED
 Checked States: OPEN, IN PROGRESS  
 *Ticket 2:* CANCELLED  
 
+## GIT NOTES  
+### You need to know if any comit in branch main was written after the creation of a branch any-other-branch 
+```bash
+# Find the common ancestor (where the branch was created from)
+base=$(git merge-base main any-other-branch)
+
+# List commits on main made after that point
+git log $base..main
+```  
+
+### You need to do a real dry-run merge (Safe, Reversible)  
+```bash
+git checkout main
+git pull
+git merge --no-commit --no-ff any-other-branch
+git status
+git merge --abort
+```
+
+### You need to update the branch main from branch any-other-branch 
+```bash
+git merge any-other-branch
+
+git push origin main
+```  
 
 ### API USAGE IN POSTMAN  
 The use of POSTMAN DESKTOP APP is REQUIRED.
