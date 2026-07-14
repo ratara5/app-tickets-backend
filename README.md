@@ -88,9 +88,14 @@ git merge --abort
 
 ### You need to update the branch main from branch any-other-branch 
 ```bash
+git checkout main
 git merge any-other-branch
-
+git status
+# Reolve conflicts (if there are any) 
+# git add <resolved-file>
 git push origin main
+git commit -m "Merge branch 'any-other-branch' into main"
+git push
 ```  
 
 ### API USAGE IN POSTMAN  
