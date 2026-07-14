@@ -46,7 +46,7 @@ services:
       - minio-acme
     networks:
     # - proxy-network
-      - gci-db-network
+    # - gci-db-network
       - as-sync-acme-network
 
 volumes:

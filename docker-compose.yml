@@ -3,7 +3,7 @@
 # ========================================
 
 include:
-  - path: ./core/compose.yml
+  # - path: ./core/compose.yml # Here, it's only for reference. The container is built it from ~/Documents/GoogleCloudProjects/docker-compose.yml, in its db gmail tk are received
 
   # <<GTK_INCLUDES>>
   - path: ./gtk-companies/gtk-acme/docker-compose.yml
