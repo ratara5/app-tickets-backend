@@ -1,11 +1,11 @@
 from app.repositories.pause_repo import save_pause, get_pauses
 
 
-def create_new_pause(db, data, current_user):
+def create_new_pause(db, maintenance_id, data, current_user):
     # Business logic before data persistance
     # ...
     
-    pause = save_pause(db, data, current_user)
+    pause = save_pause(db, maintenance_id, data, current_user)
     # Business logic after data persistance
     # ...
 

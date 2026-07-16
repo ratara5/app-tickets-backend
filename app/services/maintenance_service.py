@@ -22,7 +22,7 @@ import app.repositories.maintenance_repo as maintenance_repo
 import app.repositories.ticket_repo as ticket_repo
 
 from app.services.registry import service
-from app.services.ticket_service import validate_transition
+import app.services.ticket_service as ticket_svc
 from app.services.pause_service import create_new_pause
 
 from app.core.settings import settings
@@ -142,22 +142,27 @@ async def update_existing(db: Session,
 
     return _serialize_maintenance_item(maintenance)
 
-def pause_ticket(maintenance_id: UUID7, payload: PauseRequest,
-                  current_user, db: Session):
+async def pause_and_update(db: Session, 
+                maintenance_id: UUID7, 
+                data: MaintenanceUpdate, 
+                current_user, 
+                files: dict):
+    """ Pause the ticket and update the maintenance. """
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
     assert_ownership(maintenance, current_user, db)
+    
     ticket = ticket_repo.get_ticket_by_id(db, maintenance.ticket_id, current_user)
     if not ticket:
         raise HTTPException(404, "Ticket not found")
-    
-    validate_transition(ticket.status, TicketStatus.paused)
+    ticket_svc.validate_transition(ticket.status, TicketStatus.paused)
 
-    data = SimpleNamespace(maintenance_id=maintenance_id, **payload.model_dump())
-    # ticket.status = TicketStatus.paused
-    # db.commit()
-    create_new_pause(db, data, current_user)
-    ticket = ticket_repo.update_ticket_status(db, ticket, TicketStatus.paused, current_user)
-    return ticket
+    create_new_pause(db, maintenance_id, data.pause_reason, current_user)
+    # The next instruction set the ticket status to PAUSED also
+    maintenance = await update_existing(db, maintenance_id, data, current_user, files)
+    
+    updated_ticket = ticket_svc.get_ticket(db, maintenance.ticket_id, current_user)
+
+    return updated_ticket
 
 def delete_maintenance(maintenance_id: UUID7, current_user, db: Session):
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user) 

@@ -492,13 +492,21 @@
             "method": "PATCH",
             "header": [],
             "body": {
-              "mode": "raw",
-              "raw": "{\n    \"pause_reason\": \"Waiting for spare part delivery \\u2014 estimated 48 hours\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "payload",
+                  "value": "{\n    \"maintenance_description\": \"Replaced condenser fan motor and capacitor\",\n    \"spares\": [\n        {\n            \"spare_id\": 1,\n            \"qty\": 2.0\n        }\n    ],\n    \"technicians\": [\n        {\n            \"technician_id\": 1,\n            \"start_hour\": \"2026-07-07T09:00:00\",\n            \"end_hour\": \"2026-07-07T11:30:00\"\n        }\n    ],\n    \"pause_reason\": \"Waiting for spare part delivery \\u2014 estimated 48 hours\"\n}\n}",
+                  "type": "text",
+                  "description": "PauseRequest fields as JSON string"
+                },
+                {
+                  "key": "initial_photo_file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Optional initial photo upload"
                 }
-              }
+              ]
             },
             "url": {
               "raw": "{{base_url}}/maintenances/{{maintenance_id}}/pause",
@@ -507,8 +515,7 @@
               ],
               "path": [
                 "maintenances",
-                "{{maintenance_id}}",
-                "pause"
+                "{{maintenance_id}}"
               ]
             },
             "description": "Pause a maintenance. Ticket status auto-updates to PAUSED."

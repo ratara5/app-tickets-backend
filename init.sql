@@ -220,7 +220,7 @@ CREATE TABLE IF NOT EXISTS photos (
 );
 
 CREATE TABLE IF NOT EXISTS pauses (
-    pause_id TEXT PRIMARY KEY, 
+    pause_id SERIAL PRIMARY KEY, 
     maintenance_id UUID,
     -- pause_timestamp TIMESTAMPTZ, -- equals to created_at
     pause_reason TEXT,

@@ -3,15 +3,15 @@ from datetime import datetime
 from app.models.pause import Pause
 
 
-def save_pause(db, data, current_user):
+def save_pause(db, maintenance_id, pause_reason, current_user):
     pause = Pause(
-        maintenance_id=data.maintenance_id,
-        pause_reason=data.pause_reason,
+        maintenance_id=maintenance_id,
+        pause_reason=pause_reason,
         created_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S+00") # overwritting auditmixin TODO: To inject TZ from environment and apply .strftime("%Y-%m-%d %H:%M:%S+00")
     )
 
     db.add(pause)
-    db.flush()
+    db.commit()
     db.refresh(pause)
 
     return pause

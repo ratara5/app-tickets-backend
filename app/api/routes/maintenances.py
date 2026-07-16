@@ -61,10 +61,16 @@ async def update_maintenance(
     )
 
 @router.patch("/{maintenance_id}/pause", response_model=TicketItemResponse)
-def pause(maintenance_id: UUID7, payload: PauseRequest,
+async def pause(maintenance_id: UUID7, 
+          payload: str = Form(...),
+          initial_photo_file: Optional[UploadFile] = File(None), # Is the file per se. The column photo_path is the path
           db: Session = Depends(get_db),
           current_user = Depends(get_current_user)):
-    return maintenance_svc.pause_ticket(maintenance_id, payload, current_user, db)
+    data = PauseRequest.model_validate_json(payload)
+    files = {"initial_photo_file": initial_photo_file}
+    return await maintenance_svc.pause_and_update(
+        db, maintenance_id, data, current_user, files
+    )
 
 @router.delete("/{maintenance_id}", status_code=204)
 def del_maintenance(maintenance_id: UUID7, 

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import Column, Integer, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship, declared_attr
 
@@ -5,13 +7,13 @@ from sqlalchemy.orm import relationship, declared_attr
 class AuditMixin:
     created_at = Column(
         DateTime,
-        server_default=func.now(), # Delegating to postgres generates a timestamp
+        default=datetime.now().strftime("%Y-%m-%d %H:%M:%S+00"), # Delegating to postgres generates a timestamp
         nullable=False
     )
     updated_at = Column(
         DateTime,
-        server_default=func.now(), 
-        onupdate=func.now(),
+        default=datetime.now().strftime("%Y-%m-%d %H:%M:%S+00"),
+        onupdate=datetime.now().strftime("%Y-%m-%d %H:%M:%S+00"),
         nullable=False
     )
     created_by = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False)
