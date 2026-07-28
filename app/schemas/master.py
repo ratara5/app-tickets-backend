@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 
 class TechnicianResponse(BaseModel):
     technician_id: int
-    user_id: int
+    # user_id: int
     user_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -15,7 +15,7 @@ class TechnicianResponse(BaseModel):
 class SpareResponse(BaseModel):
     spare_id: int
     spare_name: str
-    unit: Optional[str] = None
+    # unit: Optional[str] = None
     price: Optional[Decimal] = None
 
     model_config = ConfigDict(from_attributes=True)

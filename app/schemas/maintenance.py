@@ -4,15 +4,14 @@ from typing import Optional, List
 
 from pydantic import BaseModel, UUID7, ConfigDict
 
+from app.schemas.master import SpareResponse, TechnicianResponse
+
 
 class SpareIn(BaseModel):
     spare_id: int
     qty: Decimal
 
-class SpareOut(BaseModel):
-    spare_id: int
-    name: str
-    price: Decimal
+class SpareOut(SpareResponse):
     qty: Decimal
 
 class TechnicianIn(BaseModel):
@@ -20,9 +19,7 @@ class TechnicianIn(BaseModel):
     start_hour: time 
     end_hour: time
 
-class TechnicianOut(BaseModel):
-    technician_id: int
-    technician_name: str
+class TechnicianOut(TechnicianResponse):
     start_hour: time 
     end_hour: time
 
