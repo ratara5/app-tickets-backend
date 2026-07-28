@@ -3,6 +3,271 @@ info:
   title: FastAPI
   version: 0.1.0
 paths:
+  /technicians:
+    get:
+      summary: Get Technicians
+      operationId: get_technicians_technicians_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Page Size
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TechnicianResponse'
+                title: Response Get Technicians Technicians Get
+  /technicians/{technician_id}:
+    get:
+      summary: Get Technician By Id
+      operationId: get_technician_by_id_technicians__technician_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: technician_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Technician Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TechnicianResponse'
+        '404':
+          description: Not Found
+  /spares:
+    get:
+      summary: Get Spares
+      operationId: get_spares_spares_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Page Size
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SpareResponse'
+                title: Response Get Spares Spares Get
+  /spares/{spare_id}:
+    get:
+      summary: Get Spare By Id
+      operationId: get_spare_by_id_spares__spare_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: spare_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Spare Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpareResponse'
+        '404':
+          description: Not Found
+  /markets:
+    get:
+      summary: Get Markets
+      operationId: get_markets_markets_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Page Size
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MarketResponse'
+                title: Response Get Markets Markets Get
+  /markets/{market_id}:
+    get:
+      summary: Get Market By Id
+      operationId: get_market_by_id_markets__market_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: market_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Market Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketResponse'
+        '404':
+          description: Not Found
+  /equipment:
+    get:
+      summary: Get Equipment List
+      operationId: get_equipment_list_equipment_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Page Size
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EquipmentResponse'
+                title: Response Get Equipment List Equipment Get
+  /equipment/{equipment_id}:
+    get:
+      summary: Get Equipment By Id
+      operationId: get_equipment_by_id_route_equipment__equipment_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: equipment_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Equipment Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EquipmentResponse'
+        '404':
+          description: Not Found
+  /labsdls:
+    get:
+      summary: Get Lab Sdls
+      operationId: get_labsdls_labsdls_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 50
+          title: Page Size
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LabsdlResponse'
+                title: Response Get Lab Sdls Lab Sdls Get
+  /labsdls/{labsdl_id}:
+    get:
+      summary: Get Labsdl By Id
+      operationId: get_labsdl_by_id_labsdls__labsdl_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: labsdl_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Labsdl Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabsdlResponse'
+        '404':
+          description: Not Found
   /tickets:
     get:
       summary: Get Tickets
@@ -647,6 +912,101 @@ paths:
       - HTTPBearer: []
 components:
   schemas:
+    TechnicianResponse:
+      properties:
+        technician_id:
+          type: integer
+          title: Technician Id
+        user_id:
+          type: integer
+          title: User Id
+      type: object
+      required:
+      - technician_id
+      - user_id
+      title: TechnicianResponse
+    SpareResponse:
+      properties:
+        spare_id:
+          type: integer
+          title: Spare Id
+        spare_name:
+          type: string
+          title: Spare Name
+        unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Unit
+        price:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Price
+      type: object
+      required:
+      - spare_id
+      - spare_name
+      title: SpareResponse
+    MarketResponse:
+      properties:
+        market_id:
+          type: integer
+          title: Market Id
+        market_name:
+          type: string
+          title: Market Name
+        city:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: City
+        transport_cost:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Transport Cost
+      type: object
+      required:
+      - market_id
+      - market_name
+      title: MarketResponse
+    EquipmentResponse:
+      properties:
+        equipment_id:
+          type: integer
+          title: Equipment Id
+        equipment_name:
+          type: string
+          title: Equipment Name
+      type: object
+      required:
+      - equipment_id
+      - equipment_name
+      title: EquipmentResponse
+    LabsdlResponse:
+      properties:
+        labsdl_id:
+          type: integer
+          title: Labsdl Id
+        labsdl_name:
+          type: string
+          title: Labsdl Name
+        labsdl_description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Labsdl Description
+        hourly_rate:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Hourly Rate
+      type: object
+      required:
+      - labsdl_id
+      - labsdl_name
+      title: LabsdlResponse
     AddWkdRequest:
       properties:
         operation_percentage:

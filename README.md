@@ -62,6 +62,50 @@ OPEN -> ASSIGNED -> IN PROGRESS -> CLOSED
 OPEN -> CANCELLED  
 IN PROGRESS -> PAUSED  
 
+### MASTER DATA ENDPOINTS  
+```bash
+# List technicians
+curl -X GET /technicians -H "Authorization: Bearer eyJ..."
+# → [ { "technician_id": 1, "user_id": 1 } ]
+
+# Get single technician
+curl -X GET /technicians/1 -H "Authorization: Bearer eyJ..."
+# → { "technician_id": 1, "user_id": 1 }
+
+# List spares
+curl -X GET /spares -H "Authorization: Bearer eyJ..."
+# → [ { "spare_id": 1, "spare_name": "Filter", "unit": "pcs", "price": 10.5 } ]
+
+# Get single spare
+curl -X GET /spares/1 -H "Authorization: Bearer eyJ..."
+# → { "spare_id": 1, "spare_name": "Filter", ... }
+
+# List markets
+curl -X GET /markets -H "Authorization: Bearer eyJ..."
+# → [ { "market_id": 1, "market_name": "Market A", "city": "City", "transport_cost": 100 } ]
+
+# Get single market
+curl -X GET /markets/1 -H "Authorization: Bearer eyJ..."
+# → { "market_id": 1, ... }
+
+# List equipment
+curl -X GET /equipment -H "Authorization: Bearer eyJ..."
+# → [ { "equipment_id": 1, "equipment_name": "Pump" } ]
+
+# Get single equipment
+curl -X GET /equipment/1 -H "Authorization: Bearer eyJ..."
+# → { "equipment_id": 1, ... }
+
+# List labsdls (laboratory standards)
+curl -X GET /labsdls -H "Authorization: Bearer eyJ..."
+# → [ { "labsdl_id": 1, "labsdl_name": "Normal", "labsdl_description": "", "hourly_rate": 50 } ]
+
+# Get single labsdl
+curl -X GET /labsdls/1 -H "Authorization: Bearer eyJ..."
+# → { "labsdl_id": 1, ... }
+```
+All master data endpoints support `page` and `page_size` query parameters (defaults: page=1, page_size=50).
+
 ### PERMANENT DATA  
 *Ticket 1:* CLOSED  
 Checked States: OPEN, IN PROGRESS  
