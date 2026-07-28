@@ -66,15 +66,15 @@ IN PROGRESS -> PAUSED
 ```bash
 # List technicians
 curl -X GET /technicians -H "Authorization: Bearer eyJ..."
-# → [ { "technician_id": 1, "user_id": 1, "user_name": "John Technician" } ]
+# → [ { "technician_id": 1, "user_name": "John Technician" } ]
 
 # Get single technician
 curl -X GET /technicians/1 -H "Authorization: Bearer eyJ..."
-# → { "technician_id": 1, "user_id": 1, "user_name": "John Technician" }
+# → { "technician_id": 1, "user_name": "John Technician" }
 
 # List spares
 curl -X GET /spares -H "Authorization: Bearer eyJ..."
-# → [ { "spare_id": 1, "spare_name": "Filter", "unit": "pcs", "price": 10.5 } ]
+# → [ { "spare_id": 1, "spare_name": "Filter", "price": 10.5 } ]
 
 # Get single spare
 curl -X GET /spares/1 -H "Authorization: Bearer eyJ..."

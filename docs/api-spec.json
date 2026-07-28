@@ -1,39 +1,24 @@
 {
   "openapi": "3.1.0",
-  "info": {
-    "title": "FastAPI",
-    "version": "0.1.0"
-  },
+  "info": { "title": "FastAPI", "version": "0.1.0" },
   "paths": {
     "/tickets": {
       "get": {
         "summary": "Get Tickets",
         "operationId": "get_tickets_tickets_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "page",
             "in": "query",
             "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 1,
-              "title": "Page"
-            }
+            "schema": { "type": "integer", "default": 1, "title": "Page" }
           },
           {
             "name": "page_size",
             "in": "query",
             "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 50,
-              "title": "Page Size"
-            }
+            "schema": { "type": "integer", "default": 50, "title": "Page Size" }
           }
         ],
         "responses": {
@@ -55,9 +40,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -66,29 +49,21 @@
       "post": {
         "summary": "Create Ticket",
         "operationId": "create_ticket_tickets_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TicketCreate"
-              }
+              "schema": { "$ref": "#/components/schemas/TicketCreate" }
             }
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TicketItemResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/TicketItemResponse" }
               }
             }
           },
@@ -96,9 +71,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -107,22 +80,15 @@
     },
     "/tickets/{ticket_id}": {
       "get": {
-        "summary": "Get Ticket",
-        "operationId": "get_ticket_tickets__ticket_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "summary": "Get Ticket By Id Route",
+        "operationId": "get_ticket_by_id_route_tickets__ticket_id__get",
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "ticket_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Ticket Id"
-            }
+            "schema": { "type": "integer", "title": "Ticket Id" }
           }
         ],
         "responses": {
@@ -130,9 +96,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TicketItemResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/TicketItemResponse" }
               }
             }
           },
@@ -140,9 +104,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -151,33 +113,22 @@
       "delete": {
         "summary": "Del Ticket",
         "operationId": "del_ticket_tickets__ticket_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "ticket_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Ticket Id"
-            }
+            "schema": { "type": "integer", "title": "Ticket Id" }
           }
         ],
         "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
+          "204": { "description": "Successful Response" },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -188,29 +139,20 @@
       "patch": {
         "summary": "Assign",
         "operationId": "assign_tickets__ticket_id__assign_patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "ticket_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Ticket Id"
-            }
+            "schema": { "type": "integer", "title": "Ticket Id" }
           }
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AssignRequest"
-              }
+              "schema": { "$ref": "#/components/schemas/AssignRequest" }
             }
           }
         },
@@ -219,9 +161,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TicketItemResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/TicketItemResponse" }
               }
             }
           },
@@ -229,9 +169,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -240,22 +178,15 @@
     },
     "/tickets/{ticket_id}/start": {
       "patch": {
-        "summary": "Start",
-        "operationId": "start_tickets__ticket_id__start_patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "summary": "Start Maintenance Route",
+        "operationId": "start_maintenance_route_tickets__ticket_id__start_patch",
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "ticket_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Ticket Id"
-            }
+            "schema": { "type": "integer", "title": "Ticket Id" }
           }
         ],
         "responses": {
@@ -263,9 +194,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MaintenanceCreate"
-                }
+                "schema": { "$ref": "#/components/schemas/MaintenanceCreate" }
               }
             }
           },
@@ -273,9 +202,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -286,29 +213,20 @@
       "patch": {
         "summary": "Cancel",
         "operationId": "cancel_tickets__ticket_id__cancel_patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "ticket_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Ticket Id"
-            }
+            "schema": { "type": "integer", "title": "Ticket Id" }
           }
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CancellationRequest"
-              }
+              "schema": { "$ref": "#/components/schemas/CancellationRequest" }
             }
           }
         },
@@ -317,9 +235,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TicketItemResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/TicketItemResponse" }
               }
             }
           },
@@ -327,9 +243,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -340,29 +254,20 @@
       "patch": {
         "summary": "Create Add Wkd",
         "operationId": "create_add_wkd_tickets__ticket_id__addwkd_patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "ticket_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Ticket Id"
-            }
+            "schema": { "type": "integer", "title": "Ticket Id" }
           }
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddWkdRequest"
-              }
+              "schema": { "$ref": "#/components/schemas/AddWkdRequest" }
             }
           }
         },
@@ -371,9 +276,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TicketItemResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/TicketItemResponse" }
               }
             }
           },
@@ -381,9 +284,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -394,31 +295,19 @@
       "get": {
         "summary": "Get Maintenances",
         "operationId": "get_maintenances_maintenances_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "page",
             "in": "query",
             "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 1,
-              "title": "Page"
-            }
+            "schema": { "type": "integer", "default": 1, "title": "Page" }
           },
           {
             "name": "page_size",
             "in": "query",
             "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 50,
-              "title": "Page Size"
-            }
+            "schema": { "type": "integer", "default": 50, "title": "Page Size" }
           }
         ],
         "responses": {
@@ -440,9 +329,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -451,18 +338,12 @@
       "post": {
         "summary": "Create Maintenance",
         "operationId": "create_maintenance_maintenances_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MaintenanceCreate"
-              }
+              "schema": { "$ref": "#/components/schemas/MaintenanceCreate" }
             }
           }
         },
@@ -471,9 +352,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MaintenanceCreate"
-                }
+                "schema": { "$ref": "#/components/schemas/MaintenanceCreate" }
               }
             }
           },
@@ -481,9 +360,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -494,11 +371,7 @@
       "get": {
         "summary": "Get Maintenance",
         "operationId": "get_maintenance_maintenances__maintenance_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "maintenance_id",
@@ -526,9 +399,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -537,11 +408,7 @@
       "patch": {
         "summary": "Update Maintenance",
         "operationId": "update_maintenance_maintenances__maintenance_id__patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "maintenance_id",
@@ -579,9 +446,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -590,11 +455,7 @@
       "delete": {
         "summary": "Del Maintenance",
         "operationId": "del_maintenance_maintenances__maintenance_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "maintenance_id",
@@ -608,16 +469,12 @@
           }
         ],
         "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
+          "204": { "description": "Successful Response" },
           "422": {
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -628,11 +485,7 @@
       "patch": {
         "summary": "Pause",
         "operationId": "pause_maintenances__maintenance_id__pause_patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "maintenance_id",
@@ -648,9 +501,9 @@
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/PauseRequest"
+                "$ref": "#/components/schemas/Body_pause_maintenances__maintenance_id__pause_patch"
               }
             }
           }
@@ -660,9 +513,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TicketItemResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/TicketItemResponse" }
               }
             }
           },
@@ -670,9 +521,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -681,17 +530,13 @@
     },
     "/uploads/init": {
       "post": {
-        "tags": [
-          "uploads"
-        ],
+        "tags": ["uploads"],
         "summary": "Init Upload",
         "operationId": "init_upload_uploads_init_post",
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UploadInitRequest"
-              }
+              "schema": { "$ref": "#/components/schemas/UploadInitRequest" }
             }
           },
           "required": true
@@ -701,9 +546,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UploadInitResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/UploadInitResponse" }
               }
             }
           },
@@ -711,64 +554,39 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "security": [{ "HTTPBearer": [] }]
       }
     },
     "/uploads/chunk": {
       "post": {
-        "tags": [
-          "uploads"
-        ],
+        "tags": ["uploads"],
         "summary": "Upload Chunk",
         "operationId": "upload_chunk_uploads_chunk_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "upload_id",
             "in": "query",
             "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Upload Id"
-            }
+            "schema": { "type": "string", "title": "Upload Id" }
           },
           {
             "name": "chunk_index",
             "in": "query",
             "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Chunk Index"
-            }
+            "schema": { "type": "integer", "title": "Chunk Index" }
           },
           {
             "name": "x-chunk-checksum",
             "in": "header",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
               "title": "X-Chunk-Checksum"
             }
           }
@@ -788,9 +606,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChunkResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ChunkResponse" }
               }
             }
           },
@@ -798,9 +614,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -809,25 +623,16 @@
     },
     "/uploads/status/{upload_id}": {
       "get": {
-        "tags": [
-          "uploads"
-        ],
+        "tags": ["uploads"],
         "summary": "Upload Status",
         "operationId": "upload_status_uploads_status__upload_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "upload_id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Upload Id"
-            }
+            "schema": { "type": "string", "title": "Upload Id" }
           }
         ],
         "responses": {
@@ -835,9 +640,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChunkStatusResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ChunkStatusResponse" }
               }
             }
           },
@@ -845,9 +648,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -856,25 +657,16 @@
     },
     "/uploads/complete": {
       "post": {
-        "tags": [
-          "uploads"
-        ],
+        "tags": ["uploads"],
         "summary": "Complete Upload",
         "operationId": "complete_upload_uploads_complete_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
+        "security": [{ "HTTPBearer": [] }],
         "parameters": [
           {
             "name": "upload_id",
             "in": "query",
             "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Upload Id"
-            }
+            "schema": { "type": "string", "title": "Upload Id" }
           }
         ],
         "responses": {
@@ -882,9 +674,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChunkStatusResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/ChunkStatusResponse" }
               }
             }
           },
@@ -892,9 +682,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -903,17 +691,13 @@
     },
     "/auth/login": {
       "post": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "Login",
         "operationId": "login_auth_login_post",
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LoginRequest"
-              }
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
             }
           },
           "required": true
@@ -923,9 +707,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TokenResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/TokenResponse" }
               }
             }
           },
@@ -933,9 +715,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -944,17 +724,13 @@
     },
     "/auth/register": {
       "post": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "Register",
         "operationId": "register_auth_register_post",
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegisterRequest"
-              }
+              "schema": { "$ref": "#/components/schemas/RegisterRequest" }
             }
           },
           "required": true
@@ -964,9 +740,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TokenResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/TokenResponse" }
               }
             }
           },
@@ -974,9 +748,7 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -985,9 +757,7 @@
     },
     "/auth/logout": {
       "post": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "Logout",
         "operationId": "logout_auth_logout_post",
         "responses": {
@@ -995,25 +765,17 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LogoutResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/LogoutResponse" }
               }
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "security": [{ "HTTPBearer": [] }]
       }
     },
     "/auth/me": {
       "get": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "Get Me",
         "operationId": "get_me_auth_me_get",
         "responses": {
@@ -1021,31 +783,21 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserProfileResponse"
-                }
+                "schema": { "$ref": "#/components/schemas/UserProfileResponse" }
               }
             }
           }
         },
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ]
+        "security": [{ "HTTPBearer": [] }]
       },
       "put": {
-        "tags": [
-          "auth"
-        ],
+        "tags": ["auth"],
         "summary": "Update Me",
         "operationId": "update_me_auth_me_put",
         "requestBody": {
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UserUpdateRequest"
-              }
+              "schema": { "$ref": "#/components/schemas/UserUpdateRequest" }
             }
           },
           "required": true
@@ -1055,8 +807,52 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserProfileResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        },
+        "security": [{ "HTTPBearer": [] }]
+      }
+    },
+    "/technicians": {
+      "get": {
+        "summary": "Get Technicians",
+        "operationId": "get_technicians_technicians_get",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 1, "title": "Page" }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 50, "title": "Page Size" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserProfileResponse"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TechnicianResponse"
+                  },
+                  "title": "Response Get Technicians Technicians Get"
                 }
               }
             }
@@ -1065,18 +861,348 @@
             "description": "Validation Error",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
-        },
-        "security": [
+        }
+      }
+    },
+    "/technicians/{technician_id}": {
+      "get": {
+        "summary": "Get Technician By Id",
+        "operationId": "get_technician_by_id_technicians__technician_id__get",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
           {
-            "HTTPBearer": []
+            "name": "technician_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Technician Id" }
           }
-        ]
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TechnicianResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/spares": {
+      "get": {
+        "summary": "Get Spares",
+        "operationId": "get_spares_spares_get",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 1, "title": "Page" }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 50, "title": "Page Size" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SpareResponse" },
+                  "title": "Response Get Spares Spares Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/spares/{spare_id}": {
+      "get": {
+        "summary": "Get Spare By Id",
+        "operationId": "get_spare_by_id_spares__spare_id__get",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
+          {
+            "name": "spare_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Spare Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SpareResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/markets": {
+      "get": {
+        "summary": "Get Markets",
+        "operationId": "get_markets_markets_get",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 1, "title": "Page" }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 50, "title": "Page Size" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/MarketResponse" },
+                  "title": "Response Get Markets Markets Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/markets/{market_id}": {
+      "get": {
+        "summary": "Get Market By Id",
+        "operationId": "get_market_by_id_markets__market_id__get",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
+          {
+            "name": "market_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Market Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MarketResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/equipments": {
+      "get": {
+        "summary": "Get Equipment List",
+        "operationId": "get_equipment_list_equipments_get",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 1, "title": "Page" }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 50, "title": "Page Size" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/EquipmentResponse" },
+                  "title": "Response Get Equipment List Equipments Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/equipments/{equipment_id}": {
+      "get": {
+        "summary": "Get Equipment By Id Route",
+        "operationId": "get_equipment_by_id_route_equipments__equipment_id__get",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
+          {
+            "name": "equipment_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Equipment Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EquipmentResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/labsdls": {
+      "get": {
+        "summary": "Get Labsdls",
+        "operationId": "get_labsdls_labsdls_get",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 1, "title": "Page" }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 50, "title": "Page Size" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/LabsdlResponse" },
+                  "title": "Response Get Labsdls Labsdls Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/labsdls/{labsdl_id}": {
+      "get": {
+        "summary": "Get Labsdl By Id",
+        "operationId": "get_labsdl_by_id_labsdls__labsdl_id__get",
+        "security": [{ "HTTPBearer": [] }],
+        "parameters": [
+          {
+            "name": "labsdl_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "title": "Labsdl Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LabsdlResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -1086,9 +1212,7 @@
         "properties": {
           "operation_percentage": {
             "anyOf": [
-              {
-                "type": "number"
-              },
+              { "type": "number" },
               {
                 "type": "string",
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
@@ -1098,9 +1222,7 @@
           },
           "market_temperature": {
             "anyOf": [
-              {
-                "type": "number"
-              },
+              { "type": "number" },
               {
                 "type": "string",
                 "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
@@ -1112,14 +1234,8 @@
             "type": "boolean",
             "title": "Operation Damage"
           },
-          "completed": {
-            "type": "boolean",
-            "title": "Completed"
-          },
-          "observations_wkd": {
-            "type": "string",
-            "title": "Observations Wkd"
-          }
+          "completed": { "type": "boolean", "title": "Completed" },
+          "observations_wkd": { "type": "string", "title": "Observations Wkd" }
         },
         "type": "object",
         "required": [
@@ -1134,57 +1250,49 @@
       "AssignRequest": {
         "properties": {
           "technician_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
             "title": "Technician Id"
           }
         },
         "type": "object",
         "title": "AssignRequest"
       },
-      "Body_update_maintenance_maintenances__maintenance_id__patch": {
+      "Body_pause_maintenances__maintenance_id__pause_patch": {
         "properties": {
-          "payload": {
-            "type": "string",
-            "title": "Payload"
-          },
+          "payload": { "type": "string", "title": "Payload" },
           "initial_photo_file": {
             "anyOf": [
-              {
-                "type": "string",
-                "format": "binary"
-              },
-              {
-                "type": "null"
-              }
+              { "type": "string", "format": "binary" },
+              { "type": "null" }
             ],
             "title": "Initial Photo File"
           }
         },
         "type": "object",
-        "required": [
-          "payload"
-        ],
+        "required": ["payload"],
+        "title": "Body_pause_maintenances__maintenance_id__pause_patch"
+      },
+      "Body_update_maintenance_maintenances__maintenance_id__patch": {
+        "properties": {
+          "payload": { "type": "string", "title": "Payload" },
+          "initial_photo_file": {
+            "anyOf": [
+              { "type": "string", "format": "binary" },
+              { "type": "null" }
+            ],
+            "title": "Initial Photo File"
+          }
+        },
+        "type": "object",
+        "required": ["payload"],
         "title": "Body_update_maintenance_maintenances__maintenance_id__patch"
       },
       "Body_upload_chunk_uploads_chunk_post": {
         "properties": {
-          "chunk": {
-            "type": "string",
-            "format": "binary",
-            "title": "Chunk"
-          }
+          "chunk": { "type": "string", "format": "binary", "title": "Chunk" }
         },
         "type": "object",
-        "required": [
-          "chunk"
-        ],
+        "required": ["chunk"],
         "title": "Body_upload_chunk_uploads_chunk_post"
       },
       "CancellationRequest": {
@@ -1195,29 +1303,15 @@
           }
         },
         "type": "object",
-        "required": [
-          "cancellation_reason"
-        ],
+        "required": ["cancellation_reason"],
         "title": "CancellationRequest"
       },
       "ChunkResponse": {
         "properties": {
-          "upload_id": {
-            "type": "string",
-            "title": "Upload Id"
-          },
-          "chunk_index": {
-            "type": "integer",
-            "title": "Chunk Index"
-          },
-          "received_chunks": {
-            "type": "integer",
-            "title": "Received Chunks"
-          },
-          "total_chunks": {
-            "type": "integer",
-            "title": "Total Chunks"
-          }
+          "upload_id": { "type": "string", "title": "Upload Id" },
+          "chunk_index": { "type": "integer", "title": "Chunk Index" },
+          "received_chunks": { "type": "integer", "title": "Received Chunks" },
+          "total_chunks": { "type": "integer", "title": "Total Chunks" }
         },
         "type": "object",
         "required": [
@@ -1230,31 +1324,12 @@
       },
       "ChunkStatusResponse": {
         "properties": {
-          "upload_id": {
-            "type": "string",
-            "title": "Upload Id"
-          },
-          "received_chunks": {
-            "type": "integer",
-            "title": "Received Chunks"
-          },
-          "total_chunks": {
-            "type": "integer",
-            "title": "Total Chunks"
-          },
-          "completed": {
-            "type": "boolean",
-            "title": "Completed"
-          },
+          "upload_id": { "type": "string", "title": "Upload Id" },
+          "received_chunks": { "type": "integer", "title": "Received Chunks" },
+          "total_chunks": { "type": "integer", "title": "Total Chunks" },
+          "completed": { "type": "boolean", "title": "Completed" },
           "file_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "File Url"
           }
         },
@@ -1267,12 +1342,19 @@
         ],
         "title": "ChunkStatusResponse"
       },
+      "EquipmentResponse": {
+        "properties": {
+          "equipment_id": { "type": "integer", "title": "Equipment Id" },
+          "equipment_name": { "type": "string", "title": "Equipment Name" }
+        },
+        "type": "object",
+        "required": ["equipment_id", "equipment_name"],
+        "title": "EquipmentResponse"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
+            "items": { "$ref": "#/components/schemas/ValidationError" },
             "type": "array",
             "title": "Detail"
           }
@@ -1280,36 +1362,42 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
-      "LoginRequest": {
+      "LabsdlResponse": {
         "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "title": "Email"
+          "labsdl_id": { "type": "integer", "title": "Labsdl Id" },
+          "labsdl_name": { "type": "string", "title": "Labsdl Name" },
+          "labsdl_description": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Labsdl Description"
           },
-          "password": {
-            "type": "string",
-            "title": "Password"
+          "hourly_rate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              { "type": "null" }
+            ],
+            "title": "Hourly Rate"
           }
         },
         "type": "object",
-        "required": [
-          "email",
-          "password"
-        ],
+        "required": ["labsdl_id", "labsdl_name"],
+        "title": "LabsdlResponse"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": { "type": "string", "format": "email", "title": "Email" },
+          "password": { "type": "string", "title": "Password" }
+        },
+        "type": "object",
+        "required": ["email", "password"],
         "title": "LoginRequest"
       },
       "LogoutResponse": {
-        "properties": {
-          "message": {
-            "type": "string",
-            "title": "Message"
-          }
-        },
+        "properties": { "message": { "type": "string", "title": "Message" } },
         "type": "object",
-        "required": [
-          "message"
-        ],
+        "required": ["message"],
         "title": "LogoutResponse"
       },
       "MaintenanceCreate": {
@@ -1319,22 +1407,15 @@
             "format": "uuid7",
             "title": "Maintenance Id"
           },
-          "ticket_id": {
-            "type": "integer",
-            "title": "Ticket Id"
-          },
+          "ticket_id": { "type": "integer", "title": "Ticket Id" },
           "maintenance_date": {
             "type": "string",
-            "format": "date",
+            "format": "date-time",
             "title": "Maintenance Date"
           }
         },
         "type": "object",
-        "required": [
-          "maintenance_id",
-          "ticket_id",
-          "maintenance_date"
-        ],
+        "required": ["maintenance_id", "ticket_id", "maintenance_date"],
         "title": "MaintenanceCreate"
       },
       "MaintenanceItemResponse": {
@@ -1344,21 +1425,14 @@
             "format": "uuid7",
             "title": "Maintenance Id"
           },
-          "ticket_id": {
-            "type": "integer",
-            "title": "Ticket Id"
-          },
+          "ticket_id": { "type": "integer", "title": "Ticket Id" },
           "spares": {
             "anyOf": [
               {
-                "items": {
-                  "$ref": "#/components/schemas/SpareOut"
-                },
+                "items": { "$ref": "#/components/schemas/SpareOut" },
                 "type": "array"
               },
-              {
-                "type": "null"
-              }
+              { "type": "null" }
             ],
             "title": "Spares",
             "default": []
@@ -1366,131 +1440,92 @@
           "technicians": {
             "anyOf": [
               {
-                "items": {
-                  "$ref": "#/components/schemas/TechnicianOut"
-                },
+                "items": { "$ref": "#/components/schemas/TechnicianOut" },
                 "type": "array"
               },
-              {
-                "type": "null"
-              }
+              { "type": "null" }
             ],
             "title": "Technicians",
             "default": []
           },
           "initial_photo_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Initial Photo Url"
           },
           "pdf_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Pdf Url"
           },
           "photos": {
             "anyOf": [
               {
-                "items": {
-                  "$ref": "#/components/schemas/PhotoOut"
-                },
+                "items": { "$ref": "#/components/schemas/PhotoOut" },
                 "type": "array"
               },
-              {
-                "type": "null"
-              }
+              { "type": "null" }
             ],
             "title": "Photos",
             "default": []
           }
         },
         "type": "object",
-        "required": [
-          "maintenance_id",
-          "ticket_id"
-        ],
+        "required": ["maintenance_id", "ticket_id"],
         "title": "MaintenanceItemResponse"
       },
-      "PauseRequest": {
+      "MarketResponse": {
         "properties": {
-          "pause_reason": {
-            "type": "string",
-            "title": "Pause Reason"
+          "market_id": { "type": "integer", "title": "Market Id" },
+          "market_name": { "type": "string", "title": "Market Name" },
+          "city": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "City"
+          },
+          "transport_cost": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              { "type": "null" }
+            ],
+            "title": "Transport Cost"
           }
         },
         "type": "object",
-        "required": [
-          "pause_reason"
-        ],
-        "title": "PauseRequest"
+        "required": ["market_id", "market_name"],
+        "title": "MarketResponse"
       },
       "PhotoOut": {
         "properties": {
-          "photo_id": {
-            "type": "integer",
-            "title": "Photo Id"
-          },
-          "photo_url": {
-            "type": "string",
-            "title": "Photo Url"
-          }
+          "photo_id": { "type": "integer", "title": "Photo Id" },
+          "photo_url": { "type": "string", "title": "Photo Url" }
         },
         "type": "object",
-        "required": [
-          "photo_id",
-          "photo_url"
-        ],
+        "required": ["photo_id", "photo_url"],
         "title": "PhotoOut"
       },
       "RegisterRequest": {
         "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "title": "Email"
-          },
-          "password": {
-            "type": "string",
-            "title": "Password"
-          },
-          "user_name": {
-            "type": "string",
-            "title": "User Name"
-          }
+          "email": { "type": "string", "format": "email", "title": "Email" },
+          "password": { "type": "string", "title": "Password" },
+          "user_name": { "type": "string", "title": "User Name" }
         },
         "type": "object",
-        "required": [
-          "email",
-          "password",
-          "user_name"
-        ],
+        "required": ["email", "password", "user_name"],
         "title": "RegisterRequest"
       },
       "SpareOut": {
         "properties": {
-          "spare_id": {
-            "type": "integer",
-            "title": "Spare Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
+          "spare_id": { "type": "integer", "title": "Spare Id" },
+          "spare_name": { "type": "string", "title": "Spare Name" },
           "price": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              { "type": "null" }
+            ],
             "title": "Price"
           },
           "qty": {
@@ -1500,66 +1535,74 @@
           }
         },
         "type": "object",
-        "required": [
-          "spare_id",
-          "name",
-          "price",
-          "qty"
-        ],
+        "required": ["spare_id", "spare_name", "qty"],
         "title": "SpareOut"
+      },
+      "SpareResponse": {
+        "properties": {
+          "spare_id": { "type": "integer", "title": "Spare Id" },
+          "spare_name": { "type": "string", "title": "Spare Name" },
+          "price": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              { "type": "null" }
+            ],
+            "title": "Price"
+          }
+        },
+        "type": "object",
+        "required": ["spare_id", "spare_name"],
+        "title": "SpareResponse"
       },
       "TechnicianOut": {
         "properties": {
-          "technician_id": {
-            "type": "integer",
-            "title": "Technician Id"
-          },
-          "technician_name": {
-            "type": "string",
-            "title": "Technician Name"
+          "technician_id": { "type": "integer", "title": "Technician Id" },
+          "user_name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "User Name"
           },
           "start_hour": {
             "type": "string",
-            "format": "date-time",
+            "format": "time",
             "title": "Start Hour"
           },
           "end_hour": {
             "type": "string",
-            "format": "date-time",
+            "format": "time",
             "title": "End Hour"
           }
         },
         "type": "object",
-        "required": [
-          "technician_id",
-          "technician_name",
-          "start_hour",
-          "end_hour"
-        ],
+        "required": ["technician_id", "start_hour", "end_hour"],
         "title": "TechnicianOut"
+      },
+      "TechnicianResponse": {
+        "properties": {
+          "technician_id": { "type": "integer", "title": "Technician Id" },
+          "user_name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "User Name"
+          }
+        },
+        "type": "object",
+        "required": ["technician_id"],
+        "title": "TechnicianResponse"
       },
       "TicketCreate": {
         "properties": {
-          "ticket_id": {
-            "type": "string",
-            "title": "Ticket Id"
-          },
-          "ticket_date": {
-            "type": "string",
-            "title": "Ticket Date"
-          },
+          "ticket_id": { "type": "integer", "title": "Ticket Id" },
+          "ticket_date": { "type": "string", "title": "Ticket Date" },
           "ticket_description": {
             "type": "string",
             "title": "Ticket Description"
           },
-          "priority": {
-            "type": "string",
-            "title": "Priority"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          }
+          "priority": { "type": "string", "title": "Priority" },
+          "status": { "type": "string", "title": "Status" },
+          "market_id": { "type": "integer", "title": "Market Id" },
+          "equipment_id": { "type": "integer", "title": "Equipment Id" }
         },
         "type": "object",
         "required": [
@@ -1567,16 +1610,15 @@
           "ticket_date",
           "ticket_description",
           "priority",
-          "status"
+          "status",
+          "market_id",
+          "equipment_id"
         ],
         "title": "TicketCreate"
       },
       "TicketItemResponse": {
         "properties": {
-          "ticket_id": {
-            "type": "integer",
-            "title": "Ticket Id"
-          },
+          "ticket_id": { "type": "integer", "title": "Ticket Id" },
           "ticket_date": {
             "type": "string",
             "format": "date",
@@ -1586,35 +1628,16 @@
             "type": "string",
             "title": "Ticket Description"
           },
-          "priority": {
-            "type": "string",
-            "title": "Priority"
-          },
-          "status": {
-            "type": "string",
-            "title": "Status"
-          },
-          "market_name": {
-            "type": "string",
-            "title": "Market Name"
-          },
+          "priority": { "type": "string", "title": "Priority" },
+          "status": { "type": "string", "title": "Status" },
+          "market_name": { "type": "string", "title": "Market Name" },
           "market_city": {
-            "type": "string",
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Market City"
           },
-          "equipment_name": {
-            "type": "string",
-            "title": "Equipment Name"
-          },
+          "equipment_name": { "type": "string", "title": "Equipment Name" },
           "assigned_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Assigned Name"
           }
         },
@@ -1626,17 +1649,13 @@
           "priority",
           "status",
           "market_name",
-          "market_city",
           "equipment_name"
         ],
         "title": "TicketItemResponse"
       },
       "TokenResponse": {
         "properties": {
-          "access_token": {
-            "type": "string",
-            "title": "Access Token"
-          },
+          "access_token": { "type": "string", "title": "Access Token" },
           "token_type": {
             "type": "string",
             "title": "Token Type",
@@ -1644,42 +1663,22 @@
           }
         },
         "type": "object",
-        "required": [
-          "access_token"
-        ],
+        "required": ["access_token"],
         "title": "TokenResponse"
       },
       "UploadInitRequest": {
         "properties": {
-          "parent_tab": {
-            "type": "string",
-            "title": "Parent Tab"
-          },
+          "parent_tab": { "type": "string", "title": "Parent Tab" },
           "parent_id": {
             "type": "string",
             "format": "uuid7",
             "title": "Parent Id"
           },
-          "tab_name": {
-            "type": "string",
-            "title": "Tab Name"
-          },
-          "col_name": {
-            "type": "string",
-            "title": "Col Name"
-          },
-          "content_type": {
-            "type": "string",
-            "title": "Content Type"
-          },
-          "total_size": {
-            "type": "integer",
-            "title": "Total Size"
-          },
-          "total_chunks": {
-            "type": "integer",
-            "title": "Total Chunks"
-          }
+          "tab_name": { "type": "string", "title": "Tab Name" },
+          "col_name": { "type": "string", "title": "Col Name" },
+          "content_type": { "type": "string", "title": "Content Type" },
+          "total_size": { "type": "integer", "title": "Total Size" },
+          "total_chunks": { "type": "integer", "title": "Total Chunks" }
         },
         "type": "object",
         "required": [
@@ -1695,54 +1694,22 @@
       },
       "UploadInitResponse": {
         "properties": {
-          "upload_id": {
-            "type": "string",
-            "title": "Upload Id"
-          },
-          "chunk_size": {
-            "type": "integer",
-            "title": "Chunk Size"
-          },
-          "next_chunk": {
-            "type": "integer",
-            "title": "Next Chunk"
-          }
+          "upload_id": { "type": "string", "title": "Upload Id" },
+          "chunk_size": { "type": "integer", "title": "Chunk Size" },
+          "next_chunk": { "type": "integer", "title": "Next Chunk" }
         },
         "type": "object",
-        "required": [
-          "upload_id",
-          "chunk_size",
-          "next_chunk"
-        ],
+        "required": ["upload_id", "chunk_size", "next_chunk"],
         "title": "UploadInitResponse"
       },
       "UserProfileResponse": {
         "properties": {
-          "user_id": {
-            "type": "integer",
-            "title": "User Id"
-          },
-          "email": {
-            "type": "string",
-            "title": "Email"
-          },
-          "user_name": {
-            "type": "string",
-            "title": "User Name"
-          },
-          "user_role": {
-            "type": "string",
-            "title": "User Role"
-          },
+          "user_id": { "type": "integer", "title": "User Id" },
+          "email": { "type": "string", "title": "Email" },
+          "user_name": { "type": "string", "title": "User Name" },
+          "user_role": { "type": "string", "title": "User Role" },
           "photo_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Photo Path"
           },
           "created_at": {
@@ -1765,25 +1732,11 @@
       "UserUpdateRequest": {
         "properties": {
           "user_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "User Name"
           },
           "photo_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Photo Path"
           }
         },
@@ -1793,42 +1746,18 @@
       "ValidationError": {
         "properties": {
           "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
+            "items": { "anyOf": [{ "type": "string" }, { "type": "integer" }] },
             "type": "array",
             "title": "Location"
           },
-          "msg": {
-            "type": "string",
-            "title": "Message"
-          },
-          "type": {
-            "type": "string",
-            "title": "Error Type"
-          }
+          "msg": { "type": "string", "title": "Message" },
+          "type": { "type": "string", "title": "Error Type" }
         },
         "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
+        "required": ["loc", "msg", "type"],
         "title": "ValidationError"
       }
     },
-    "securitySchemes": {
-      "HTTPBearer": {
-        "type": "http",
-        "scheme": "bearer"
-      }
-    }
+    "securitySchemes": { "HTTPBearer": { "type": "http", "scheme": "bearer" } }
   }
 }
