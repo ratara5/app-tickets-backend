@@ -276,9 +276,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/equipment?page=1&page_size=50",
+              "raw": "{{base_url}}/equipments?page=1&page_size=50",
               "host": ["{{base_url}}"],
-              "path": ["equipment"],
+              "path": ["equipments"],
               "query": [
                 { "key": "page", "value": "1" },
                 { "key": "page_size", "value": "50" }
@@ -293,9 +293,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{base_url}}/equipment/{{equipment_id}}",
+              "raw": "{{base_url}}/equipments/{{equipment_id}}",
               "host": ["{{base_url}}"],
-              "path": ["equipment", "{{equipment_id}}"]
+              "path": ["equipments", "{{equipment_id}}"]
             },
             "description": "Get a single equipment by ID."
           }

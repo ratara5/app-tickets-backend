@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 class TechnicianResponse(BaseModel):
     technician_id: int
     user_id: int
+    user_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

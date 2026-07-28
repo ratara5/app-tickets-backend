@@ -14,7 +14,9 @@ class TestTechnicians:
     def test_get_technician_by_id(self, client: TestClient, auth_headers: dict, test_technician: Technician) -> None:
         response = client.get(f"/technicians/{test_technician.technician_id}", headers=auth_headers)
         assert response.status_code == 200
-        assert response.json()["technician_id"] == test_technician.technician_id
+        body = response.json()
+        assert body["technician_id"] == test_technician.technician_id
+        assert body["user_name"] == "Test User"
 
     def test_get_technician_not_found(self, client: TestClient, auth_headers: dict) -> None:
         response = client.get("/technicians/9999", headers=auth_headers)
@@ -73,23 +75,23 @@ class TestMarkets:
 
 class TestEquipment:
     def test_list_equipment(self, client: TestClient, auth_headers: dict, test_equipment: Equipment) -> None:
-        response = client.get("/equipment", headers=auth_headers)
+        response = client.get("/equipments", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
         assert any(e["equipment_id"] == test_equipment.equipment_id for e in data)
 
     def test_get_equipment_by_id(self, client: TestClient, auth_headers: dict, test_equipment: Equipment) -> None:
-        response = client.get(f"/equipment/{test_equipment.equipment_id}", headers=auth_headers)
+        response = client.get(f"/equipments/{test_equipment.equipment_id}", headers=auth_headers)
         assert response.status_code == 200
         assert response.json()["equipment_id"] == test_equipment.equipment_id
 
     def test_get_equipment_not_found(self, client: TestClient, auth_headers: dict) -> None:
-        response = client.get("/equipment/9999", headers=auth_headers)
+        response = client.get("/equipments/9999", headers=auth_headers)
         assert response.status_code == 404
 
     def test_equipment_unauthorized(self, client: TestClient) -> None:
-        response = client.get("/equipment")
+        response = client.get("/equipments")
         assert response.status_code == 401
 
 

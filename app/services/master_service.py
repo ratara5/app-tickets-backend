@@ -1,20 +1,30 @@
+from types import SimpleNamespace
 from typing import Optional
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 import app.repositories.master_repo as master_repo
+from app.models.master import Technician
 
 
 def list_technicians(db: Session, page: int = 1, page_size: int = 50):
-    return master_repo.get_all_technicians(db, page, page_size)
+    return [_serialize_technician(t) for t in master_repo.get_all_technicians(db, page, page_size)]
 
 
 def get_technician(db: Session, technician_id: int):
     technician = master_repo.get_technician_by_id(db, technician_id)
     if not technician:
         raise HTTPException(404, "Technician not found")
-    return technician
+    return _serialize_technician(technician)
+
+
+def _serialize_technician(technician: Technician):
+    columns = {c.name: getattr(technician, c.name) for c in technician.__table__.columns}
+    return SimpleNamespace(
+        **columns,
+        user_name=technician.fsm_user.user_name if technician.fsm_user else None,
+    )
 
 
 def list_spares(db: Session, page: int = 1, page_size: int = 50):

@@ -1,6 +1,6 @@
 from typing import Optional
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.master import Technician, Spare, Market, Equipment, Labsdl
 
@@ -18,7 +18,7 @@ def get_technician_by_id(db: Session, technician_id: int) -> Optional[Technician
 
 
 def _get_technician_query(db: Session):
-    return db.query(Technician)
+    return db.query(Technician).options(joinedload(Technician.fsm_user))
 
 
 def get_all_spares(db: Session, page: int = 1, page_size: int = 50) -> list[Spare]:

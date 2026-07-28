@@ -75,7 +75,7 @@ def get_market_by_id(
     return get_market(db, market_id)
 
 
-@router.get("/equipment", response_model=list[EquipmentResponse])
+@router.get("/equipments", response_model=list[EquipmentResponse])
 def get_equipment_list(
     current_user=Depends(get_current_user),
     db=Depends(get_db),
@@ -85,7 +85,7 @@ def get_equipment_list(
     return list_equipment(db, page, page_size)
 
 
-@router.get("/equipment/{equipment_id}", response_model=EquipmentResponse)
+@router.get("/equipments/{equipment_id}", response_model=EquipmentResponse)
 def get_equipment_by_id_route(
     equipment_id: int,
     db: Session = Depends(get_db),

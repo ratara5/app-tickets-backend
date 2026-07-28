@@ -162,10 +162,10 @@ paths:
                 $ref: '#/components/schemas/MarketResponse'
         '404':
           description: Not Found
-  /equipment:
+  /equipments:
     get:
       summary: Get Equipment List
-      operationId: get_equipment_list_equipment_get
+      operationId: get_equipment_list_equipments_get
       security:
       - HTTPBearer: []
       parameters:
@@ -192,11 +192,11 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/EquipmentResponse'
-                title: Response Get Equipment List Equipment Get
-  /equipment/{equipment_id}:
+                title: Response Get Equipment List Equipments Get
+  /equipments/{equipment_id}:
     get:
       summary: Get Equipment By Id
-      operationId: get_equipment_by_id_route_equipment__equipment_id__get
+      operationId: get_equipment_by_id_route_equipments__equipment_id__get
       security:
       - HTTPBearer: []
       parameters:
@@ -920,6 +920,11 @@ components:
         user_id:
           type: integer
           title: User Id
+        user_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Name
       type: object
       required:
       - technician_id

@@ -66,11 +66,11 @@ IN PROGRESS -> PAUSED
 ```bash
 # List technicians
 curl -X GET /technicians -H "Authorization: Bearer eyJ..."
-# → [ { "technician_id": 1, "user_id": 1 } ]
+# → [ { "technician_id": 1, "user_id": 1, "user_name": "John Technician" } ]
 
 # Get single technician
 curl -X GET /technicians/1 -H "Authorization: Bearer eyJ..."
-# → { "technician_id": 1, "user_id": 1 }
+# → { "technician_id": 1, "user_id": 1, "user_name": "John Technician" }
 
 # List spares
 curl -X GET /spares -H "Authorization: Bearer eyJ..."
@@ -89,11 +89,11 @@ curl -X GET /markets/1 -H "Authorization: Bearer eyJ..."
 # → { "market_id": 1, ... }
 
 # List equipment
-curl -X GET /equipment -H "Authorization: Bearer eyJ..."
+curl -X GET /equipments -H "Authorization: Bearer eyJ..."
 # → [ { "equipment_id": 1, "equipment_name": "Pump" } ]
 
 # Get single equipment
-curl -X GET /equipment/1 -H "Authorization: Bearer eyJ..."
+curl -X GET /equipments/1 -H "Authorization: Bearer eyJ..."
 # → { "equipment_id": 1, ... }
 
 # List labsdls (laboratory standards)
