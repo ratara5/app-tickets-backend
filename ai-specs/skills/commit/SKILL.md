@@ -64,7 +64,7 @@ If the user **explicitly** requested no git operations (e.g. "no PR", "only comm
 - Write the commit message **in English** (per `docs/base-standards.md`).
 - Make it **descriptive** (per Git Workflow in `backend-standards.md` and `frontend-standards.md`).
 - Structure it so that:
-  - **Subject line**: Short, imperative summary (e.g. "Add candidate filters to position list", "Fix validation for application deadline"). Optionally prefix with a scope or ticket id (e.g. `SCRUM-123: Add candidate filters`).
+  - **Subject line**: Short, imperative summary that reflects the work clearly (for example: "Add ticket detail screen", "Align maintenance upload flow", "Fix auth token persistence"). Optionally prefix with a scope or ticket id (e.g. `SCRUM-123: Add ticket detail screen`).
   - **Body** (if needed): Bullet points or short paragraphs describing what changed and why (areas touched, new behavior, fixes). Reference ticket IDs here if they apply.
 - Do not commit secrets, `.env`, or other sensitive or generated artifacts.
 

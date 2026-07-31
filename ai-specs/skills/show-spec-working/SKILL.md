@@ -63,19 +63,18 @@ Before continuing, enforce this rule:
 Run this path when modality is `frontend` or `mixed`.
 
 1. Start required local services if needed.
-2. Use browser automation to open the app and navigate to the target feature.
+2. Open the Expo/React Native app in the emulator or simulator and navigate to the target feature.
 3. Demonstrate feature behavior from the spec, one interaction at a time.
-   - Example sequence for list/table features:
-     - Open listing page
-     - Verify table data appears
-     - Use search box
-     - Apply filters
-     - Change sorting
-     - Open details view
+   - Example sequence for ticket workflows:
+     - Open the tickets screen
+     - Verify the ticket list appears
+     - Open a ticket detail
+     - Trigger an action such as assign, start, or cancel
+     - Confirm the UI updates to the expected state
 4. After each meaningful action:
    - Verify visible result matches spec expectations.
-5. Stop on a stable end state and let the user continue manual exploration or close the window.
-6. Keep the browser open unless the user asks to close it.
+5. Stop on a stable end state and let the user continue manual exploration or close the app.
+6. Keep the emulator/simulator open unless the user asks to close it.
 
 ### Step 3 - Backend API demonstration path
 

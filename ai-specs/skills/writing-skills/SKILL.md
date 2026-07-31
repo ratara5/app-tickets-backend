@@ -192,8 +192,8 @@ description: Use when tests use setTimeout/sleep and are flaky
 # ✅ GOOD: Starts with "Use when", describes problem, no workflow
 description: Use when tests have race conditions, timing dependencies, or pass/fail inconsistently
 
-# ✅ GOOD: Technology-specific skill with explicit trigger
-description: Use when using React Router and handling authentication redirects
+# ✅ GOOD: Project-specific skill with explicit trigger
+description: Use when updating Expo React Native screens that depend on the FastAPI ticketing backend
 ```
 
 ### 2. Keyword Coverage
@@ -243,12 +243,12 @@ Always use subagents (50-100x context savings). REQUIRED: Use [other-skill-name]
 **Compress examples:**
 ```markdown
 # ❌ BAD: Verbose example (42 words)
-your human partner: "How did we handle authentication errors in React Router before?"
-You: I'll search past conversations for React Router authentication patterns.
-[Dispatch subagent with search query: "React Router authentication error handling 401"]
+your human partner: "How did we handle authentication errors in the Expo app before?"
+You: I'll search past conversations for auth error handling patterns.
+[Dispatch subagent with search query: "Expo auth error handling 401"]
 
 # ✅ GOOD: Minimal example (20 words)
-Partner: "How did we handle auth errors in React Router?"
+Partner: "How did we handle auth errors in the mobile app?"
 You: Searching...
 [Dispatch subagent → synthesis]
 ```
