@@ -20,6 +20,7 @@ Represents system users who can authenticate and perform actions.
 
 **Relationships:**
 - `technician`: One-to-one relationship with Technician model
+- `uploads_sessions`:
 
 ### 2. technicians
 Represents technical staff linked to user accounts.
@@ -29,7 +30,7 @@ Represents technical staff linked to user accounts.
 - `user_id`: Foreign key referencing fsm_users (UNIQUE)
 
 **Relationships:**
-- `user`: Many-to-one relationship with FSMUser
+- `fsm_user`: Many-to-one relationship with FSMUser
 - `tickets`: One-to-many relationship with Ticket (assigned)
 - `maintenances`: One-to-many through MaintenanceTechnician
 
@@ -78,7 +79,6 @@ Inventory of spare parts and consumables.
 - `price`: Unit price (NUMERIC 10,2)
 
 **Relationships:**
-- `uom`: Many-to-one relationship with UOM
 - `maintenances`: One-to-many through MaintenanceSpare
 
 ### 7. labsdls
@@ -194,9 +194,12 @@ Tracks pause events during maintenance work.
 - `pause_id`: Unique identifier (Primary Key, TEXT)
 - `maintenance_id`: FK to Maintenance (UUID)
 - `pause_reason`: Reason for pause (TEXT)
-- Audit fields
+- Audit fields  
 
-### 15. adticketswkd
+**Relationships:**
+- `maintenance`: Many-to-one relationship with Maintenance    
+
+### 15. adticketswkd (AddWkd)
 Additional weekend ticket information.
 
 **Fields:**
@@ -206,7 +209,10 @@ Additional weekend ticket information.
 - `operation_damage`: Boolean flag
 - `completed`: Boolean flag
 - `observations_wkd`: Weekend observations (TEXT)
-- Audit fields
+- Audit fields  
+
+**Relationships:**
+- `ticket`: Many-to-one relationship with Ticket  
 
 ### 16. materials
 Materials used during maintenance (non-inventory items).
@@ -261,9 +267,12 @@ PDF worksheets/support documents generated for maintenance.
 - `receiver_signature`: Signature data (TEXT)
 - `receiver_signature_timestamp`: Signature timestamp (TIMESTAMPTZ)
 - `sheet_number`: Sequential sheet number (VARCHAR 30, UNIQUE)
-- `pdf_url`: URL to generated PDF (VARCHAR 100)
+- `pdf_path`: URL to generated PDF (VARCHAR 100)
 - `generated_at`: PDF generation timestamp (TIMESTAMPTZ)
-- `closed`: Boolean flag
+- `closed`: Boolean flag  
+
+**Relationships:**
+- `maintenance`: One-to-one relationship with Maintenance
 
 ### 20. preliquidated
 Tracks tickets already processed for pre-liquidation.
@@ -305,13 +314,6 @@ erDiagram
     equipments {
         int equipment_id PK
         string equipment_name
-    }
-    uom {
-        string unit PK
-        string magnitude
-        text uom_description
-        string ref_unit FK
-        numeric factor_conversion
     }
     spares {
         int spare_id PK
@@ -441,7 +443,7 @@ erDiagram
         text receiver_signature
         datetime receiver_signature_timestamp
         varchar sheet_number UK
-        varchar pdf_url
+        varchar pdf_path
         datetime generated_at
         boolean closed
     }
