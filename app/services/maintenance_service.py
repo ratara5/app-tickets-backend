@@ -39,14 +39,22 @@ def create_new_maintenance(db, data, current_user):
     # ...
 
     maintenance = maintenance_repo.create_maintenance(db, data, current_user)
-    
+
     # Lógica de negocio después de persistir
     # ...
 
-    return maintenance
+    return _serialize_maintenance_item(maintenance)
 
 def get_maintenance(db: Session, maintenance_id: UUID7, current_user):
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
+    if not maintenance:
+        raise HTTPException(404, "Maintenance not found")
+    assert_ownership(maintenance, current_user, db)
+    return _serialize_maintenance_item(maintenance)
+
+def get_maintenance_by_ticket(db: Session, ticket_id: int, current_user):
+    """Lookup the unique maintenance of a ticket (resume flow). 404 when absent."""
+    maintenance = maintenance_repo.get_maintenance_by_ticket(db, ticket_id)
     if not maintenance:
         raise HTTPException(404, "Maintenance not found")
     assert_ownership(maintenance, current_user, db)

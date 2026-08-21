@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from types import SimpleNamespace
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
@@ -21,6 +22,7 @@ from app.schemas.cancellation import CancellationRequest
 from app.services.cancellation_service import create_new_cancellation
 
 import app.repositories.maintenance_repo as maintenance_repo
+import app.services.maintenance_service as maintenance_service
 
 from app.core.utils.dates import get_holidays
 from app.core.settings import settings
@@ -54,18 +56,40 @@ def list_tickets(db, current_user, page: int = 1, page_size: int = 50):
 # ── a. Start maintenance (new -> IN PROGRESS) ────────────────────────────────────
 def start_maintenance(ticket_id: int, payload: None,
                  current_user, db: Session):
-    ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user) 
+    """Idempotent, transactional start.
+
+    - If a maintenance already exists for the ticket, return it (resume).
+    - Otherwise create it in the SAME transaction as the ticket status
+      transition: ticket status is never committed before the insert succeeds.
+    - Concurrent double-calls are resolved by the DB unique constraint on
+      maintenance.ticket_id: the loser flush-raises IntegrityError, rolls
+      back, re-fetches and returns the winner's row.
+    """
+    ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user)
     if not ticket:
         raise HTTPException(404, "Ticket not found")
     assert_ownership(ticket, current_user, db)
+
+    existing = maintenance_repo.get_maintenance_by_ticket(db, ticket_id)
+    if existing is not None:
+        return maintenance_service._serialize_maintenance_item(existing)
 
     validate_transition(ticket.status, TicketStatus.in_progress)
 
     data = SimpleNamespace(ticket_id=ticket_id, maintenance_date=datetime.now(), **(payload.model_dump() if payload else {}))
     ticket.status = TicketStatus.in_progress
-    db.commit()
-    # create_new_maintenance(db, data, current_user)
-    return maintenance_repo.create_maintenance(db, data, current_user)
+    try:
+        # No commit inside the repo: single atomic commit below.
+        maintenance = maintenance_repo.create_maintenance(db, data, current_user, commit=False)
+        db.commit()
+    except IntegrityError:
+        # Lost a race against a concurrent start: discard everything
+        # (status change included) and return the winner's maintenance.
+        db.rollback()
+        maintenance = maintenance_repo.get_maintenance_by_ticket(db, ticket_id)
+        if maintenance is None:
+            raise HTTPException(409, "Maintenance creation conflicted, retry")
+    return maintenance_service._serialize_maintenance_item(maintenance)
 
 
 # ── b. Technician assignment ──────────────────────────────────────────────────────

@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
 
 from app.schemas.ticket import TicketCreate, AssignRequest, TicketItemResponse, AddWkdRequest
-from app.schemas.maintenance import MaintenanceCreate
+from app.schemas.maintenance import MaintenanceItemResponse
 from app.schemas.cancellation import CancellationRequest
 
 from app.services.ticket_service import *
@@ -51,11 +53,32 @@ def assign(ticket_id: int,
     # ...
     return assign_ticket(ticket_id, payload, current_user, db)
 
-@router.patch("/{ticket_id}/start", response_model=MaintenanceCreate)
-def start_maintenance_route(ticket_id: int, 
+@router.patch(
+    "/{ticket_id}/start",
+    response_model=MaintenanceItemResponse,
+    status_code=201,
+    responses={
+        200: {
+            "description": "Idempotent resume: a maintenance already existed for this ticket",
+            "content": {"application/json": {}},
+        },
+    },
+)
+def start_maintenance_route(ticket_id: int,
+          response: Response,
           current_user = Depends(get_current_user),
           db: Session = Depends(get_db)):
-    return start_maintenance(ticket_id, None, current_user, db)
+    request_started_at = datetime.now(timezone.utc)
+    maintenance = start_maintenance(ticket_id, None, current_user, db)
+    created_at = _as_utc(maintenance.created_at) if maintenance.created_at else None
+    if created_at and created_at < request_started_at:
+        # Idempotent resume: the maintenance already existed for this ticket.
+        response.status_code = 200
+    return maintenance
+
+def _as_utc(value: datetime) -> datetime:
+    """Normalize naive or aware datetimes to aware UTC for safe comparison."""
+    return value.astimezone(timezone.utc) if value.tzinfo else value.astimezone().astimezone(timezone.utc)
  
 @router.patch("/{ticket_id}/cancel", response_model=TicketItemResponse)
 def cancel(ticket_id: int, payload: CancellationRequest,

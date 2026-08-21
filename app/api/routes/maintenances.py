@@ -25,6 +25,16 @@ def get_maintenances(
 ):
     return maintenance_svc.list_maintenances(db, current_user, page, page_size)
 
+@router.get("/by-ticket/{ticket_id}", response_model=MaintenanceItemResponse)
+def get_maintenance_by_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    # Declared BEFORE /{maintenance_id} so the literal segment is never
+    # parsed as a UUID path parameter.
+    return maintenance_svc.get_maintenance_by_ticket(db, ticket_id, current_user)
+
 @router.get("/{maintenance_id}", response_model=MaintenanceItemResponse)
 def get_maintenance(
     maintenance_id: UUID7,
@@ -33,7 +43,7 @@ def get_maintenance(
 ):
     return maintenance_svc.get_maintenance(db, maintenance_id, current_user)
 
-@router.post("", response_model=MaintenanceCreate)
+@router.post("", response_model=MaintenanceItemResponse, status_code=201)
 def create_maintenance(
     data: MaintenanceCreate,
     current_user = Depends(get_current_user),

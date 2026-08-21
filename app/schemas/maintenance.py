@@ -34,7 +34,7 @@ class PhotoOut(BaseModel):
     photo_url: str
 
 class MaintenanceCreate(BaseModel):
-    maintenance_id: UUID7
+    # maintenance_id is server-generated (uuid7); never accepted from clients.
     ticket_id: int
     maintenance_date: datetime
 
@@ -62,6 +62,9 @@ class MaintenanceUpdate(BaseModel):
 class MaintenanceItemResponse(BaseModel):
     maintenance_id: UUID7
     ticket_id: int
+
+    maintenance_date: Optional[datetime] = None
+    maintenance_description: Optional[str] = None # Nullable until the technician saves the form
 
     spares: Optional[List[SpareOut]] = []
     technicians: Optional[List[TechnicianOut]] = []

@@ -143,7 +143,14 @@ def test_start_ticket_success(
         f"/tickets/{ticket_id}/start",
         headers=auth_headers
     )
-    assert response.status_code == 200
+    # Idempotent start contract: fresh creation returns 201 with the
+    # enriched MaintenanceItemResponse shape.
+    assert response.status_code == 201
+    data = response.json()
+    assert data["maintenance_id"]
+    assert data["ticket_id"] == ticket_id
+    assert "maintenance_date" in data
+    assert "maintenance_description" in data
 
 
 def test_start_ticket_unauthorized(

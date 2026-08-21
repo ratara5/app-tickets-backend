@@ -7,13 +7,13 @@ from sqlalchemy.orm import relationship, declared_attr
 class AuditMixin:
     created_at = Column(
         DateTime,
-        default=datetime.now().strftime("%Y-%m-%d %H:%M:%S+00"), # Delegating to postgres generates a timestamp
+        default=lambda: datetime.now(), # App-side timestamp; keeps SQLite tests working
         nullable=False
     )
     updated_at = Column(
         DateTime,
-        default=datetime.now().strftime("%Y-%m-%d %H:%M:%S+00"),
-        onupdate=datetime.now().strftime("%Y-%m-%d %H:%M:%S+00"),
+        default=lambda: datetime.now(),
+        onupdate=lambda: datetime.now(),
         nullable=False
     )
     created_by = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False)

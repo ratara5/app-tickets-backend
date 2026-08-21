@@ -15,7 +15,7 @@ from app.schemas.ticket import TicketStatus
 from app.schemas.user import UserRole
 
 
-def create_maintenance(db, data, current_user):
+def create_maintenance(db, data, current_user, commit: bool = True):
     maintenance_date = data.maintenance_date
     if maintenance_date is None:
         maintenance_date = datetime.now()
@@ -30,11 +30,41 @@ def create_maintenance(db, data, current_user):
     )
 
     db.add(maintenance)
-    # db.flush()
-    db.commit()
+    if commit:
+        # Legacy path (POST /maintenances): own transaction.
+        db.commit()
+    else:
+        # Transactional start path: the caller owns the commit so the
+        # ticket status transition and this insert commit atomically.
+        db.flush()
     db.refresh(maintenance)
 
     return maintenance
+
+def get_maintenance_by_ticket(db: Session, ticket_id: int) -> Maintenance | None:
+    """Return the unique maintenance associated with a ticket, if any.
+
+    Used by the idempotent start flow and the by-ticket lookup endpoint.
+    No date filter: a maintenance may be older than the list window.
+    """
+    return (
+        db.query(Maintenance)
+        .options(
+            joinedload(Maintenance.ticket).joinedload(Ticket.market),
+            joinedload(Maintenance.ticket).joinedload(Ticket.equipment),
+            joinedload(Maintenance.ticket).joinedload(Ticket.cancellation),
+            joinedload(Maintenance.worksheet),
+            selectinload(Maintenance.photos),
+            selectinload(Maintenance.technicians)
+                .joinedload(MaintenanceTechnician.technician)
+                .joinedload(Technician.fsm_user),
+            selectinload(Maintenance.spares)
+                .joinedload(MaintenanceSpare.spare),
+            selectinload(Maintenance.pauses)
+        )
+        .filter(Maintenance.ticket_id == ticket_id)
+        .first()
+    )
 
 def update_maintenance(db, maintenance, data, current_user):
     for field, value in data.model_dump(exclude_none=True, exclude={"spares", "technicians"}).items():

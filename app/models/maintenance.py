@@ -1,6 +1,6 @@
 from uuid6 import uuid7 
 
-from sqlalchemy import Column, Integer, Numeric, String, DateTime, Time, Uuid, PrimaryKeyConstraint, ForeignKey
+from sqlalchemy import Column, Integer, Numeric, String, DateTime, Time, Uuid, PrimaryKeyConstraint, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -10,6 +10,9 @@ from app.models.audit_mixin import AuditMixin
 
 class Maintenance(Base, AuditMixin):
     __tablename__ = "maintenances"
+    __table_args__ = (
+        UniqueConstraint("ticket_id", name="uq_maintenances_ticket_id"), # One maintenance per ticket (idempotent start)
+    )
 
     maintenance_id = Column(Uuid, primary_key=True, default=uuid7)
     ticket_id = Column(Integer, ForeignKey("tickets.ticket_id"))

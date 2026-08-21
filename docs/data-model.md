@@ -158,6 +158,15 @@ Represents actual maintenance work performed for a ticket. Uses UUID v7 as prima
 - `technicians`: One-to-many through MaintenanceTechnician
 - `spares`: One-to-many through MaintenanceSpare
 
+**One maintenance per ticket (idempotent start):**
+The `uq_maintenances_ticket_id` unique constraint guarantees at most one
+maintenance row per ticket. `PATCH /tickets/{ticket_id}/start` is a
+transactional get-or-create: it flushes the insert and, on `IntegrityError`
+(concurrent start lost the race), rolls back and re-fetches the winner's row.
+Clients therefore receive **201** when the maintenance was created and **200**
+with the same body when it already existed — repeated starts are safe and
+never duplicate data.
+
 ### 11. maintenances_technicians
 Join table linking maintenance work to technicians with time tracking.
 
