@@ -14,7 +14,7 @@ from app.models.pause import Pause
 from app.models.master import Technician
 
 from app.schemas.user import CurrentUser, UserRole
-from app.schemas.maintenance import MaintenanceUpdate
+from app.schemas.maintenance import MaintenanceUpdate, MaintenanceItemResponse
 from app.schemas.ticket import TicketStatus
 from app.schemas.pause import PauseRequest
 
@@ -47,6 +47,15 @@ def create_new_maintenance(db, data, current_user):
 
 def get_maintenance(db: Session, maintenance_id: UUID7, current_user):
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
+    if not maintenance:
+        raise HTTPException(404, "Maintenance not found")
+    assert_ownership(maintenance, current_user, db)
+    return _serialize_maintenance_item(maintenance)
+
+def get_maintenance_by_ticket_id(db: Session, 
+                                 ticket_id: 
+                                 int, current_user) -> MaintenanceItemResponse:
+    maintenance = maintenance_repo.get_maintenance_by_ticket_id(db, ticket_id, current_user)
     if not maintenance:
         raise HTTPException(404, "Maintenance not found")
     assert_ownership(maintenance, current_user, db)
@@ -201,36 +210,39 @@ def _sign(path: str | None) -> str | None:
         path, expires_hours=settings.presigned_ttl
     )
 
-def _serialize_maintenance_item(maintenance: Maintenance) -> dict:
-    columns = {c.name: getattr(maintenance, c.name) for c in maintenance.__table__.columns}
-    initial_photo_url = _sign(maintenance.initial_photo_path)
-    pdf_url = _sign(maintenance.worksheet.pdf_path if maintenance.worksheet else None)
-    photos = list(map(lambda p: {
-                "photo_id": p.id, 
-                "photo_url": _sign(p.photo_path)
-            }, maintenance.photos))
-    
-    spares=[{ # map or comprehension: are equivalent in terms of speed. But comprehension is more pythonic
-        "spare_id": ms.spare.spare_id,
-        "name": ms.spare.spare_name,
-        "price": ms.spare.price,
-        "qty": ms.qty
-        } for ms in maintenance.spares]
-    technicians=[{
-        "technician_id": mt.technician.technician_id,
-        "technician_name": mt.technician.fsm_user.user_name,
-        "start_hour": mt.start_hour,
-        "end_hour": mt.end_hour
-    } for mt in maintenance.technicians]
-    
-    return SimpleNamespace( **columns, # The fields into maintenance table
-
-                            # presigned URLs from minIO path fields
-                            initial_photo_url=initial_photo_url,
-                            pdf_url=pdf_url,
-                            photos= photos,
-                            
-                            # fields of related tables
-                            technicians=technicians,
-                            spares=spares
-                            )
+def _serialize_maintenance_item(maintenance: Maintenance) -> MaintenanceItemResponse:
+    return MaintenanceItemResponse(
+        maintenance_id=maintenance.maintenance_id,
+        ticket_id=maintenance.ticket_id,
+        initial_photo_url=_sign(maintenance.initial_photo_path),
+        pdf_url=_sign(
+            maintenance.worksheet.pdf_path
+            if maintenance.worksheet
+            else None
+        ),
+        photos=[
+            {
+                "photo_id": photo.id,
+                "photo_url": _sign(photo.photo_path),
+            }
+            for photo in maintenance.photos
+        ],
+        spares=[
+            {
+                "spare_id": item.spare.spare_id,
+                "spare_name": item. spare.spare_name,
+                "price": item.spare.price,
+                "qty": item.qty,
+            }
+            for item in maintenance.spares
+        ],
+        technicians=[   
+            {
+                "technician_id": item.technician.technician_id,
+                "technician_name": item.technician.fsm_user.user_name,
+                "start_hour": item.start_hour,
+                "end_hour": item.end_hour,
+            }
+            for item in maintenance.technicians
+        ],
+    )

@@ -87,6 +87,12 @@ def get_maintenance_by_id( # The client side cache eliminates 90% calls to this 
 
     return query.first()
 
+def get_maintenance_by_ticket_id(db: Session, ticket_id: int, current_user) -> Maintenance | None:
+    query = _get_query(db, current_user)
+    query = query.filter(Maintenance.ticket_id == ticket_id)
+
+    return query.first()
+
 def add_maintenance_spare(db, maintenance_id, r):
     db.add(MaintenanceSpare(
         maintenance_id=maintenance_id,

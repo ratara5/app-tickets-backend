@@ -17,7 +17,7 @@ from app.schemas.user import CurrentUser, UserRole
 from app.schemas.ticket import AssignRequest, TicketStatus
 from app.schemas.cancellation import CancellationRequest
 
-# from app.services.maintenance_service import create_new_maintenance
+import app.services.maintenance_service as maintenance_svc 
 from app.services.cancellation_service import create_new_cancellation
 
 import app.repositories.maintenance_repo as maintenance_repo
@@ -29,7 +29,7 @@ from app.core.settings import settings
 VALID_TRANSITIONS = {
     TicketStatus.open: [TicketStatus.assigned, TicketStatus.cancelled],
     TicketStatus.assigned: [TicketStatus.in_progress, TicketStatus.cancelled],
-    TicketStatus.in_progress: [TicketStatus.paused, TicketStatus.closed, TicketStatus.cancelled],
+    TicketStatus.in_progress: [TicketStatus.in_progress, TicketStatus.paused, TicketStatus.closed, TicketStatus.cancelled],
     TicketStatus.paused: [TicketStatus.in_progress, TicketStatus.cancelled],
     TicketStatus.cancelled: [],
     TicketStatus.closed: []
@@ -59,7 +59,8 @@ def start_maintenance(ticket_id: int, payload: None,
         raise HTTPException(404, "Ticket not found")
     assert_ownership(ticket, current_user, db)
 
-    validate_transition(ticket.status, TicketStatus.in_progress)
+    if current_user.user_role not in ["ADMINISTRATOR", "DIRECTOR"]:
+        validate_transition(ticket.status, TicketStatus.in_progress)
 
     data = SimpleNamespace(ticket_id=ticket_id, maintenance_date=datetime.now(), **(payload.model_dump() if payload else {}))
     ticket.status = TicketStatus.in_progress
