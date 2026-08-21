@@ -177,6 +177,162 @@
       ]
     },
     {
+      "name": "Master Data",
+      "description": "Read-only master and catalog data endpoints.",
+      "item": [
+        {
+          "name": "List Technicians",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/technicians?page=1&page_size=50",
+              "host": ["{{base_url}}"],
+              "path": ["technicians"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            },
+            "description": "List all technicians with pagination."
+          }
+        },
+        {
+          "name": "Get Technician By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/technicians/{{technician_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["technicians", "{{technician_id}}"]
+            },
+            "description": "Get a single technician by ID."
+          }
+        },
+        {
+          "name": "List Spares",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/spares?page=1&page_size=50",
+              "host": ["{{base_url}}"],
+              "path": ["spares"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            },
+            "description": "List all spare parts with pagination."
+          }
+        },
+        {
+          "name": "Get Spare By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/spares/1",
+              "host": ["{{base_url}}"],
+              "path": ["spares", "1"]
+            },
+            "description": "Get a single spare part by ID."
+          }
+        },
+        {
+          "name": "List Markets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/markets?page=1&page_size=50",
+              "host": ["{{base_url}}"],
+              "path": ["markets"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            },
+            "description": "List all markets with pagination."
+          }
+        },
+        {
+          "name": "Get Market By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/markets/{{market_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["markets", "{{market_id}}"]
+            },
+            "description": "Get a single market by ID."
+          }
+        },
+        {
+          "name": "List Equipment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/equipments?page=1&page_size=50",
+              "host": ["{{base_url}}"],
+              "path": ["equipments"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            },
+            "description": "List all equipment with pagination."
+          }
+        },
+        {
+          "name": "Get Equipment By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/equipments/{{equipment_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["equipments", "{{equipment_id}}"]
+            },
+            "description": "Get a single equipment by ID."
+          }
+        },
+        {
+          "name": "List Labsdls",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/labsdls?page=1&page_size=50",
+              "host": ["{{base_url}}"],
+              "path": ["labsdls"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "page_size", "value": "50" }
+              ]
+            },
+            "description": "List all lab standards with pagination."
+          }
+        },
+        {
+          "name": "Get Labsdl By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/labsdls/1",
+              "host": ["{{base_url}}"],
+              "path": ["labsdls", "1"]
+            },
+            "description": "Get a single labsdl by ID."
+          }
+        }
+      ]
+    },
+    {
       "name": "Tickets",
       "description": "Ticket CRUD and workflow management.",
       "item": [

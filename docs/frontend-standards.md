@@ -1,117 +1,113 @@
 ---
-description: Frontend development standards, best practices, and conventions for the React Native application including component patterns, state management, UI/UX guidelines, and testing practices. NOTE: This is a SEPARATE project from this backend repo.
-globs: []  # This is a separate project — no globs in the backend repo
+description: Frontend development standards for the Expo React Native mobile app that integrates with the current FastAPI backend project. This document reflects the actual architecture and API contract used by the app-tickets backend.
+globs: []
 alwaysApply: true
 ---
 
-# Frontend Standards (React Native — Separate Project)
+# Frontend Standards (React Native / Expo)
 
-> **IMPORTANT**: The frontend is a **separate React Native project** in its own repository.
-> This file serves as a reference for the API contract and integration points between
-> the backend (this repo) and the mobile frontend. The full frontend standards and
-> conventions belong in the frontend project's own documentation.
+> **IMPORTANT**: The frontend is a separate Expo React Native project that lives beside this backend repository. This file captures the integration rules and conventions for the current backend implementation.
 
 ## Overview
 
-The frontend is a **React Native** application that communicates with this backend via REST API following the contract defined in `docs/api-spec.yml` (or `docs/api-spec.json`).
+The frontend is a mobile application that communicates with this backend through REST JSON endpoints. The current backend contract is defined by the OpenAPI files in the backend repo and implemented in the FastAPI routes under app/api/routes.
 
-## Technology Stack (Frontend Project)
+## Current Stack
 
 ### Core Technologies
-- **React Native**: Cross-platform mobile framework (iOS + Android)
-- **TypeScript**: Type safety
-- **React Navigation**: Screen routing and navigation
-- **Axios** or **React Query**: HTTP client for API communication
+- **Expo**: Fast mobile app development and Android/iOS workflow
+- **React Native**: Cross-platform mobile UI
+- **TypeScript**: Strict typing for screens, state, and API payloads
+- **React Navigation**: Native stack and bottom tabs
+- **Zustand**: Lightweight global state for auth and app state
+- **TanStack Query**: Server-state caching and synchronization when needed
+- **Axios**: HTTP client for REST calls
+- **Expo Secure Store**: Secure token persistence
+
+### Project Layout
+- **src/app**: navigation shell and app bootstrap
+- **src/features/**: feature-specific screens and UI modules
+- **src/shared/**: shared API client, storage helpers, and utilities
+- **src/stores/**: Zustand stores
+- **src/types/**: generated API types and local type aliases
+- **src/mocks/**: mock data for UI development and offline prototyping
+
+## API Integration Rules
+
+### Source of Truth
+- Use the backend OpenAPI contract from the backend repo as the authoritative contract.
+- Prefer the generated types in the frontend project rather than ad-hoc interfaces.
+- When backend endpoints or schema fields change, update the frontend types and screens accordingly.
+- The above, implies a comparison between backend-/docs/api-spec.json and frontend-/docs/api-spec.json. If there are changes, types/api and types/types must be updated in frontend. 
+
+### Authentication Flow
+- Use `POST /auth/login` and `POST /auth/register` for authentication.
+- Store JWTs securely using Expo Secure Store.
+- Send the token in the `Authorization: Bearer <token>` header for protected requests.
+- Handle 401 responses by clearing auth state and redirecting to login.
+
+### Current Backend Endpoints
+
+| Area | Endpoint | Purpose |
+|---|---|---|
+| Auth | `POST /auth/login` | Sign in |
+| Auth | `POST /auth/register` | Create account |
+| Auth | `POST /auth/logout` | Invalidate token |
+| Auth | `GET /auth/me` | Fetch signed-in user profile |
+| Tickets | `GET /tickets` | List tickets |
+| Tickets | `GET /tickets/{ticket_id}` | Ticket detail |
+| Tickets | `POST /tickets` | Create ticket |
+| Tickets | `PATCH /tickets/{ticket_id}/assign` | Assign ticket |
+| Tickets | `PATCH /tickets/{ticket_id}/start` | Start maintenance workflow |
+| Tickets | `PATCH /tickets/{ticket_id}/cancel` | Cancel ticket |
+| Tickets | `PATCH /tickets/{ticket_id}/addwkd` | Register weekend work |
+| Maintenances | `GET /maintenances` | List maintenances |
+| Maintenances | `GET /maintenances/{maintenance_id}` | Maintenance detail |
+| Maintenances | `PATCH /maintenances/{maintenance_id}` | Update maintenance |
+| Maintenances | `PATCH /maintenances/{maintenance_id}/pause` | Pause maintenance |
+| Uploads | `POST /uploads/init` | Initialize upload |
+| Uploads | `POST /uploads/chunk` | Upload chunk |
+| Uploads | `GET /uploads/status/{upload_id}` | Upload status |
+| Uploads | `POST /uploads/complete` | Complete upload |
+| Master Data | `GET /markets`, `GET /equipments`, `GET /technicians`, `GET /spares`, `GET /labsdls` | Lookup data |
+
+## Frontend Architecture Guidelines
+
+### Feature-Based Structure
+- Keep each business domain in its own feature folder under `src/features`.
+- Group screens, components, and hooks around the user flow they support.
+- Place shared infrastructure in `src/shared` and app-wide state in `src/stores`.
 
 ### State Management
-- **React Context** or **Zustand** for global state
-- **AsyncStorage** or **MMKV** for persistent local storage
-- **React Query** for server state caching and synchronization
+- Use Zustand for auth and simple global app state.
+- Use TanStack Query for server-state fetching, caching, and invalidation.
+- Avoid overusing global state for screen-local UI state.
 
-### UI Framework
-- **React Native** built-in components
-- Custom component library or community UI kits (e.g., NativeBase, Tamagui, or Gluestack)
-- **Styled Components** or **Tailwind CSS for RN** for styling
+### UI and UX
+- Prefer native mobile patterns: clear loading, empty, and error states.
+- Show concise and actionable feedback for failed requests.
+- Keep ticket and maintenance workflows explicit and easy to follow.
+- Use consistent visual hierarchy for statuses, priorities, and actions.
 
-### Testing
-- **Jest**: Unit testing
-- **React Native Testing Library**: Component testing
-- **Detox** or **Maestro**: End-to-end testing
-
-## API Integration
-
-### Contract
-- The frontend consumes the API contract defined in `docs/api-spec.yml`
-- Both projects must stay in sync with this spec
-- When the API changes (new endpoints, modified schemas), regenerate `api-spec.json` from the running backend and commit it
-
-### Authentication
-- Obtain JWT token via `POST /auth/login`
-- Store token securely (e.g., `expo-secure-store` or `react-native-keychain`)
-- Send token in `Authorization: Bearer <token>` header for all protected requests
-- Handle 401 responses by redirecting to login
-
-### Key Endpoints
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| POST | /auth/login | Login -> JWT |
-| GET | /tickets | List tickets |
-| GET | /tickets/{id} | Ticket details |
-| POST | /tickets | Create ticket |
-| PATCH | /tickets/{id} | Update ticket |
-| POST | /tickets/{id}/cancel | Cancel ticket |
-| GET | /maintenances/{id} | Maintenance details |
-| POST | /maintenances | Create maintenance |
-| POST | /uploads | Chunked file upload |
-| POST | /worksheets/{id}/generate | Generate PDF worksheet |
-
-## Coding Standards
-
-### Naming Conventions
-- **Components**: `PascalCase` (`TicketCard.tsx`, `MaintenanceDetail.tsx`)
-- **Hooks**: `camelCase` with `use` prefix (`useTickets`, `useAuth`)
-- **Services**: `camelCase` (`ticketService`, `authService`)
-- **Types/Interfaces**: `PascalCase` (`Ticket`, `Maintenance`, `ApiResponse<T>`)
-- **Files**: PascalCase for components, camelCase for utilities
-
-### TypeScript
-- **Strict mode** enabled
-- Define types for all API responses (match Pydantic schemas from the backend)
-- Use `zod` or similar for runtime validation of API responses
+### Type Safety
+- Use strict TypeScript everywhere.
+- Reuse generated API types from the frontend type files.
+- Do not define duplicate ad-hoc types when a generated type already exists.
 
 ### Error Handling
-- Wrap API calls in try/catch with user-friendly error messages
-- Handle network connectivity issues gracefully (offline mode, retry)
-- Show appropriate loading states (skeleton screens, spinners) during API calls
-
-## Communication with Backend
-
-### Synchronization
-1. Backend changes the API → regenerate `api-spec.json` → commit to backend repo
-2. Frontend team reviews the spec change → updates API client code
-3. Both projects maintain independent versioning and CI/CD
-
-### File Uploads
-- Backend supports chunked uploads via MinIO
-- Frontend uploads files in chunks, tracks progress
-- Images are accessed via MinIO presigned URLs (not proxied through the API)
-
-### PDF Generation
-- Backend generates PDF worksheets via WeasyPrint + Jinja2 templates
-- Frontend requests generation via API, receives a PDF URL
-- PDF is displayed/stored using the presigned URL
-
-## Network Security
-
-- All API calls should use HTTPS in production
-- JWT tokens stored in secure device storage (Keychain on iOS, Keystore on Android)
-- Implement certificate pinning for production builds
-- Add request/response timeout handling
+- Wrap API calls with `try/catch` and surface useful user messages.
+- Show loading indicators while data is being fetched.
+- Handle offline and 401 scenarios gracefully.
 
 ## Development Workflow
 
-- The frontend project follows its own branching and release strategy
-- Coordinate with backend when consuming new API features
-- Use `docs/api-spec.yml` as the single source of truth for the API contract
-- When the API spec changes, update the frontend's API client code and types
+1. Review the backend route and schema changes before implementing UI changes.
+2. Keep the frontend project decoupled from the backend repo while staying aligned to the API contract.
+3. Update the frontend mock data when new backend entities or fields are introduced.
+4. Prefer small, feature-focused changes and verify them against the current app flow.
+
+## Quality Bar
+
+- The mobile app should work well for authentication, ticket handling, maintenance workflows, and uploads.
+- The frontend should remain consistent with the backend domain model and terminology.
+- The implementation should be maintainable, typed, and easy to extend for future backend changes.
