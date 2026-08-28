@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 from pydantic import UUID7
+import structlog
 
 from datetime import datetime, timedelta
 import secrets, asyncio, io
@@ -26,11 +27,12 @@ import app.services.ticket_service as ticket_svc
 from app.services.pause_service import create_new_pause
 
 from app.core.settings import settings
-from app.core.storage import upload_file, get_presigned_url
+from app.core.storage import upload_file, delete_object, get_presigned_url
 from concurrent.futures import ThreadPoolExecutor
 
 
 _executor = ThreadPoolExecutor()  # for synchronous operations in MinIO
+_log = structlog.get_logger()
 
 
 
@@ -68,9 +70,29 @@ async def update_existing(db: Session,
                           maintenance_id: UUID7, 
                           payload: MaintenanceUpdate, 
                           current_user, 
-                          files: dict):
+                          files: dict,
+                          initial_photo_action: str = "keep"):
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
+    if not maintenance:
+        raise HTTPException(404, "Maintenance not found")
     assert_ownership(maintenance, current_user, db)
+
+    if initial_photo_action not in ("keep", "replace", "clear"):
+        raise HTTPException(422, "initial_photo_action must be keep, replace, or clear")
+
+    initial_photo_file = files.get("initial_photo_file")
+    if initial_photo_action == "clear" and initial_photo_file is not None:
+        raise HTTPException(422, "initial_photo_file must be omitted when clearing the photo")
+    if initial_photo_action == "replace" and initial_photo_file is None:
+        raise HTTPException(422, "initial_photo_file is required when replacing the photo")
+
+    old_photo_path = maintenance.initial_photo_path
+    full_object_path = old_photo_path
+    if initial_photo_action == "clear":
+        full_object_path = None
+    elif initial_photo_file is not None:
+        initial_photo_action = "replace"
+
     # Verify if associated ticket exists and its status is IN PROGRESS o PAUSED
     ticket = ticket_repo.get_ticket_by_id(db, maintenance.ticket_id, current_user)
     if not ticket:
@@ -86,7 +108,7 @@ async def update_existing(db: Session,
 
     ### Upload maintenance file (in the table per se) ###
     for col_name, upload_file_obj in files.items():
-        if upload_file_obj is None:
+        if upload_file_obj is None or initial_photo_action != "replace":
             continue
         content = await upload_file_obj.read()
         _, original_filename, full_object_path = build_object_path_maintenances(
@@ -124,6 +146,17 @@ async def update_existing(db: Session,
 
     maintenance = maintenance_repo.update_maintenance(db, maintenance, payload, current_user)
 
+    if old_photo_path and old_photo_path != full_object_path:
+        try:
+            delete_object(old_photo_path)
+        except Exception as error:
+            _log.error(
+                "maintenance_initial_photo_cleanup_failed",
+                maintenance_id=str(maintenance_id),
+                object_path=old_photo_path,
+                error=str(error),
+            )
+
     ##################################################
     ###### Business logic after data persistance #####
     ##################################################
@@ -154,7 +187,8 @@ async def pause_and_update(db: Session,
                 maintenance_id: UUID7, 
                 data: MaintenanceUpdate, 
                 current_user, 
-                files: dict):
+                files: dict,
+                initial_photo_action: str = "keep"):
     """ Pause the ticket and update the maintenance. """
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
     assert_ownership(maintenance, current_user, db)
@@ -166,7 +200,9 @@ async def pause_and_update(db: Session,
 
     create_new_pause(db, maintenance_id, data.pause_reason, current_user)
     # The next instruction set the ticket status to PAUSED also
-    maintenance = await update_existing(db, maintenance_id, data, current_user, files)
+    maintenance = await update_existing(
+        db, maintenance_id, data, current_user, files, initial_photo_action
+    )
     
     updated_ticket = ticket_svc.get_ticket(db, maintenance.ticket_id, current_user)
 

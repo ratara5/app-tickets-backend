@@ -62,6 +62,17 @@ def upload_file(file_stream,
         "size_bytes": size,
     }
 
+def delete_object(object_name: str) -> None:
+    client = get_minio_client()
+    bucket = settings.minio_default_bucket
+    log.info("minio_delete_started", object_path=object_name)
+    try:
+        client.remove_object(bucket, object_name)
+    except Exception as e:
+        log.error("minio_delete_failed", object_path=object_name, error=str(e))
+        raise
+    log.info("minio_delete_complete", object_path=object_name)
+
 def object_exists_by_name(original_name: str) -> bool:
     client = get_minio_client()
     log.info("minio_search_start", original_name=original_name)

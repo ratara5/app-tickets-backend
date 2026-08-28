@@ -59,6 +59,7 @@ def create_maintenance(
 async def update_maintenance(
     maintenance_id: UUID7,
     payload: str = Form(...),
+    initial_photo_action: str = Form("keep"),
     initial_photo_file: Optional[UploadFile] = File(None), # Is the file per se. The column photo_path is the path
     # signature_receive_file: Optional[UploadFile] = File(None), # Is the file per se. The column (it's not necessary) is the path
     current_user = Depends(get_current_user),
@@ -67,19 +68,20 @@ async def update_maintenance(
     data = MaintenanceUpdate.model_validate_json(payload)
     files = {"initial_photo_file": initial_photo_file} # , "signature_receive_file": signature}
     return await maintenance_svc.update_existing(
-        db, maintenance_id, data, current_user, files
+        db, maintenance_id, data, current_user, files, initial_photo_action
     )
 
 @router.patch("/{maintenance_id}/pause", response_model=TicketItemResponse)
 async def pause(maintenance_id: UUID7, 
           payload: str = Form(...),
+          initial_photo_action: str = Form("keep"),
           initial_photo_file: Optional[UploadFile] = File(None), # Is the file per se. The column photo_path is the path
           db: Session = Depends(get_db),
           current_user = Depends(get_current_user)):
     data = PauseRequest.model_validate_json(payload)
     files = {"initial_photo_file": initial_photo_file}
     return await maintenance_svc.pause_and_update(
-        db, maintenance_id, data, current_user, files
+        db, maintenance_id, data, current_user, files, initial_photo_action
     )
 
 @router.delete("/{maintenance_id}", status_code=204)
