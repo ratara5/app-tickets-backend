@@ -71,4 +71,17 @@ class MaintenanceSpare(Base, AuditMixin):
     maintenance = relationship("Maintenance", back_populates="spares")
     spare  = relationship("Spare",  back_populates="maintenances")
 
+class Pause(Base):
+    __tablename__ = "pauses"
 
+    pause_id = Column(Integer, primary_key=True, autoincrement=True) # Type is no more UNIQUEID()
+    maintenance_id = Column(Uuid, ForeignKey("maintenances.maintenance_id"), nullable=False)
+    # pause_timestamp = Column(DateTime) # equals to created_at
+    pause_reason = Column(String)
+
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
+    created_by = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False)
+    updated_by = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False)
+
+    maintenance = relationship("Maintenance", back_populates="pauses")

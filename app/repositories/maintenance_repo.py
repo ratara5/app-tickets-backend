@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from app.core.utils.dates import start_of_month
 
 from app.models.ticket import Ticket
-from app.models.maintenance import Maintenance, MaintenanceSpare, MaintenanceTechnician
+from app.models.maintenance import Maintenance, MaintenanceSpare, MaintenanceTechnician, Pause
 from app.models.master import Technician
 
 from app.schemas.ticket import TicketStatus
@@ -67,7 +67,7 @@ def get_maintenance_by_ticket(db: Session, ticket_id: int) -> Maintenance | None
     )
 
 def update_maintenance(db, maintenance, data, current_user):
-    for field, value in data.model_dump(exclude_none=True, exclude={"spares", "technicians"}).items():
+    for field, value in data.model_dump(exclude_none=True, exclude={"spares", "technicians", "pauses"}).items():
         setattr(maintenance, field, value)
 
     db.commit()
@@ -123,6 +123,7 @@ def add_maintenance_spare(db, maintenance_id, r):
         spare_id=r.spare_id,
         qty=r.qty
     ))
+    db.commit()
 
 def add_maintenance_technician(db, maintenance_id, t):
     db.add(MaintenanceTechnician(
@@ -131,6 +132,16 @@ def add_maintenance_technician(db, maintenance_id, t):
         start_hour=t.start_hour,
         end_hour=t.end_hour
     ))
+    db.commit()
+
+def add_pause(db, maintenance_id, p):
+    db.add(Pause(
+        maintenance_id=maintenance_id,
+        pause_reason=p.pause_reason,
+        created_at=p.created_at
+    ))
+    db.commit()
+
 
 # avoid N+1 problem, is better than relationship access with dot notation (out of repo)
 def _get_query(db, current_user):

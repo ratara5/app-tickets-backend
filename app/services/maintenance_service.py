@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
 from app.models.ticket import Ticket
-from app.models.maintenance import Maintenance
-from app.models.pause import Pause
+from app.models.maintenance import Maintenance, Pause
+
 from app.models.master import Technician
 
 from app.schemas.user import CurrentUser, UserRole
@@ -24,7 +24,6 @@ import app.repositories.ticket_repo as ticket_repo
 
 from app.services.registry import service
 import app.services.ticket_service as ticket_svc
-from app.services.pause_service import create_new_pause
 
 from app.core.settings import settings
 from app.core.storage import upload_file, delete_object, get_presigned_url
@@ -129,14 +128,24 @@ async def update_existing(db: Session,
     ticket_date = ticket.ticket_date
     labsdl_id = 3 if (ticket_date.weekday() >= 5 or ticket_date in get_holidays(settings.country_company)) else 1
 
+    # Spares #
+    for r in payload.spares:
+        maintenance_repo.add_maintenance_spare(db, maintenance.maintenance_id, r)
+    # Technicians #
+    for t in payload.technicians:
+        maintenance_repo.add_maintenance_technician(db, maintenance.maintenance_id, t)
+    # Pauses #
+    for p in payload.pauses:
+        maintenance_repo.add_pause(db, maintenance.maintenance_id, p)
+
     last_pause = (
         db.query(Pause)
         .filter(Pause.maintenance_id == maintenance.maintenance_id)
         .order_by(Pause.created_at.desc())
         .first()
     )
-    real_mark_as = "PAUSED" if (last_pause and last_pause.created_at > maintenance.updated_at) else "CLOSED"
-
+    real_mark_as = "PAUSED" if (maintenance.updated_at is None or (last_pause and last_pause.created_at > maintenance.updated_at)) else "CLOSED"
+    _log.info('The maintenance.updated_at = ', maintenance.updated_at if maintenance.updated_at else 'NULL in SQL', ' and last_pause.created_at = ', last_pause.created_at if last_pause else None, ' so real_mark_as = ', real_mark_as)
     maintenance.labsdl_id = labsdl_id
     maintenance.initial_photo_path = full_object_path
     
@@ -162,13 +171,7 @@ async def update_existing(db: Session,
     ##################################################
 
     ### Persists spares, technicians, (photos is apart), etc. related to maintenance ###
-
-    # Spares #
-    for r in payload.spares:
-        maintenance_repo.add_maintenance_spare(db, maintenance.maintenance_id, r)
-    # Technicians #
-    for t in payload.technicians:
-        maintenance_repo.add_maintenance_technician(db, maintenance.maintenance_id, t)
+    
 
     ### Finish ###
     if labsdl_id == 3:
@@ -183,30 +186,6 @@ async def update_existing(db: Session,
 
     return _serialize_maintenance_item(maintenance)
 
-async def pause_and_update(db: Session, 
-                maintenance_id: UUID7, 
-                data: MaintenanceUpdate, 
-                current_user, 
-                files: dict,
-                initial_photo_action: str = "keep"):
-    """ Pause the ticket and update the maintenance. """
-    maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
-    assert_ownership(maintenance, current_user, db)
-    
-    ticket = ticket_repo.get_ticket_by_id(db, maintenance.ticket_id, current_user)
-    if not ticket:
-        raise HTTPException(404, "Ticket not found")
-    ticket_svc.validate_transition(ticket.status, TicketStatus.paused)
-
-    create_new_pause(db, maintenance_id, data.pause_reason, current_user)
-    # The next instruction set the ticket status to PAUSED also
-    maintenance = await update_existing(
-        db, maintenance_id, data, current_user, files, initial_photo_action
-    )
-    
-    updated_ticket = ticket_svc.get_ticket(db, maintenance.ticket_id, current_user)
-
-    return updated_ticket
 
 def delete_maintenance(maintenance_id: UUID7, current_user, db: Session):
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user) 
@@ -266,15 +245,20 @@ def _serialize_maintenance_item(maintenance: Maintenance) -> dict:
         "start_hour": mt.start_hour,
         "end_hour": mt.end_hour
     } for mt in maintenance.technicians]
+    pauses=[{
+        "pause_reason": p.pause_reason,
+        "created_at": p.created_at
+    } for p in maintenance.pauses]
     
     return SimpleNamespace( **columns, # The fields into maintenance table
 
                             # presigned URLs from minIO path fields
                             initial_photo_url=initial_photo_url,
                             pdf_url=pdf_url,
-                            photos= photos,
+                            photos=photos,
                             
                             # fields of related tables
                             technicians=technicians,
-                            spares=spares
+                            spares=spares,
+                            pauses=pauses
                             )

@@ -674,61 +674,6 @@
         }
       }
     },
-    "/maintenances/{maintenance_id}/pause": {
-      "patch": {
-        "summary": "Pause",
-        "operationId": "pause_maintenances__maintenance_id__pause_patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "maintenance_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid7",
-              "title": "Maintenance Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_pause_maintenances__maintenance_id__pause_patch"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TicketItemResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/uploads/init": {
       "post": {
         "tags": [
@@ -2044,6 +1989,21 @@
             "title": "Technicians",
             "default": []
           },
+          "pauses": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Pause"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pauses",
+            "default": []
+          },
           "initial_photo_url": {
             "anyOf": [
               {
@@ -2129,6 +2089,25 @@
           "market_name"
         ],
         "title": "MarketResponse"
+      },
+      "Pause": {
+        "properties": {
+          "pause_reason": {
+            "type": "string",
+            "title": "Pause Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Pause Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pause_reason",
+          "created_at"
+        ],
+        "title": "Pause"
       },
       "PhotoOut": {
         "properties": {

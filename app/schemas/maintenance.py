@@ -26,6 +26,10 @@ class TechnicianOut(BaseModel):
     start_hour: time 
     end_hour: time
 
+class Pause(BaseModel):
+    pause_reason: str
+    created_at: datetime
+
 # class PhotoIn(BaseModel): # The photos are uploaded apart (by file schema) of the maintenance saved process
     # photo_id: int
 
@@ -57,6 +61,7 @@ class MaintenanceUpdate(BaseModel):
     # Children or maintenance parts
     spares: Optional[List[SpareIn]] = []
     technicians: Optional[List[TechnicianIn]] = []
+    pauses: Optional[List[Pause]] = []
     # photo_ids: Optional[List[int]] = [] # It's not necessary
 
 class MaintenanceItemResponse(BaseModel):
@@ -68,6 +73,7 @@ class MaintenanceItemResponse(BaseModel):
 
     spares: Optional[List[SpareOut]] = []
     technicians: Optional[List[TechnicianOut]] = []
+    pauses: Optional[List[Pause]] = []
 
     initial_photo_url: Optional[str] = None # It's a presigned URL
     pdf_url: Optional[str] = None # It's a presigned URL

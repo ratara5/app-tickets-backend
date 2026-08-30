@@ -11,7 +11,6 @@ import app.repositories.ticket_repo as ticket_repo
 
 from app.models.ticket import Ticket
 from app.models.maintenance import Maintenance
-from app.models.pause import Pause
 from app.models.master import Technician
 
 from app.schemas.user import CurrentUser, UserRole
