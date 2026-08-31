@@ -143,6 +143,60 @@ def add_pause(db, maintenance_id, p):
     db.commit()
 
 
+def replace_maintenance_spares(db, maintenance_id, spares, current_user):
+    """Idempotent replace of a maintenance's spares, not an append.
+
+    The PATCH endpoint is meant to persist the full, current row set each save.
+    Appending duplicates previously-saved rows across repeated saves (pause ->
+    continue -> save). Replacing keeps every save idempotent for this child
+    collection, regardless of what the client sends.
+    """
+    db.query(MaintenanceSpare).filter(
+        MaintenanceSpare.maintenance_id == maintenance_id
+    ).delete(synchronize_session='fetch')
+    for r in spares:
+        db.add(MaintenanceSpare(
+            maintenance_id=maintenance_id,
+            spare_id=r.spare_id,
+            qty=r.qty,
+            created_by=current_user.user_id,
+            updated_by=current_user.user_id,
+        ))
+    db.commit()
+
+
+def replace_maintenance_technicians(db, maintenance_id, technicians, current_user):
+    db.query(MaintenanceTechnician).filter(
+        MaintenanceTechnician.maintenance_id == maintenance_id
+    ).delete(synchronize_session='fetch')
+    for t in technicians:
+        db.add(MaintenanceTechnician(
+            maintenance_id=maintenance_id,
+            technician_id=t.technician_id,
+            start_hour=t.start_hour,
+            end_hour=t.end_hour,
+            created_by=current_user.user_id,
+            updated_by=current_user.user_id,
+        ))
+    db.commit()
+
+
+def replace_maintenance_pauses(db, maintenance_id, pauses, current_user):
+    db.query(Pause).filter(
+        Pause.maintenance_id == maintenance_id
+    ).delete(synchronize_session='fetch')
+    for p in pauses:
+        db.add(Pause(
+            maintenance_id=maintenance_id,
+            pause_reason=p.pause_reason,
+            created_at=p.created_at,
+            updated_at=p.created_at,
+            created_by=current_user.user_id,
+            updated_by=current_user.user_id,
+        ))
+    db.commit()
+
+
 # avoid N+1 problem, is better than relationship access with dot notation (out of repo)
 def _get_query(db, current_user):
     limit_date = start_of_month(-2)

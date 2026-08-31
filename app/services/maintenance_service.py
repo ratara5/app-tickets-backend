@@ -128,15 +128,18 @@ async def update_existing(db: Session,
     ticket_date = ticket.ticket_date
     labsdl_id = 3 if (ticket_date.weekday() >= 5 or ticket_date in get_holidays(settings.country_company)) else 1
 
-    # Spares #
-    for r in payload.spares:
-        maintenance_repo.add_maintenance_spare(db, maintenance.maintenance_id, r)
+    # Spares # (idempotent replace, not append — see repo docs)
+    maintenance_repo.replace_maintenance_spares(
+        db, maintenance.maintenance_id, payload.spares, current_user
+    )
     # Technicians #
-    for t in payload.technicians:
-        maintenance_repo.add_maintenance_technician(db, maintenance.maintenance_id, t)
+    maintenance_repo.replace_maintenance_technicians(
+        db, maintenance.maintenance_id, payload.technicians, current_user
+    )
     # Pauses #
-    for p in payload.pauses:
-        maintenance_repo.add_pause(db, maintenance.maintenance_id, p)
+    maintenance_repo.replace_maintenance_pauses(
+        db, maintenance.maintenance_id, payload.pauses, current_user
+    )
 
     last_pause = (
         db.query(Pause)
@@ -145,7 +148,12 @@ async def update_existing(db: Session,
         .first()
     )
     real_mark_as = "PAUSED" if (maintenance.updated_at is None or (last_pause and last_pause.created_at > maintenance.updated_at)) else "CLOSED"
-    _log.info('The maintenance.updated_at = ', maintenance.updated_at if maintenance.updated_at else 'NULL in SQL', ' and last_pause.created_at = ', last_pause.created_at if last_pause else None, ' so real_mark_as = ', real_mark_as)
+    _log.info(
+        "maintenance_save_mark_as",
+        maintenance_updated_at=maintenance.updated_at if maintenance.updated_at else "NULL in SQL",
+        last_pause_created_at=last_pause.created_at if last_pause else None,
+        real_mark_as=real_mark_as,
+    )
     maintenance.labsdl_id = labsdl_id
     maintenance.initial_photo_path = full_object_path
     
@@ -184,6 +192,10 @@ async def update_existing(db: Session,
     
     ticket_repo.update_ticket_status(db, ticket, status, current_user)
 
+    # Fresh, fully-loaded read of the replaced children before serialization —
+    # avoids serving stale in-memory relationship collections.
+    db.expire_all()
+    maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
     return _serialize_maintenance_item(maintenance)
 
 
