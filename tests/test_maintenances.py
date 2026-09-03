@@ -281,3 +281,121 @@ def test_delete_maintenance_unauthorized(
         "/maintenances/00000000-0000-0000-0000-000000000001"
     )
     assert response.status_code == 401
+
+
+def test_update_maintenance_initial_photo_action_keep(
+    client: TestClient, auth_headers: dict,
+    test_market: Market, test_equipment: Equipment,
+    test_technician: Technician
+) -> None:
+    """PATCH with initial_photo_action=keep preserves the existing photo."""
+    ticket_id = _create_assigned_started_ticket(client, auth_headers)
+    maintenance_id = "00000000-0000-0000-0000-000000000010"
+    client.post(
+        "/maintenances",
+        json={
+            "maintenance_id": maintenance_id,
+            "ticket_id": ticket_id,
+            "maintenance_date": datetime.now().isoformat(),
+        },
+        headers=auth_headers,
+    )
+    response = client.patch(
+        f"/maintenances/{maintenance_id}",
+        data={
+            "payload": json.dumps({"maintenance_description": "Updated"}),
+            "initial_photo_action": "keep",
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+
+
+def test_update_maintenance_initial_photo_action_invalid_action(
+    client: TestClient, auth_headers: dict,
+    test_market: Market, test_equipment: Equipment,
+    test_technician: Technician
+) -> None:
+    """PATCH with invalid initial_photo_action returns 422."""
+    ticket_id = _create_assigned_started_ticket(client, auth_headers)
+    maintenance_id = "00000000-0000-0000-0000-000000000011"
+    client.post(
+        "/maintenances",
+        json={
+            "maintenance_id": maintenance_id,
+            "ticket_id": ticket_id,
+            "maintenance_date": datetime.now().isoformat(),
+        },
+        headers=auth_headers,
+    )
+    response = client.patch(
+        f"/maintenances/{maintenance_id}",
+        data={
+            "payload": json.dumps({"maintenance_description": "Updated"}),
+            "initial_photo_action": "invalid_action",
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+
+
+def test_update_maintenance_initial_photo_action_replace_without_file(
+    client: TestClient, auth_headers: dict,
+    test_market: Market, test_equipment: Equipment,
+    test_technician: Technician
+) -> None:
+    """PATCH with initial_photo_action=replace but no file returns 422."""
+    ticket_id = _create_assigned_started_ticket(client, auth_headers)
+    maintenance_id = "00000000-0000-0000-0000-000000000012"
+    client.post(
+        "/maintenances",
+        json={
+            "maintenance_id": maintenance_id,
+            "ticket_id": ticket_id,
+            "maintenance_date": datetime.now().isoformat(),
+        },
+        headers=auth_headers,
+    )
+    response = client.patch(
+        f"/maintenances/{maintenance_id}",
+        data={
+            "payload": json.dumps({"maintenance_description": "Updated"}),
+            "initial_photo_action": "replace",
+        },
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+
+
+def test_delete_maintenance_photo_not_found(
+    client: TestClient, auth_headers: dict,
+    test_market: Market, test_equipment: Equipment,
+    test_technician: Technician
+) -> None:
+    """DELETE a photo that doesn't exist returns 404."""
+    ticket_id = _create_assigned_started_ticket(client, auth_headers)
+    maintenance_id = "00000000-0000-0000-0000-000000000013"
+    client.post(
+        "/maintenances",
+        json={
+            "maintenance_id": maintenance_id,
+            "ticket_id": ticket_id,
+            "maintenance_date": datetime.now().isoformat(),
+        },
+        headers=auth_headers,
+    )
+    response = client.delete(
+        f"/maintenances/{maintenance_id}/photos/99999",
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+
+
+def test_delete_maintenance_photo_unauthorized(
+    client: TestClient
+) -> None:
+    """DELETE photo without auth returns 401."""
+    response = client.delete(
+        "/maintenances/00000000-0000-0000-0000-000000000001/photos/1"
+    )
+    assert response.status_code == 401

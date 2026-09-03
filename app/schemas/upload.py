@@ -13,6 +13,7 @@ class UploadInitRequest(BaseModel):
     content_type: str       # "image/jpeg", "application/pdf", etc.
     total_size: int         # total bytes
     total_chunks: int       # how many chunks will the client send?
+    replaces_photo_id: Optional[int] = None  # if set, delete this photo after upload completes
     # tipo: str             # The same col_name?
 
 class UploadInitResponse(BaseModel):

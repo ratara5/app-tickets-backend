@@ -190,8 +190,8 @@ Join table linking maintenance work to spare parts used.
 Photos associated with maintenance work.
 
 **Fields:**
-- `photo_id`: Unique identifier (Primary Key, TEXT)
-- `maintenance_id`: FK to Maintenance (UUID)
+- `photo_id`: Unique identifier (Primary Key, INT)
+- `maintenance_id`: FK to Maintenance (UUID — Integer in current schema, to be aligned by Alembic migration)
 - `photo_path`: MinIO object path (TEXT)
 - `processed`: Boolean flag indicating processing state
 - Audit fields
@@ -262,6 +262,7 @@ Tracks chunked file upload sessions for reliable large file transfers.
 - `received_chunks`: Chunks received (INT)
 - `expires_at`: Expiration timestamp (TIMESTAMPTZ)
 - `completed`: Boolean flag
+- `replaces_photo_id`: FK to photos (INT, nullable) — if set, the replaced photo's object + row are deleted after the new upload completes
 
 ### 19. worksheets
 PDF worksheets/support documents generated for maintenance.
@@ -441,6 +442,7 @@ erDiagram
         int received_chunks
         datetime expires_at
         boolean completed
+        int replaces_photo_id FK
     }
     worksheets {
         int worksheet_id PK
@@ -485,6 +487,7 @@ erDiagram
     maintenances ||--o{ photos : "photos"
     maintenances ||--o{ pauses : "pauses"
     maintenances ||--o| worksheets : "document"
+    uploads_sessions ||--o| photos : "replaces"
 
     spares ||--o{ maintenances_spares : "used_in"
     spares ||--o{ materials : "catalog_reference"

@@ -35,6 +35,7 @@ def save_upload_session(db, upload_id, user_id, payload):
         total_size=payload.total_size,
         total_chunks=payload.total_chunks,
         received_chunks=0,
+        replaces_photo_id=payload.replaces_photo_id,
 
         expires_at=datetime.now() + timedelta(hours=24)
     )

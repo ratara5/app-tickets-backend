@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
 from concurrent.futures import ThreadPoolExecutor
-from app.core.storage import upload_file, get_presigned_url
+from app.core.storage import upload_file, delete_object, get_presigned_url
 
 from app.repositories.upload_repo import (get_upload_session, 
                                           save_upload_session, 
@@ -190,6 +190,38 @@ async def complete_upload(db: Session, upload_id: str, current_user):
     )
 
     result = dispatch_service(tab_name, db, file, current_user)
+
+    # 5b. Photo replace: delete replaced photo's object + row after new one persists
+    replaces_photo_id = upload_session.replaces_photo_id
+    if replaces_photo_id is not None:
+        import structlog
+        _log = structlog.get_logger()
+        from app.repositories.photo_repo import get_photo, delete_photo
+
+        replaced_photo = get_photo(db, parent_id, replaces_photo_id)
+        if replaced_photo is None:
+            _log.warning(
+                "upload_replace_target_not_found",
+                upload_id=upload_id,
+                replaces_photo_id=replaces_photo_id,
+                parent_id=str(parent_id),
+            )
+        else:
+            replaced_path = replaced_photo.photo_path
+            if replaced_path:
+                try:
+                    await asyncio.get_event_loop().run_in_executor(
+                        _executor,
+                        lambda: delete_object(replaced_path),
+                    )
+                except Exception as error:
+                    _log.error(
+                        "upload_replace_delete_object_failed",
+                        upload_id=upload_id,
+                        object_path=replaced_path,
+                        error=str(error),
+                    )
+            delete_photo(db, replaced_photo)
 
     # - Mark upload as indeed completed
     mark_completed(db, upload_session)  # commit here

@@ -199,6 +199,38 @@ async def update_existing(db: Session,
     return _serialize_maintenance_item(maintenance)
 
 
+def delete_maintenance_photo(db: Session, maintenance_id: UUID7, photo_id: int, current_user):
+    maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
+    if not maintenance:
+        raise HTTPException(404, "Maintenance not found")
+    assert_ownership(maintenance, current_user, db)
+
+    from app.repositories.photo_repo import get_photo, delete_photo
+
+    photo = get_photo(db, maintenance_id, photo_id)
+    if not photo:
+        raise HTTPException(404, "Photo not found")
+
+    photo_path = photo.photo_path
+    if photo_path:
+        try:
+            delete_object(photo_path)
+        except Exception as error:
+            _log.error(
+                "maintenance_photo_delete_object_failed",
+                maintenance_id=str(maintenance_id),
+                photo_id=photo_id,
+                object_path=photo_path,
+                error=str(error),
+            )
+
+    delete_photo(db, photo)
+
+    db.expire_all()
+    maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
+    return _serialize_maintenance_item(maintenance)
+
+
 def delete_maintenance(maintenance_id: UUID7, current_user, db: Session):
     maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user) 
     if not maintenance:

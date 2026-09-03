@@ -185,3 +185,30 @@ def test_complete_upload_success(
     assert response.status_code == 200
     data = response.json()
     assert data["completed"] is True
+
+
+def test_init_upload_with_replaces_photo_id(
+    client: TestClient, auth_headers: dict
+) -> None:
+    """POST /uploads/init accepts optional replaces_photo_id."""
+    payload = {**UPLOAD_INIT_PAYLOAD, "replaces_photo_id": 42}
+    response = client.post(
+        "/uploads/init",
+        json=payload,
+        headers=auth_headers
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert "upload_id" in data
+
+
+def test_init_upload_replaces_photo_id_none(
+    client: TestClient, auth_headers: dict
+) -> None:
+    """POST /uploads/init works without replaces_photo_id (default None)."""
+    response = client.post(
+        "/uploads/init",
+        json=UPLOAD_INIT_PAYLOAD,
+        headers=auth_headers
+    )
+    assert response.status_code == 201

@@ -24,6 +24,7 @@ class UploadSession(Base):
 
     expires_at  = Column(DateTime)
     completed = Column(Boolean)
+    replaces_photo_id = Column(Integer, nullable=True)
 
     fsm_user = relationship("FSMUser", back_populates="uploads_sessions")
 
