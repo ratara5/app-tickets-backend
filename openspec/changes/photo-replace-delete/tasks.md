@@ -67,5 +67,5 @@
 
 ## 11. Commit and Finalize
 
-- [ ] 11.1 Commit the change with a concise conventional-commit message (e.g., `feat(maintenances): support photo delete and replace`)
-- [ ] 11.2 Verify no broken symlinks or stale references introduced by the changes
+- [x] 11.1 Commit the change with a concise conventional-commit message (e.g., `feat(maintenances): support photo delete and replace`)
+- [x] 11.2 Verify no broken symlinks or stale references introduced by the changes — NOTE: only pre-existing broken symlinks (venv internal, .claude_example missing skills); agent symlinks intact
