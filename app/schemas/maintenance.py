@@ -34,7 +34,7 @@ class Pause(BaseModel):
     # photo_id: int
 
 class PhotoOut(BaseModel):
-    photo_id: int
+    photo_id: str
     photo_url: str
 
 class MaintenanceCreate(BaseModel):

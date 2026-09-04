@@ -10,7 +10,7 @@ REGISTRY : dict[str, Entry] = {}
 
 def service(schema: Type[BaseModel]):
     def decorator(fn: Callable) -> Callable: # Before was def service when schema wasn't send as parameter
-        REGISTRY[fn.__name__] = fn
+        REGISTRY[fn.__name__] = {"fn": fn, "schema": schema}
         return fn
     return decorator
 
@@ -24,6 +24,11 @@ def _autodiscover(package: str) -> None:
 async def dispatch_service(table: str, *args) -> Any: # y column: str?
     key = f"create_new_{table}"
     entry = REGISTRY.get(key)
+    # Handlers are registered under the singular entity name (e.g.
+    # `create_new_photo`) while `table` is the plural table name (`photos`).
+    # Fall back to the singular form when the plural key is not registered.
+    if entry is None and table.endswith("s"):
+        entry = REGISTRY.get(f"create_new_{table[:-1]}")
     if entry is None:
         raise ValueError(f"Without handler for {key!r}. Availables: {list(REGISTRY)}")
     fn = entry["fn"]

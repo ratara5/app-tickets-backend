@@ -273,7 +273,7 @@ def _serialize_maintenance_item(maintenance: Maintenance) -> dict:
     initial_photo_url = _sign(maintenance.initial_photo_path)
     pdf_url = _sign(maintenance.worksheet.pdf_path if maintenance.worksheet else None)
     photos = list(map(lambda p: {
-                "photo_id": p.id, 
+                "photo_id": p.photo_id, 
                 "photo_url": _sign(p.photo_path)
             }, maintenance.photos))
     

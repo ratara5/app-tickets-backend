@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid6 import uuid7
 
 import os
@@ -37,7 +37,7 @@ def save_upload_session(db, upload_id, user_id, payload):
         received_chunks=0,
         replaces_photo_id=payload.replaces_photo_id,
 
-        expires_at=datetime.now() + timedelta(hours=24)
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=24)
     )
     db.add(upload_session)
     db.commit()
@@ -46,7 +46,6 @@ def save_upload_session(db, upload_id, user_id, payload):
 
 def mark_completed(db: Session, upload_session: UploadSession):
     upload_session.completed = True
-    upload_session.completed = datetime.now()
     db.commit()
 
 # Should the next 4 be here (or in another repo or in core/disk.py)?

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid6 import uuid7
 import os, aiofiles, asyncio, hashlib, secrets
 
@@ -52,7 +52,7 @@ async def init_upload(db: Session, current_user, payload):
     upload_id = str(uuid7())
 
     # Persists
-    upload_session = save_upload_session(db, upload_id, current_user.email, payload) # Session is sync, not async, therefore no await
+    upload_session = save_upload_session(db, upload_id, current_user.user_id, payload) # Session is sync, not async, therefore no await
 
     return UploadInitResponse(
         upload_id=upload_id,
@@ -61,10 +61,10 @@ async def init_upload(db: Session, current_user, payload):
     )
 
 async def upload_chunk(db: Session, current_user, upload_id, chunk_index, chunk, x_chunk_checksum):
-    upload_session = get_upload_session(db, upload_id, current_user.email) # Session is sync, not async, therefore no await
+    upload_session = get_upload_session(db, upload_id, current_user.user_id) # Session is sync, not async, therefore no await
     if not upload_session:
         raise HTTPException(404, "Upload sesion not found")
-    if upload_session.expires_at < datetime.now():
+    if upload_session.expires_at < datetime.now(timezone.utc):
         raise HTTPException(410, "Expired sesion. Please start a new upload.")
     if chunk_index >= upload_session.total_chunks:
         raise HTTPException(422, "Chunk index out of range")
@@ -86,7 +86,7 @@ async def upload_chunk(db: Session, current_user, upload_id, chunk_index, chunk,
     chunks_in_disk = get_chunks_on_disk(upload_id)
 
     ## Persist: It's useless to add a function
-    upload_session.received_chunks = chunks_in_disk
+    upload_session.received_chunks = len(chunks_in_disk)
     db.commit() # Session is sync, no async, therefore no await
 
     return ChunkResponse(
@@ -98,7 +98,7 @@ async def upload_chunk(db: Session, current_user, upload_id, chunk_index, chunk,
 
 async def get_status_upload(db: Session, upload_id: str, current_user):
     # 1. Validate session
-    upload_session = get_upload_session(db, upload_id, current_user.email)
+    upload_session = get_upload_session(db, upload_id, current_user.user_id)
     if not upload_session:
         raise HTTPException(404, "Session not found")
     if upload_session.completed:
@@ -115,7 +115,7 @@ _autodiscover("app.services")
 _autodiscover_models("app.models")
 async def complete_upload(db: Session, upload_id: str, current_user):
     # 1. Validate session
-    upload_session = get_upload_session(db, upload_id, current_user.email)
+    upload_session = get_upload_session(db, upload_id, current_user.user_id)
     if not upload_session:
         raise HTTPException(404, "Session not found")
     if upload_session.completed:
@@ -144,8 +144,9 @@ async def complete_upload(db: Session, upload_id: str, current_user):
     parent_tab = upload_session.parent_tab
     
     ParentModel = get_model(parent_tab)
-    parent = db.query(ParentModel).filter( 
-        ParentModel.id == parent_id
+    pk_attr = ParentModel.__mapper__.primary_key[0]
+    parent = db.query(ParentModel).filter(
+        pk_attr == parent_id
         ).first()
     
     # ANTES #
@@ -155,7 +156,7 @@ async def complete_upload(db: Session, upload_id: str, current_user):
     # original_filename = f"{upload_session.entity_id}.{upload_session.col_name}.{serial}{ext}"
     # full_object_path = f"Mantenimiento/Correctivos/{anio}/{mes}/{mantenimiento.nro_ticket}/{original_filename}" #... ruta sencilla basada en anio y mes actuales y en entity_parent
     #########
-    serial, original_filename, full_object_path = await dispatch_build_path(parent, 
+    serial, original_filename, full_object_path = await dispatch_build_path(parent_tab, parent, 
                                                                     upload_session.col_name, 
                                                                     upload_session.content_type)
 
@@ -185,11 +186,11 @@ async def complete_upload(db: Session, upload_id: str, current_user):
     # - The entity for generic record is being built here and is being do particular in the called repo from service
     file = FileSave(
         file_id=serial,
-        parent_parent=parent_id,
+        parent_id=parent_id,
         file_path=full_object_path,
     )
 
-    result = dispatch_service(tab_name, db, file, current_user)
+    result = await dispatch_service(tab_name, db, file, current_user)
 
     # 5b. Photo replace: delete replaced photo's object + row after new one persists
     replaces_photo_id = upload_session.replaces_photo_id

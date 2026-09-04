@@ -699,7 +699,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "integer",
+              "type": "string",
               "title": "Photo Id"
             }
           }
@@ -2146,7 +2146,7 @@
       "PhotoOut": {
         "properties": {
           "photo_id": {
-            "type": "integer",
+            "type": "string",
             "title": "Photo Id"
           },
           "photo_url": {
@@ -2460,7 +2460,7 @@
           "replaces_photo_id": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"

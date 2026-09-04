@@ -424,7 +424,7 @@ paths:
         in: path
         required: true
         schema:
-          type: integer
+          type: string
           title: Photo Id
       responses:
         '200':
@@ -1309,7 +1309,7 @@ components:
     PhotoOut:
       properties:
         photo_id:
-          type: integer
+          type: string
           title: Photo Id
         photo_url:
           type: string
@@ -1532,7 +1532,7 @@ components:
           title: Total Chunks
         replaces_photo_id:
           anyOf:
-          - type: integer
+          - type: string
           - type: 'null'
           title: Replaces Photo Id
       type: object
