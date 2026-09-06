@@ -16,8 +16,8 @@ router = APIRouter(prefix="/maintenances", tags=["worksheets"])
 
 @router.get("/{maintenance_id}/worksheet", response_model=WorksheetOut)
 def get_worksheet(maintenance_id: UUID7, db: Session = Depends(get_db),
-                  _ = Depends(get_current_user)):
-    ws = svc._get_or_create_worksheet(maintenance_id, db)
+                  current_user = Depends(get_current_user)):
+    ws = svc._get_or_create_worksheet(db, maintenance_id, current_user)
     db.commit()
     return ws
 
@@ -27,7 +27,7 @@ def generate_pdf(maintenance_id: UUID7, db: Session = Depends(get_db),
     ws = svc.generate_pdf(maintenance_id, db, current_user)
     return {
         "sheet_number": ws.sheet_number,
-        "url": get_presigned_url(object_name=ws.pdf_url, expires_hours=1),
+        "url": get_presigned_url(object_name=ws.pdf_path, expires_hours=1),
         "generated_at": ws.generated_at,
     }
 

@@ -9,15 +9,24 @@ def get_worksheet_by_maintenance_id(db: Session, maintenance_id: UUID7, current_
     return db.query(Worksheet).filter(Worksheet.maintenance_id == maintenance_id).first()
     
 
-def create_worksheet(db: Session, maintenance_id: UUID7, current_user):
-    ws = Worksheet(maintenance_id=maintenance_id)
+def create_worksheet(db: Session, maintenance_id: UUID7, current_user) -> Worksheet:
+    ws = Worksheet(maintenance_id=maintenance_id, closed=False)
     db.add(ws)
     db.flush()
+    return ws
 
-def update_existing_ws(db: Session, ws: Worksheet, data: dict) -> Worksheet:
-    for field, value in data.model_dump(exclude_none=True).items():
+def update_existing_ws(db: Session, ws: Worksheet, data) -> Worksheet:
+    payload = data.model_dump()
+
+    signature_ts = payload.get("receiver_signature_timestamp")
+    if signature_ts:
+        try:
+            payload["receiver_signature_timestamp"] = datetime.fromisoformat(signature_ts.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            payload["receiver_signature_timestamp"] = None
+
+    for field, value in payload.items():
         setattr(ws, field, value)
-    ws.updated_at = datetime.now()
 
     db.commit()
     db.refresh(ws)

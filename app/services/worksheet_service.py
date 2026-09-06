@@ -32,17 +32,17 @@ from app.core.settings import settings
 
 # helpers
 def _get_or_create_worksheet(db: Session, maintenance_id: UUID7, current_user) -> Worksheet:
-    
+    """Returns the draft worksheet for the maintenance, creating an empty one on first read.
+
+    Signing happens while the maintenance is in progress, so this draft is NOT
+    gated on the ticket being closed. Ticket closure is enforced only when the
+    PDF is generated (see generate_pdf), which is what closes the sheet.
+    """
     m = maintenance_svc.get_maintenance(db, maintenance_id, current_user)
-    if not m:
-        raise HTTPException(404, "Maintenance not found")
-    t = ticket_svc.get_ticket(db, m.ticket_id, current_user)
-    if not t.closed:
-        raise HTTPException(409, "The ticket is not closed yet. The worksheet can only be generated after the ticket is closed.")
     ws = ws_repo.get_worksheet_by_maintenance_id(db, maintenance_id, current_user)
     if not ws:
-        ws_repo.create_worksheet(db, maintenance_id, current_user)
-    
+        ws = ws_repo.create_worksheet(db, maintenance_id, current_user)
+
     return ws
 
 def _number_sheet(maintenance_id: UUID7) -> str:
@@ -118,15 +118,20 @@ def upsert_worksheet(db: Session, maintenance_id: UUID7, data: WorksheetUpsert, 
 
     if ws.closed:
         raise HTTPException(409, "The sheet is already closed and cannot be modified.")
-    
-    ws_repo.update_existing_ws(db, data, current_user)
+
+    ws = ws_repo.update_existing_ws(db, ws, data)
     return ws
 
 def generate_pdf(maintenance_id: UUID7, db: Session, current_user) -> tuple[Worksheet, str]:
     """
     Render the PDF, upload it to MinIO and close the sheet.
     Returns (worksheet, presigned_url).
-    """ 
+    """
+    m = maintenance_svc.get_maintenance(db, maintenance_id, current_user)
+    t = ticket_svc.get_ticket(db, m.ticket_id, current_user)
+    if t.status != "CLOSED":
+        raise HTTPException(409, "The ticket is not closed yet. The worksheet can only be generated after the ticket is closed.")
+
     ws = _get_or_create_worksheet(db=db, maintenance_id=maintenance_id, current_user=current_user)
 
     if ws.closed:

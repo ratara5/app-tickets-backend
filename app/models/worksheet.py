@@ -22,8 +22,12 @@ class Worksheet(Base):
     sheet_number = Column(String(30), unique=True) 
     pdf_path = Column(String(500)) # Minio path
     generated_at = Column(DateTime)
-    closed = Column(Boolean)   # Colum(Integer, default=0) 0=draft, 1=closed
+    closed = Column(Boolean, default=False)   # 0=draft, 1=closed (PDF generated)
 
     # Relation
     maintenance = relationship("Maintenance", back_populates="worksheet")
+
+    @property
+    def receiver_signature_date(self):
+        return self.receiver_signature_timestamp
 
