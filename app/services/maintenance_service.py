@@ -238,6 +238,36 @@ def delete_maintenance(maintenance_id: UUID7, current_user, db: Session):
     return maintenance_repo.delete_maintenance_by_id(db, maintenance, current_user)
 
 
+def sign_maintenance(db: Session, maintenance_id: UUID7, current_user):
+    """Mark the owner ticket of a maintenance as SIGNED.
+
+    The signed transition does not depend on the worksheet PDF having been
+    generated; signing happens at worksheet save time.
+
+    Preconditions:
+    - The maintenance exists (404) and belongs to the caller (403).
+    - The ticket is CLOSED (422); SIGNED is accepted as an idempotent retry.
+    """
+    maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
+    if not maintenance:
+        raise HTTPException(404, "Maintenance not found")
+    assert_ownership(maintenance, current_user, db)
+
+    ticket = maintenance.ticket
+    if ticket.status == TicketStatus.signed:
+        # Idempotent retry: return the current state without erroring.
+        return _serialize_maintenance_item(maintenance)
+
+    ticket_svc.validate_transition(ticket.status, TicketStatus.signed)
+
+    ticket.status = TicketStatus.signed
+    db.commit()
+
+    db.expire_all()
+    maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
+    return _serialize_maintenance_item(maintenance)
+
+
 # Helpers
 def assert_ownership(mnt: Maintenance, current_user: CurrentUser, db: Session):
     if current_user.user_role == UserRole.director:
@@ -300,6 +330,9 @@ def _serialize_maintenance_item(maintenance: Maintenance) -> dict:
                             initial_photo_url=initial_photo_url,
                             pdf_url=pdf_url,
                             photos=photos,
+                            
+                            # owning ticket status (drives the frontend list/PDF flow)
+                            ticket_status=maintenance.ticket.status if maintenance.ticket else None,
                             
                             # fields of related tables
                             technicians=technicians,

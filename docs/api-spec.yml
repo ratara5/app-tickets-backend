@@ -424,8 +424,35 @@ paths:
         in: path
         required: true
         schema:
-          type: string
+          type: integer
           title: Photo Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceItemResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /maintenances/{maintenance_id}/sign:
+    post:
+      summary: Sign Maintenance
+      operationId: sign_maintenance_maintenances__maintenance_id__sign_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: maintenance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid7
+          title: Maintenance Id
       responses:
         '200':
           description: Successful Response
@@ -991,6 +1018,97 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /maintenances/{maintenance_id}/worksheet:
+    get:
+      tags:
+      - worksheets
+      summary: Get Worksheet
+      operationId: get_worksheet_maintenances__maintenance_id__worksheet_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: maintenance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid7
+          title: Maintenance Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorksheetOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - worksheets
+      summary: Update Worksheet
+      operationId: update_worksheet_maintenances__maintenance_id__worksheet_patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: maintenance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid7
+          title: Maintenance Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorksheetUpsert'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorksheetOut'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /maintenances/{maintenance_id}/worksheet/generate-pdf:
+    post:
+      tags:
+      - worksheets
+      summary: Generate Pdf
+      operationId: generate_pdf_maintenances__maintenance_id__worksheet_generate_pdf_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: maintenance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid7
+          title: Maintenance Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     AddWkdRequest:
@@ -1255,6 +1373,11 @@ components:
           - type: string
           - type: 'null'
           title: Pdf Url
+        ticket_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ticket Status
         photos:
           anyOf:
           - items:
@@ -1532,7 +1655,7 @@ components:
           title: Total Chunks
         replaces_photo_id:
           anyOf:
-          - type: string
+          - type: integer
           - type: 'null'
           title: Replaces Photo Id
       type: object
@@ -1629,6 +1752,115 @@ components:
       - msg
       - type
       title: ValidationError
+    WorksheetOut:
+      properties:
+        worksheet_id:
+          type: integer
+          title: Worksheet Id
+        maintenance_id:
+          type: string
+          format: uuid7
+          title: Maintenance Id
+        receiver_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Receiver Name
+        receiver_doc_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Receiver Doc Id
+        receiver_position:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Receiver Position
+        receiver_sap:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Receiver Sap
+        receiver_signature:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Receiver Signature
+        receiver_signature_date:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Receiver Signature Date
+        sheet_number:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sheet Number
+        pdf_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pdf Path
+        generated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Generated At
+        closed:
+          type: integer
+          title: Closed
+      type: object
+      required:
+      - worksheet_id
+      - maintenance_id
+      - receiver_name
+      - receiver_doc_id
+      - receiver_position
+      - receiver_sap
+      - receiver_signature
+      - receiver_signature_date
+      - sheet_number
+      - pdf_path
+      - generated_at
+      - closed
+      title: WorksheetOut
+    WorksheetUpsert:
+      properties:
+        receiver_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Receiver Name
+        receiver_doc_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Receiver Doc Id
+        receiver_position:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Receiver Position
+        receiver_sap:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Receiver Sap
+        receiver_signature:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Receiver Signature
+        receiver_signature_timestamp:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Receiver Signature Timestamp
+      type: object
+      title: WorksheetUpsert
+      description: From mobile app (technician fills in field).
   securitySchemes:
     HTTPBearer:
       type: http

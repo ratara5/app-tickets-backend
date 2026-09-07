@@ -78,6 +78,8 @@ class MaintenanceItemResponse(BaseModel):
     initial_photo_url: Optional[str] = None # It's a presigned URL
     pdf_url: Optional[str] = None # It's a presigned URL
 
+    ticket_status: Optional[str] = None # Status of the owning ticket
+
     photos: Optional[List[PhotoOut]] = [] # It contains presigned URLs
 
     model_config = ConfigDict(from_attributes=True)

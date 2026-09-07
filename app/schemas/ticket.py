@@ -22,6 +22,7 @@ class TicketStatus(str, Enum):
     paused = "PAUSED"
     cancelled = "CANCELLED"
     closed = "CLOSED"
+    signed = "SIGNED"
 
 class AssignRequest(BaseModel):
     technician_id: Optional[int] = None

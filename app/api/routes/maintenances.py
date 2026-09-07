@@ -81,6 +81,15 @@ def delete_maintenance_photo(
     return maintenance_svc.delete_maintenance_photo(db, maintenance_id, photo_id, current_user)
 
 
+@router.post("/{maintenance_id}/sign", response_model=MaintenanceItemResponse)
+def sign_maintenance(
+    maintenance_id: UUID7,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return maintenance_svc.sign_maintenance(db, maintenance_id, current_user)
+
+
 @router.delete("/{maintenance_id}", status_code=204)
 def del_maintenance(maintenance_id: UUID7, 
                db: Session = Depends(get_db), 

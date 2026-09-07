@@ -1,9 +1,16 @@
 import json
+import uuid
 from datetime import datetime
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from app.models.master import Market, Equipment, Technician
+from app.models.ticket import Ticket
+from app.models.maintenance import Maintenance
+from app.models.worksheet import Worksheet
+from app.models.fsm_user import FSMUser
+from app.core.security import hash_password
 
 
 TICKET_PAYLOAD = {
@@ -399,3 +406,218 @@ def test_delete_maintenance_photo_unauthorized(
         "/maintenances/00000000-0000-0000-0000-000000000001/photos/1"
     )
     assert response.status_code == 401
+
+
+# ── Sign action (change: add-signed-ticket-status) ────────────────────────────
+
+_WEEKDAY = "2026-08-31"  # Monday, non-holiday -> normal working day
+
+
+def _create_weekday_started_maintenance(
+    client: TestClient, auth_headers: dict
+) -> str:
+    """Create + assign + start a ticket on a weekday. Returns maintenance_id."""
+    resp = client.post(
+        "/tickets",
+        json={**TICKET_PAYLOAD, "ticket_date": _WEEKDAY},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201, resp.text
+    ticket_id = resp.json()["ticket_id"]
+    client.patch(f"/tickets/{ticket_id}/assign", json={}, headers=auth_headers)
+    start_resp = client.patch(f"/tickets/{ticket_id}/start", headers=auth_headers)
+    assert start_resp.status_code == 201, start_resp.text
+    return start_resp.json()["maintenance_id"]
+
+
+def _save_and_close_ticket(
+    client: TestClient, auth_headers: dict, mid: str
+) -> None:
+    """PATCH the maintenance, which moves the owner ticket to CLOSED (weekday)."""
+    resp = client.patch(
+        f"/maintenances/{mid}",
+        data={"payload": json.dumps({"maintenance_description": "Closed maintenance"})},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200, resp.text
+
+
+def _mark_worksheet_pdf_generated(
+    client: TestClient, auth_headers: dict, db_session: Session, mid: str
+) -> None:
+    """Create the (draft) worksheet and force a generated PDF state in DB."""
+    resp = client.get(f"/maintenances/{mid}/worksheet", headers=auth_headers)
+    assert resp.status_code == 200, resp.text
+    ws = db_session.query(Worksheet).filter(
+        Worksheet.maintenance_id == uuid.UUID(mid)
+    ).first()
+    assert ws is not None
+    ws.closed = True
+    ws.pdf_path = "tests/signed.pdf"
+    ws.sheet_number = "WS-2026-000001"
+    db_session.commit()
+
+
+def test_sign_maintenance_success(
+    client: TestClient, auth_headers: dict, db_session: Session,
+    test_market: Market, test_equipment: Equipment, test_technician: Technician,
+) -> None:
+    mid = _create_weekday_started_maintenance(client, auth_headers)
+    _save_and_close_ticket(client, auth_headers, mid)
+    _mark_worksheet_pdf_generated(client, auth_headers, db_session, mid)
+    ticket = db_session.query(Ticket).join(Maintenance).filter(
+        Maintenance.maintenance_id == uuid.UUID(mid)
+    ).first()
+    assert ticket.status == "CLOSED"
+
+    response = client.post(f"/maintenances/{mid}/sign", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["ticket_id"] == ticket.ticket_id
+
+    db_session.expire_all()
+    ticket = db_session.query(Ticket).join(Maintenance).filter(
+        Maintenance.maintenance_id == uuid.UUID(mid)
+    ).first()
+    assert ticket.status == "SIGNED"
+
+
+def test_sign_maintenance_ticket_not_closed(
+    client: TestClient, auth_headers: dict,
+    test_market: Market, test_equipment: Equipment, test_technician: Technician,
+) -> None:
+    mid = _create_weekday_started_maintenance(client, auth_headers)
+    response = client.post(f"/maintenances/{mid}/sign", headers=auth_headers)
+    assert response.status_code == 422
+    assert "Invalid transition" in response.text
+
+
+def test_sign_maintenance_missing_pdf(
+    client: TestClient, auth_headers: dict, db_session: Session,
+    test_market: Market, test_equipment: Equipment, test_technician: Technician,
+) -> None:
+    mid = _create_weekday_started_maintenance(client, auth_headers)
+    _save_and_close_ticket(client, auth_headers, mid)
+    client.get(f"/maintenances/{mid}/worksheet", headers=auth_headers)
+    ws = db_session.query(Worksheet).filter(
+        Worksheet.maintenance_id == uuid.UUID(mid)
+    ).first()
+    assert ws is not None and not ws.closed
+
+    response = client.post(f"/maintenances/{mid}/sign", headers=auth_headers)
+    assert response.status_code == 409
+
+
+def test_sign_maintenance_idempotent_when_already_signed(
+    client: TestClient, auth_headers: dict, db_session: Session,
+    test_market: Market, test_equipment: Equipment, test_technician: Technician,
+) -> None:
+    mid = _create_weekday_started_maintenance(client, auth_headers)
+    _save_and_close_ticket(client, auth_headers, mid)
+    _mark_worksheet_pdf_generated(client, auth_headers, db_session, mid)
+
+    first = client.post(f"/maintenances/{mid}/sign", headers=auth_headers)
+    assert first.status_code == 200, first.text
+    second = client.post(f"/maintenances/{mid}/sign", headers=auth_headers)
+    assert second.status_code == 200, second.text
+
+
+def test_sign_maintenance_not_found(
+    client: TestClient, auth_headers: dict,
+) -> None:
+    response = client.post(
+        "/maintenances/00000000-0000-7000-8000-000000000099/sign",
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+
+
+def test_sign_maintenance_forbidden_ownership(
+    client: TestClient, auth_headers: dict, db_session: Session,
+    test_user: dict, test_market: Market, test_equipment: Equipment,
+    test_technician: Technician,
+) -> None:
+    other = FSMUser(
+        email="other-technician@example.com",
+        user_name="Other Technician",
+        passwd=hash_password("password123"),
+        user_role="TECHNICIAN",
+    )
+    db_session.add(other)
+    db_session.commit()
+    db_session.refresh(other)
+    other_tech = Technician(user_id=other.user_id)
+    db_session.add(other_tech)
+    db_session.commit()
+    db_session.refresh(other_tech)
+
+    ticket = Ticket(
+        ticket_date=datetime.fromisoformat(_WEEKDAY),
+        ticket_description="Other technician's ticket",
+        priority="NORMAL",
+        status="CLOSED",
+        market_id=test_market.market_id,
+        equipment_id=test_equipment.equipment_id,
+        assigned_to=other_tech.technician_id,
+        created_by=other.user_id,
+        updated_by=other.user_id,
+    )
+    db_session.add(ticket)
+    db_session.commit()
+    db_session.refresh(ticket)
+
+    maintenance = Maintenance(
+        ticket_id=ticket.ticket_id,
+        maintenance_date=datetime.fromisoformat(_WEEKDAY),
+        created_by=other.user_id,
+        updated_by=other.user_id,
+    )
+    db_session.add(maintenance)
+    db_session.commit()
+    db_session.refresh(maintenance)
+
+    db_session.add(Worksheet(
+        maintenance_id=maintenance.maintenance_id,
+        closed=True,
+        pdf_path="tests/signed.pdf",
+        sheet_number="WS-2026-000099",
+    ))
+    db_session.commit()
+
+    response = client.post(
+        f"/maintenances/{maintenance.maintenance_id}/sign",
+        headers=auth_headers,
+    )
+    assert response.status_code == 403
+
+
+# ── ticket_status on maintenance items (change: add-signed-ticket-status) ─────
+
+
+def test_maintenance_item_includes_ticket_status(
+    client: TestClient, auth_headers: dict,
+    test_market: Market, test_equipment: Equipment, test_technician: Technician,
+) -> None:
+    mid = _create_weekday_started_maintenance(client, auth_headers)
+
+    item = client.get(f"/maintenances/{mid}", headers=auth_headers).json()
+    assert item["ticket_status"] == "IN PROGRESS"
+
+    listing = client.get("/maintenances", headers=auth_headers).json()
+    match = [m for m in listing if m["maintenance_id"] == mid]
+    assert match and match[0]["ticket_status"] == "IN PROGRESS"
+
+
+def test_sign_response_includes_signed_ticket_status(
+    client: TestClient, auth_headers: dict, db_session: Session,
+    test_market: Market, test_equipment: Equipment, test_technician: Technician,
+) -> None:
+    mid = _create_weekday_started_maintenance(client, auth_headers)
+    _save_and_close_ticket(client, auth_headers, mid)
+    _mark_worksheet_pdf_generated(client, auth_headers, db_session, mid)
+
+    sign_resp = client.post(f"/maintenances/{mid}/sign", headers=auth_headers)
+    assert sign_resp.status_code == 200, sign_resp.text
+    assert sign_resp.json()["ticket_status"] == "SIGNED"
+
+    item = client.get(f"/maintenances/{mid}", headers=auth_headers).json()
+    assert item["ticket_status"] == "SIGNED"

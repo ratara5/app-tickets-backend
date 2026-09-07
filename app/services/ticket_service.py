@@ -33,7 +33,8 @@ VALID_TRANSITIONS = {
     TicketStatus.in_progress: [TicketStatus.paused, TicketStatus.closed, TicketStatus.cancelled],
     TicketStatus.paused: [TicketStatus.in_progress, TicketStatus.cancelled],
     TicketStatus.cancelled: [],
-    TicketStatus.closed: []
+    TicketStatus.closed: [TicketStatus.signed],
+    TicketStatus.signed: []
 }
   
 def create_new_ticket(db, data, current_user):

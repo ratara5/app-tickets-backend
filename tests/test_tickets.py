@@ -1,8 +1,12 @@
 from datetime import datetime
 
+import pytest
 from fastapi.testclient import TestClient
+from fastapi import HTTPException
 
 from app.models.master import Market, Equipment, Technician
+from app.schemas.ticket import TicketStatus
+from app.services.ticket_service import VALID_TRANSITIONS, validate_transition
 
 
 TICKET_PAYLOAD = {
@@ -278,3 +282,38 @@ def test_delete_ticket_not_found(
 ) -> None:
     response = client.delete("/tickets/99999", headers=auth_headers)
     assert response.status_code == 404
+
+
+# ── SIGNED ticket status (change: add-signed-ticket-status) ────────────────────
+
+
+def test_ticket_status_exposes_signed_after_closed() -> None:
+    statuses = list(TicketStatus)
+    assert TicketStatus.signed == "SIGNED"
+    assert statuses.index(TicketStatus.signed) == statuses.index(TicketStatus.closed) + 1
+
+
+def test_valid_transitions_allow_closed_to_signed() -> None:
+    assert VALID_TRANSITIONS[TicketStatus.closed] == [TicketStatus.signed]
+
+
+def test_valid_transitions_signed_has_no_outgoing() -> None:
+    assert VALID_TRANSITIONS[TicketStatus.signed] == []
+
+
+def test_validate_transition_accepts_closed_to_signed() -> None:
+    validate_transition(TicketStatus.closed, TicketStatus.signed)
+
+
+def test_validate_transition_rejects_signed_as_source() -> None:
+    for target in TicketStatus:
+        with pytest.raises(HTTPException):
+            validate_transition(TicketStatus.signed, target)
+
+
+def test_validate_transition_rejects_non_closed_sources_to_signed() -> None:
+    for source in TicketStatus:
+        if source == TicketStatus.closed:
+            continue
+        with pytest.raises(HTTPException):
+            validate_transition(source, TicketStatus.signed)
