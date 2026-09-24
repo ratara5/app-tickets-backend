@@ -65,12 +65,19 @@ def start_maintenance(ticket_id: int, payload: None,
                  current_user, db: Session):
     """Idempotent, transactional start.
 
-    - If a maintenance already exists for the ticket, return it (resume).
-    - Otherwise create it in the SAME transaction as the ticket status
-      transition: ticket status is never committed before the insert succeeds.
-    - Concurrent double-calls are resolved by the DB unique constraint on
-      maintenance.ticket_id: the loser flush-raises IntegrityError, rolls
-      back, re-fetches and returns the winner's row.
+    Returns a tuple (MaintenanceItemResponse, created: bool), where
+    ``created`` is True when a new maintenance was created (HTTP 201) and
+    False on the idempotent resume path (HTTP 200).
+
+    Resume path: a maintenance already exists for the ticket, so it is
+    returned without creating a duplicate. A ``PAUSED`` ticket is first
+    transitioned back to ``IN_PROGRESS`` (the legal `PAUSED -> IN_PROGRESS`
+    pause/resume-cycle transition); any other status resumes unchanged.
+    Create path: ticket status transition and maintenance insert commit in
+    the SAME transaction - the ticket status is never committed before the
+    insert succeeds. Concurrent double-calls are resolved by the DB unique
+    constraint on maintenance.ticket_id: the loser flush-raises
+    IntegrityError, rolls back, re-fetches and returns the winner's row.
     """
     ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user)
     if not ticket:
@@ -79,7 +86,11 @@ def start_maintenance(ticket_id: int, payload: None,
 
     existing = maintenance_repo.get_maintenance_by_ticket(db, ticket_id)
     if existing is not None:
-        return maintenance_service._serialize_maintenance_item(existing)
+        if ticket.status == TicketStatus.paused:
+            validate_transition(ticket.status, TicketStatus.in_progress)
+            ticket.status = TicketStatus.in_progress
+            db.commit()
+        return maintenance_service._serialize_maintenance_item(existing), False
 
     validate_transition(ticket.status, TicketStatus.in_progress)
 
@@ -96,7 +107,8 @@ def start_maintenance(ticket_id: int, payload: None,
         maintenance = maintenance_repo.get_maintenance_by_ticket(db, ticket_id)
         if maintenance is None:
             raise HTTPException(409, "Maintenance creation conflicted, retry")
-    return maintenance_service._serialize_maintenance_item(maintenance)
+        return maintenance_service._serialize_maintenance_item(maintenance), False
+    return maintenance_service._serialize_maintenance_item(maintenance), True
 
 
 # ── b. Technician assignment ──────────────────────────────────────────────────────

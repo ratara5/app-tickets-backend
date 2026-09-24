@@ -55,7 +55,13 @@ DB_PASSWORD=postgres
 DB_NAME=db_gestiket_acme
 
 # MinIO (optional for development)
-MINIO_ENDPOINT=localhost
+# NOTE: this host becomes the base of every presigned photo_url that the mobile
+# app must load, but it is ALSO the endpoint the backend uses to reach MinIO.
+# `localhost` therefore breaks photos on an emulator/device (the app cannot
+# resolve localhost to your machine) - use the host machine's LAN IP instead,
+# which the backend, the Android emulator and a device on the same network can
+# all reach. The API base URL has the same constraint (see app.config / api.ts).
+MINIO_ENDPOINT=192.168.10.26
 MINIO_PORT=9000
 MINIO_ACCESS_KEY=<your-key>
 MINIO_SECRET_KEY=<your-secret>

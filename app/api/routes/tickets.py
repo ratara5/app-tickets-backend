@@ -1,5 +1,3 @@
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
@@ -68,18 +66,12 @@ def start_maintenance_route(ticket_id: int,
           response: Response,
           current_user = Depends(get_current_user),
           db: Session = Depends(get_db)):
-    request_started_at = datetime.now(timezone.utc)
-    maintenance = start_maintenance(ticket_id, None, current_user, db)
-    created_at = _as_utc(maintenance.created_at) if maintenance.created_at else None
-    if created_at and created_at < request_started_at:
+    maintenance, created = start_maintenance(ticket_id, None, current_user, db)
+    if not created:
         # Idempotent resume: the maintenance already existed for this ticket.
         response.status_code = 200
     return maintenance
 
-def _as_utc(value: datetime) -> datetime:
-    """Normalize naive or aware datetimes to aware UTC for safe comparison."""
-    return value.astimezone(timezone.utc) if value.tzinfo else value.astimezone().astimezone(timezone.utc)
- 
 @router.patch("/{ticket_id}/cancel", response_model=TicketItemResponse)
 def cancel(ticket_id: int, payload: CancellationRequest,
            db: Session = Depends(get_db),

@@ -102,6 +102,56 @@ def test_start_twice_returns_existing_with_200_and_no_duplicate(
     assert duplicates == 1
 
 
+# ── Round 3: resume path transitions PAUSED → IN PROGRESS ─────────────
+
+
+def test_start_resume_transitions_paused_ticket_to_in_progress(
+    client: TestClient, auth_headers: dict, db_session: Session,
+    test_market, test_equipment, test_technician
+) -> None:
+    """Resuming a PAUSED ticket that already has a maintenance returns the
+    existing maintenance AND restores the ticket to IN PROGRESS (the
+    pause/resume cycle).
+
+    Regression: the resume path used to leave the ticket PAUSED, so a paused
+    maintenance could never be worked on again as IN PROGRESS, and the next
+    save (with a stale pause row) silently closed the ticket.
+    """
+    ticket_id = _create_assigned_ticket(client, auth_headers)
+    start = client.patch(f"/tickets/{ticket_id}/start", headers=auth_headers)
+    assert start.status_code == 201
+    maintenance_id = start.json()["maintenance_id"]
+
+    db_session.query(Ticket).filter(Ticket.ticket_id == ticket_id).update({"status": "PAUSED"})
+    db_session.commit()
+
+    resume = client.patch(f"/tickets/{ticket_id}/start", headers=auth_headers)
+    assert resume.status_code == 200, resume.text
+    assert resume.json()["maintenance_id"] == maintenance_id
+    assert resume.json()["ticket_status"] == "IN PROGRESS"
+
+    ticket = db_session.query(Ticket).filter(Ticket.ticket_id == ticket_id).one()
+    assert ticket.status == "IN PROGRESS"
+
+
+def test_start_resume_keeps_in_progress_ticket_in_progress(
+    client: TestClient, auth_headers: dict, db_session: Session,
+    test_market, test_equipment, test_technician
+) -> None:
+    """Resuming an IN PROGRESS ticket is a no-op status-wise (no duplicate
+    maintenance, ticket stays IN PROGRESS)."""
+    ticket_id = _create_assigned_ticket(client, auth_headers)
+    start = client.patch(f"/tickets/{ticket_id}/start", headers=auth_headers)
+    assert start.status_code == 201
+
+    resume = client.patch(f"/tickets/{ticket_id}/start", headers=auth_headers)
+    assert resume.status_code == 200, resume.text
+    assert resume.json()["ticket_status"] == "IN PROGRESS"
+
+    ticket = db_session.query(Ticket).filter(Ticket.ticket_id == ticket_id).one()
+    assert ticket.status == "IN PROGRESS"
+
+
 # ── 1.2 By-ticket lookup ───────────────────────────────────────────────────────
 
 
@@ -208,9 +258,10 @@ def test_integrity_error_recovery_returns_winner_row(
     monkeypatch.setattr(maintenance_repo, "get_maintenance_by_ticket", fake_get_by_ticket)
 
     current_user = SimpleNamespace(user_id=test_user["user_id"], user_role="TECHNICIAN")
-    result = ticket_service.start_maintenance(ticket.ticket_id, None, current_user, db_session)
+    result, created = ticket_service.start_maintenance(ticket.ticket_id, None, current_user, db_session)
 
     assert str(result.maintenance_id) == str(winner.maintenance_id)
+    assert created is False
     duplicates = (
         db_session.query(Maintenance)
         .filter(Maintenance.ticket_id == ticket.ticket_id)

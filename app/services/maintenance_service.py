@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from pydantic import UUID7
 import structlog
 
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 import secrets, asyncio, io
 
 from app.core.utils.dates import get_holidays
@@ -32,6 +32,18 @@ from concurrent.futures import ThreadPoolExecutor
 
 _executor = ThreadPoolExecutor()  # for synchronous operations in MinIO
 _log = structlog.get_logger()
+
+
+def _utc_naive(dt: datetime) -> datetime:
+    """Normalize a datetime to a naive UTC wall clock.
+
+    Pause `created_at` timestamps are carried by the client as aware-UTC ISO
+    strings, while SQLite returns column datetimes as naive; compare both on a
+    single normalized (naive-UTC) form.
+    """
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 
 
@@ -137,21 +149,33 @@ async def update_existing(db: Session,
         db, maintenance.maintenance_id, payload.technicians, current_user
     )
     # Pauses #
+    # Capture the persisted pause timestamps BEFORE the replace deletes them so
+    # the save-time classification can detect a newly-added pause.
+    persisted_pause_created_ats = {
+        _utc_naive(p.created_at) for p in (
+            db.query(Pause)
+            .filter(Pause.maintenance_id == maintenance.maintenance_id)
+            .all()
+        )
+    }
     maintenance_repo.replace_maintenance_pauses(
         db, maintenance.maintenance_id, payload.pauses, current_user
     )
 
-    last_pause = (
-        db.query(Pause)
-        .filter(Pause.maintenance_id == maintenance.maintenance_id)
-        .order_by(Pause.created_at.desc())
-        .first()
-    )
-    real_mark_as = "PAUSED" if (maintenance.updated_at is None or (last_pause and last_pause.created_at > maintenance.updated_at)) else "CLOSED"
+    # Save-time classification: PAUSED only when THIS save adds a pause row that
+    # was not already persisted; otherwise CLOSED. Comparing pause `created_at`
+    # against `maintenance.updated_at` is unreliable — a mid-form initial-photo
+    # upload (`complete_upload` writes `initial_photo_path` and commits) bumps
+    # `updated_at` past the pause's device timestamp, silently closing the
+    # ticket on the very save that introduced the pause.
+    incoming_pause_created_ats = {_utc_naive(p.created_at) for p in payload.pauses}
+    pause_added = bool(incoming_pause_created_ats - persisted_pause_created_ats)
+    real_mark_as = "PAUSED" if pause_added else "CLOSED"
     _log.info(
         "maintenance_save_mark_as",
-        maintenance_updated_at=maintenance.updated_at if maintenance.updated_at else "NULL in SQL",
-        last_pause_created_at=last_pause.created_at if last_pause else None,
+        pause_added=pause_added,
+        persisted_pause_created_ats=[str(c) for c in sorted(persisted_pause_created_ats)],
+        incoming_pause_created_ats=[str(c) for c in sorted(incoming_pause_created_ats)],
         real_mark_as=real_mark_as,
     )
     maintenance.labsdl_id = labsdl_id

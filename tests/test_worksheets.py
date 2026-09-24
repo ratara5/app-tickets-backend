@@ -1,10 +1,14 @@
 from datetime import datetime
+import base64
 import json
 import os
+import struct
 import uuid
+import zlib
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+from weasyprint import HTML as WeasyHTML
 
 from app.models.master import Market, Equipment, Technician
 from app.models.worksheet import Worksheet
@@ -196,6 +200,67 @@ def test_generate_pdf_success(
     assert ws.sheet_number == data["sheet_number"]
 
 
+def test_generate_pdf_renders_technician_rows(
+    client: TestClient, auth_headers: dict,
+    test_market: Market, test_equipment: Equipment, test_technician: Technician,
+    monkeypatch,
+) -> None:
+    """The generated PDF HTML includes every maintenance technician row with
+    HH:MM start/end hours (the template must iterate `technicians`, not the
+    undefined `tecnicos`/bare `start_hour`/`end_hour`)."""
+    mid = _create_maintenance(client, auth_headers)
+
+    # Close the ticket AND attach a technician with hours in one save (JSON
+    # payload, matching how the mobile app submits the maintenance form).
+    resp = client.patch(
+        f"/maintenances/{mid}",
+        data={
+            "payload": json.dumps({
+                "maintenance_description": "Closed maintenance",
+                "technicians": [{
+                    "technician_id": test_technician.technician_id,
+                    "start_hour": "08:00",
+                    "end_hour": "17:00",
+                }],
+            })
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200, resp.text
+
+    captured: dict = {}
+
+    class _FakeHtml:
+        def __init__(self, *args, **kwargs) -> None:
+            captured["html"] = kwargs.get("string", "")
+
+        def write_pdf(self) -> bytes:
+            return b"%PDF-1.4 mock worksheet pdf"
+
+    monkeypatch.setattr("app.services.worksheet_service.HTML", _FakeHtml)
+    monkeypatch.setattr(
+        "app.services.worksheet_service.upload_file", lambda *a, **k: {}
+    )
+    monkeypatch.setattr(
+        "app.services.worksheet_service.get_presigned_url",
+        lambda object_name, expires_hours=1: f"https://minio.local/{object_name}",
+    )
+
+    response = client.post(
+        f"/maintenances/{mid}/worksheet/generate-pdf", headers=auth_headers
+    )
+    assert response.status_code == 200, response.text
+
+    html = captured["html"]
+    assert "CONSTANCIA REALIZACIÓN ASISTENCIA" in html
+    # technician name resolves through fsm_user.user_name ("Test User")
+    assert "Test User" in html
+    assert "08:00" in html
+    assert "17:00" in html
+    # the buggy template never reaches the undefined `tecnicos` variable
+    assert "tecnicos" not in html
+
+
 def test_generate_pdf_ticket_not_closed(
     client: TestClient, auth_headers: dict,
     test_market: Market, test_equipment: Equipment, test_technician: Technician,
@@ -240,3 +305,94 @@ def test_generate_pdf_closed_sheet_returns_fresh_url(
     assert response.status_code == 200, response.text
     assert response.json()["url"] == "https://minio.local/Maintenances/already-signed.pdf"
     assert response.json()["sheet_number"] == "WS-2026-000042"
+
+
+def _mini_png_base64() -> str:
+    """Build a tiny valid RGBA PNG (2x2) as a stand-in drawn signature."""
+    ihdr = struct.pack(">IIBBBBB", 2, 2, 8, 6, 0, 0, 0)
+
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        body = tag + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
+
+    rows = b"\x00\x00\x00\x00\xff\x00\x00\x00\xff" + b"\x00\x00\x00\x00\xff\x00\x00\x00\xff"
+    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
+    return base64.b64encode(png).decode("ascii")
+
+
+def test_generate_pdf_is_one_page_with_visible_signature(
+    client: TestClient, auth_headers: dict,
+    test_market: Market, test_equipment: Equipment, test_technician: Technician,
+    monkeypatch,
+) -> None:
+    """A signed worksheet PDF renders as a single Letter page and keeps the
+    "CONSTANCIA … / DATOS DE QUIEN RECIBE" block — receiver data, technician rows
+    and the Firma box with the signature image — intact on that page (it must not
+    be pushed to a fragmentary second page, which made the signature invisible)."""
+    mid = _create_maintenance(client, auth_headers)
+
+    resp = client.patch(
+        f"/maintenances/{mid}",
+        data={
+            "payload": json.dumps({
+                "maintenance_description": "Closed maintenance",
+                "technicians": [{
+                    "technician_id": test_technician.technician_id,
+                    "start_hour": "08:00",
+                    "end_hour": "17:00",
+                }],
+            })
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200, resp.text
+
+    signature = _mini_png_base64()
+    resp = client.patch(
+        f"/maintenances/{mid}/worksheet",
+        json={
+            "receiver_name": "Receiver Name",
+            "receiver_doc_id": "123456",
+            "receiver_position": "Store Manager",
+            "receiver_sap": "SAP-01",
+            "receiver_signature": signature,
+            "receiver_signature_timestamp": datetime.now().isoformat(),
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200, resp.text
+
+    rendered: dict = {}
+
+    class _RecordingHtml:
+        """Wrap the real WeasyPrint HTML so rendering still runs for real while
+        capturing the html string and the resulting document (for page count)."""
+
+        def __init__(self, *args, **kwargs) -> None:
+            rendered["html"] = kwargs.get("string", "")
+            self._inner = WeasyHTML(*args, **kwargs)
+
+        def write_pdf(self) -> bytes:
+            rendered["document"] = self._inner.render()
+            return self._inner.write_pdf()
+
+    monkeypatch.setattr("app.services.worksheet_service.HTML", _RecordingHtml)
+    monkeypatch.setattr("app.services.worksheet_service.upload_file", lambda *a, **k: {})
+    monkeypatch.setattr(
+        "app.services.worksheet_service.get_presigned_url",
+        lambda object_name, expires_hours=1: f"https://minio.local/{object_name}",
+    )
+
+    response = client.post(
+        f"/maintenances/{mid}/worksheet/generate-pdf", headers=auth_headers
+    )
+    assert response.status_code == 200, response.text
+
+    html = rendered.get("html", "")
+    document = rendered.get("document")
+    assert "CONSTANCIA REALIZACIÓN ASISTENCIA" in html
+    assert f"data:image/png;base64,{signature}" in html
+    assert "Firma" in html
+    assert document is not None
+    assert len(document.pages) == 1, "Signed worksheet must fit a single page"
+    assert signature in html

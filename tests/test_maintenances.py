@@ -211,6 +211,72 @@ def test_update_maintenance_reconciles_pauses_no_duplicates(
     assert len(fetched.json()["pauses"]) == 1
 
 
+def test_update_maintenance_new_pause_marks_ticket_paused_when_updated_at_bumped_after(
+    client: TestClient, auth_headers: dict,
+    test_market: Market, test_equipment: Equipment,
+    test_technician: Technician, db_session: Session,
+) -> None:
+    """Regression: the first save introducing a pause must mark the owning ticket
+    PAUSED even when a mid-form maintenance-row write (initial-photo chunked
+    upload) bumped `updated_at` to AFTER the pause's device `created_at`.
+
+    Previously `real_mark_as` classified PAUSED only when
+    `newest_pause.created_at > maintenance.updated_at`; the upload bump makes
+    that comparison false, so the very save that added the pause closed the
+    ticket instead of pausing it.
+    """
+    resp = client.post(
+        "/tickets",
+        json={**TICKET_PAYLOAD, "ticket_date": "2026-09-22"},
+        headers=auth_headers,
+    )
+    ticket_id = resp.json()["ticket_id"]
+    client.patch(f"/tickets/{ticket_id}/assign", json={}, headers=auth_headers)
+    start_resp = client.patch(f"/tickets/{ticket_id}/start", headers=auth_headers)
+    assert start_resp.status_code == 201
+    maintenance_id = start_resp.json()["maintenance_id"]
+
+    # Simulate the mid-form initial-photo upload: `complete_upload` writes
+    # initial_photo_path to the maintenance row and commits, bumping updated_at
+    # to a moment AFTER the pause the form is about to add.
+    maintenance_row = db_session.query(Maintenance).filter(
+        Maintenance.maintenance_id == uuid.UUID(maintenance_id)
+    ).one()
+    maintenance_row.initial_photo_path = "s3://mid-form-initial-photo.jpg"
+    db_session.commit()
+    db_session.refresh(maintenance_row)
+    assert maintenance_row.updated_at is not None
+
+    pause_created_at = "2026-09-22T09:00:00.000Z"  # device time, before the bump
+    payload = {
+        "maintenance_description": "Updated",
+        "pauses": [{"pause_reason": "Awaiting part", "created_at": pause_created_at}],
+    }
+
+    first = client.patch(
+        f"/maintenances/{maintenance_id}",
+        data={"payload": json.dumps(payload)},
+        headers=auth_headers,
+    )
+    assert first.status_code == 200
+    assert first.json()["ticket_status"] == "PAUSED"
+
+    ticket_row = db_session.query(Ticket).filter(Ticket.ticket_id == ticket_id).one()
+    assert ticket_row.status == "PAUSED"
+
+    # Designed lifecycle: re-saving the identical pause list (pause ->
+    # continue -> save) with no new pause rolls the ticket to CLOSED.
+    second = client.patch(
+        f"/maintenances/{maintenance_id}",
+        data={"payload": json.dumps(payload)},
+        headers=auth_headers,
+    )
+    assert second.status_code == 200
+    assert second.json()["ticket_status"] == "CLOSED"
+    db_session.refresh(ticket_row)
+    assert ticket_row.status == "CLOSED"
+
+
 def test_pause_maintenance_success(
     client: TestClient, auth_headers: dict,
     test_market: Market, test_equipment: Equipment,
