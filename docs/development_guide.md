@@ -28,7 +28,7 @@ docker compose exec postgres psql -U postgres -d db_gestiket_acme -f /init.sql
 pip install -r requirements.txt
 
 # 5. Start development server
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --reload-dir app
 ```
 
 The API will be available at `http://localhost:8000` with interactive docs at `http://localhost:8000/docs`.
@@ -126,7 +126,7 @@ Key packages:
 ### 5. Start Development Server
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --reload-dir app
 ```
 
 The API will be available at:
@@ -247,7 +247,7 @@ The API specification is exported manually:
 
 ```bash
 # Start the server
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --reload-dir app
 
 # Export OpenAPI spec
 curl http://localhost:8000/openapi.json -o docs/api-spec.json

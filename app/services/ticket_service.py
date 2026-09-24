@@ -1,6 +1,8 @@
 from datetime import date, datetime
 from types import SimpleNamespace
 
+import structlog
+
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
@@ -10,8 +12,9 @@ from app.core.utils.dates import get_holidays
 import app.repositories.ticket_repo as ticket_repo
 
 from app.models.ticket import Ticket
-from app.models.maintenance import Maintenance
+from app.models.maintenance import Maintenance, Pause
 from app.models.master import Technician
+from app.models.cancellation import Cancellation
 
 from app.schemas.user import CurrentUser, UserRole
 from app.schemas.ticket import AssignRequest, TicketStatus
@@ -25,11 +28,15 @@ import app.services.maintenance_service as maintenance_service
 
 from app.core.utils.dates import get_holidays
 from app.core.settings import settings
+from app.core.storage import delete_object
+
+
+_log = structlog.get_logger()
 
 
 VALID_TRANSITIONS = {
     TicketStatus.open: [TicketStatus.assigned, TicketStatus.cancelled],
-    TicketStatus.assigned: [TicketStatus.in_progress, TicketStatus.cancelled],
+    TicketStatus.assigned: [TicketStatus.in_progress, TicketStatus.cancelled, TicketStatus.open],
     TicketStatus.in_progress: [TicketStatus.paused, TicketStatus.closed, TicketStatus.cancelled],
     TicketStatus.paused: [TicketStatus.in_progress, TicketStatus.cancelled],
     TicketStatus.cancelled: [],
@@ -108,10 +115,18 @@ def assign_ticket(ticket_id: int, payload: AssignRequest,
         raise HTTPException(404, "Ticket not found")
     assert_ownership(ticket, current_user, db)
 
-    validate_transition(ticket.status, TicketStatus.assigned)
-
     if current_user.user_role not in ["TECHNICIAN", "DIRECTOR"]:
         raise HTTPException(400, "This role is not allowed to assign ticket")
+
+    if current_user.user_role == "DIRECTOR" and payload.technician_id is None:
+        # Director undo: clear the assignment and revert to OPEN.
+        validate_transition(ticket.status, TicketStatus.open)
+        ticket.status = TicketStatus.open
+        ticket.assigned_to = None
+        db.commit()
+        return _serialize_ticket_item(ticket)
+
+    validate_transition(ticket.status, TicketStatus.assigned)
     
     technician_id = _get_technician_id_by_user(db, current_user)
 
@@ -184,6 +199,54 @@ def delete_ticket(ticket_id: int, current_user, db: Session):
     assert_ownership(ticket, current_user, db)
     
     return ticket_repo.delete_ticket_by_id(db, ticket, current_user)
+
+# ── f. Reset ────────────────────────────────────────────────────────────────
+def reset_ticket(ticket_id: int, current_user, db: Session):
+    """Reset a ticket to a fresh OPEN state, removing all its maintenance data.
+
+    Only tickets that are neither OPEN (already fresh) nor SIGNED (finalized,
+    must not be erased) can be reset. The status returns to `OPEN` but the
+    assigned technician is preserved — the assignment is not a maintenance side
+    effect and must survive the reset. The linked rows are deleted children-first
+    (technicians, spares, pauses, photos, worksheet, maintenance) and, for a
+    cancelled ticket, the cancellation record. The DB cleanup and the ticket
+    status transition commit atomically; MinIO object removal (initial photo,
+    working photos, worksheet PDF) is best-effort after the commit — failures
+    are logged, never blocking the reset.
+    """
+    ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user)
+    if not ticket:
+        raise HTTPException(404, "Ticket not found")
+    assert_ownership(ticket, current_user, db)
+
+    if ticket.status in (TicketStatus.open, TicketStatus.signed):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid transition: {ticket.status} → {TicketStatus.open}",
+        )
+
+    object_paths = maintenance_repo.delete_maintenance_by_ticket(db, ticket_id)
+
+    db.query(Cancellation).filter(
+        Cancellation.ticket_id == ticket_id
+    ).delete(synchronize_session=False)
+
+    ticket.status = TicketStatus.open
+    db.commit()
+
+    for object_path in object_paths:
+        try:
+            delete_object(object_path)
+        except Exception as error:
+            _log.error(
+                "ticket_reset_object_delete_failed",
+                ticket_id=ticket_id,
+                object_path=object_path,
+                error=str(error),
+            )
+
+    ticket = ticket_repo.get_ticket_by_id(db, ticket_id, current_user)
+    return _serialize_ticket_item(ticket)
 
     
 # ── Helpers ───────────────────────────────────────────────────────────────

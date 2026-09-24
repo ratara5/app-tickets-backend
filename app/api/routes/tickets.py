@@ -86,6 +86,12 @@ def cancel(ticket_id: int, payload: CancellationRequest,
            current_user = Depends(get_current_user)):
     return cancel_ticket(ticket_id, payload, current_user, db)
 
+@router.patch("/{ticket_id}/reset", response_model=TicketItemResponse)
+def reset(ticket_id: int,
+          db: Session = Depends(get_db),
+          current_user = Depends(get_current_user)):
+    return reset_ticket(ticket_id, current_user, db)
+
 # @router.patch("/{ticket_id}/pause")
 # Now in routes/maintenances.py because it's more related to maintenance than ticket, and it needs to validate the maintenance status and not the ticket status. The endpoint is /maintenances/{maintenance_id}/pause instead of /tickets/{ticket_id}/pause because the pause is more related to the maintenance than the ticket, and we need to validate the maintenance status before pausing it. The ticket status is automatically updated to paused when the maintenance is paused, so we don't need to validate the ticket status.
 

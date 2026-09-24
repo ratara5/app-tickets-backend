@@ -7,7 +7,7 @@ $ROOT_PATH/bootstrap.sh \
     --compose-file docker-compose.yml \
     --init-file init.sql
 
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --reload-dir app
 ```  
 
 ## RUN: NEXT TIME  
@@ -21,7 +21,7 @@ cd ~/Documents/python_scripts/app-tickets-backend
 docker compose up -d minio-acme 
 
 # Serve API
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --reload-dir app
 ```
 
 ## API USAGE  
@@ -179,7 +179,7 @@ openspec init # IN OTHER TERMINAL!
 
 ```bash
 docker compose up -f ~/Documents/GoogleCloudProjects/docker-compose.yml postgres-gci
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --reload-dir app
 curl http://localhost:8000/openapi.json -o docs/api-spec.json
 ```  
 ...

@@ -224,6 +224,59 @@ def _get_query(db, current_user):
 
     return query
 
+def delete_maintenance_by_ticket(db: Session, ticket_id: int) -> list[str]:
+    """Delete every maintenance row linked to the ticket (children first).
+
+    Collects and returns the MinIO object paths owned by the removed rows
+    (initial photo, working photos, worksheet PDF) so the caller can clean up
+    storage. Commits nothing: the caller owns the transaction so the DB cleanup
+    and the ticket status transition are atomic.
+
+    `photos` and `worksheet` are loaded through ORM relationships to read their
+    object paths, so they are removed with `db.delete()`; the remaining children
+    are never loaded and are removed with bulk deletes. A bulk delete of the
+    loaded relationships would leave stale instances in the session and make the
+    `db.delete(maintenance)` flush emit phantom `UPDATE ... SET maintenance_id =
+    NULL` statements, raising StaleDataError.
+    """
+    maintenance = (
+        db.query(Maintenance)
+        .options(
+            selectinload(Maintenance.photos),
+            selectinload(Maintenance.worksheet),
+        )
+        .filter(Maintenance.ticket_id == ticket_id)
+        .first()
+    )
+    if maintenance is None:
+        return []
+
+    object_paths: list[str] = []
+    if maintenance.initial_photo_path:
+        object_paths.append(maintenance.initial_photo_path)
+    object_paths.extend(
+        photo.photo_path for photo in maintenance.photos if photo.photo_path
+    )
+    if maintenance.worksheet and maintenance.worksheet.pdf_path:
+        object_paths.append(maintenance.worksheet.pdf_path)
+
+    db.query(MaintenanceTechnician).filter(
+        MaintenanceTechnician.maintenance_id == maintenance.maintenance_id
+    ).delete(synchronize_session=False)
+    db.query(MaintenanceSpare).filter(
+        MaintenanceSpare.maintenance_id == maintenance.maintenance_id
+    ).delete(synchronize_session=False)
+    db.query(Pause).filter(
+        Pause.maintenance_id == maintenance.maintenance_id
+    ).delete(synchronize_session=False)
+    for photo in maintenance.photos:
+        db.delete(photo)
+    if maintenance.worksheet is not None:
+        db.delete(maintenance.worksheet)
+    db.delete(maintenance)
+
+    return object_paths
+
 def delete_maintenance_by_id(db, maintenance, current_user):
     ticket = db.query(Maintenance).join(Maintenance.ticket)
     db.delete(maintenance)

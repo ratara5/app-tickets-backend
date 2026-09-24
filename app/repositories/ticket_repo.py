@@ -46,16 +46,17 @@ def get_visible_tickets(db, current_user, page: int = 1, page_size: int = 50):
     query = _get_query(db, current_user)
 
     if current_user.user_role in (UserRole.technician, UserRole.director):
-        technician_id = _get_technician_id(db, current_user)
-        query = query.filter(
-            and_(
-                or_(
-                    Ticket.assigned_to == None,
-                    Ticket.assigned_to == technician_id
-                ),
-                Ticket.status != TicketStatus.cancelled
+        if current_user.user_role == UserRole.technician:
+            technician_id = _get_technician_id(db, current_user)
+            query = query.filter(
+                and_(
+                    or_(
+                        Ticket.assigned_to == None,
+                        Ticket.assigned_to == technician_id
+                    ),
+                    Ticket.status != TicketStatus.cancelled
+                )
             )
-        )
     
 
     return query.order_by(

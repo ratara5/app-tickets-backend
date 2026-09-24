@@ -47,7 +47,7 @@ def _get_or_create_worksheet(db: Session, maintenance_id: UUID7, current_user) -
 
 def _number_sheet(maintenance_id: UUID7) -> str:
     year = datetime.now().year
-    return f"WS-{year}-{maintenance_id:06d}"
+    return f"WS-{year}-{maintenance_id.int % 1000000:06d}"
 
 
 def _build_context(maintenance_dto: Maintenance, ws: Worksheet, db:Session, current_user) -> dict:
@@ -71,8 +71,8 @@ def _build_context(maintenance_dto: Maintenance, ws: Worksheet, db:Session, curr
 
         # Market
         "market_name": ticket_dto.market_name,
-        "city": ticket_dto.city,
-        "state": ticket_dto.state,
+        "city": getattr(ticket_dto, "market_city", None) or "",
+        "state": getattr(ticket_dto, "state", None) or "",
 
         # Date
         "maintenance_date": maintenance_dto.maintenance_date,
@@ -88,13 +88,13 @@ def _build_context(maintenance_dto: Maintenance, ws: Worksheet, db:Session, curr
 
         # Technicians
         "technicians": [
-            {"technician_name": mt.technician_name, "start_hour": mt.start_hour, "end_hour": mt.end_hour}
+            {"technician_name": mt["technician_name"], "start_hour": mt["start_hour"], "end_hour": mt["end_hour"]}
             for mt in maintenance_dto.technicians
         ], 
 
         # Spares
         "spares": [
-            {"spare_name": ms.spare_name, "qty": ms.qty, "unit": ms.unit}
+            {"spare_name": ms["name"], "qty": ms["qty"], "unit": ms.get("unit") or "und"}
             for ms in maintenance_dto.spares
         ],
 
@@ -140,19 +140,22 @@ def generate_pdf(maintenance_id: UUID7, db: Session, current_user) -> tuple[Work
         return ws, url
     
     # Render
-    env = Environment(loader=FileSystemLoader(str(settings.template_dir)))
+    templates_dir = Path(settings.templates_dir).expanduser()
+    if not templates_dir.is_dir():
+        templates_dir = Path(__file__).resolve().parent.parent / "templates" / "reports"
+    env = Environment(loader=FileSystemLoader(str(templates_dir)))
     template = env.get_template("worksheet.html")
     maintenance_dto = maintenance_svc.get_maintenance(db, maintenance_id, current_user)
-    ctx = _build_context(maintenance_dto, ws)
+    ctx = _build_context(maintenance_dto, ws, db, current_user)
     html_str = template.render(**ctx)
 
     # PDF in memory
-    pdf_bytes = HTML(string=html_str, base_url=str(settings.template_dir)).write_pdf()
+    pdf_bytes = HTML(string=html_str, base_url=str(templates_dir)).write_pdf()
 
     # Upload to MinIO
-    fecha_trabajo = maintenance_dto.fecha_trabajo
-    mes = fecha_trabajo.strftime("%B")
-    anio = fecha_trabajo.strftime("%Y")
+    maintenance_date = maintenance_dto.maintenance_date
+    mes = maintenance_date.strftime("%B")
+    anio = maintenance_date.strftime("%Y")
 
     original_filename = f"{settings.pdf_suffix}{maintenance_dto.ticket_id}.pdf"
     full_object_path = f"{settings.base_object_path}/{anio}/{mes}/{maintenance_dto.ticket_id}/{original_filename}"

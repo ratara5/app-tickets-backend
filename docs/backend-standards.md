@@ -645,7 +645,7 @@ def test_ticket_status_transition_from_open_to_in_progress_succeeds():
 ### Development Scripts
 
 ```bash
-uvicorn app.main:app --reload     # Hot reload
+uvicorn app.main:app --reload --reload-dir app     # Hot reload
 alembic upgrade head               # Apply migrations
 alembic revision --autogenerate -m "desc"  # Create migration
 pytest -v                          # Run tests

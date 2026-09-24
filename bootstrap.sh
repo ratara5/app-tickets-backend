@@ -138,4 +138,4 @@ echo "  Next steps:"
 echo "    1. Load configuration"
 echo "    2. Load credentials"
 echo "    3. Modify .env (¡ONLY if app is running LOCALLY!) ->  DB_HOST=localhost"
-echo "    4. Run app: uvicorn app.main:app --reload" # cd app && python3.12 main.py
+echo "    4. Run app: uvicorn app.main:app --reload --reload-dir app" # cd app && python3.12 main.py

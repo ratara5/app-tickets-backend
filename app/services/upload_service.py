@@ -178,19 +178,47 @@ async def complete_upload(db: Session, upload_id: str, current_user):
             raise HTTPException(502, f"Error uploading to MinIO: {str(e)}")
     # - URL
     url = get_presigned_url(full_object_path, 1)
-        
 
     # 5. Persist metadata record 
     # - Define repo according to table or according to ext (same thing?)
     tab_name = upload_session.tab_name
-    # - The entity for generic record is being built here and is being do particular in the called repo from service
-    file = FileSave(
-        file_id=serial,
-        parent_id=parent_id,
-        file_path=full_object_path,
-    )
+    # - The initial photo is stored on the maintenance's own column (not a photos
+    #   row), so a session targeting `initial_photo_file` replaces that column
+    #   and deletes the previous object instead of dispatching a photos handler.
+    if upload_session.col_name == "initial_photo_file":
+        import structlog
+        _log = structlog.get_logger()
 
-    result = await dispatch_service(tab_name, db, file, current_user)
+        maintenance = db.query(Maintenance).filter(
+            Maintenance.maintenance_id == parent_id
+        ).first()
+        if maintenance is None:
+            raise HTTPException(404, "Maintenance not found")
+        old_path = maintenance.initial_photo_path
+        maintenance.initial_photo_path = full_object_path
+        db.commit()
+        if old_path and old_path != full_object_path:
+            try:
+                await asyncio.get_event_loop().run_in_executor(
+                    _executor,
+                    lambda: delete_object(old_path),
+                )
+            except Exception as error:
+                _log.error(
+                    "upload_initial_photo_cleanup_failed",
+                    upload_id=upload_id,
+                    object_path=old_path,
+                    error=str(error),
+                )
+    else:
+        # - The entity for generic record is being built here and is being do particular in the called repo from service
+        file = FileSave(
+            file_id=serial,
+            parent_id=parent_id,
+            file_path=full_object_path,
+        )
+
+        result = await dispatch_service(tab_name, db, file, current_user)
 
     # 5b. Photo replace: delete replaced photo's object + row after new one persists
     replaces_photo_id = upload_session.replaces_photo_id
