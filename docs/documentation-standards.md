@@ -39,8 +39,12 @@ When updating documentation:
 | `docs/base-standards.md` | Universal rules for all AI agents |
 | `docs/data-model.md` | Database schema, entities, relationships, ER diagram |
 | `docs/development_guide.md` | Setup guide, runbooks, common tasks |
+| `docs/deployment-guide.md` | **Canonical deployment runbook** — LAN and VPS, with a gate per step |
+| `docs/deploy-vps-ai-harness.md` | Pointer for AI agents: the executable procedure is the `deploying-backend-vps` skill |
+| `docs/learned-lessons.md` | Failures that cost time here, recorded so they are not repeated |
 | `docs/documentation-standards.md` | This file — documentation rules |
 | `docs/openspec-tasks-mandatory-steps.md` | Mandatory steps for OpenSpec task generation |
+| `ai-specs/skills/deploying-backend-vps/` | Deployment skill: preflight, database bootstrap, verification gates, stop conditions |
 
 ## AI specs
 

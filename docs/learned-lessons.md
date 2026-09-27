@@ -52,3 +52,65 @@ If a watch limit still trips elsewhere, raise `fs.inotify.max_user_watches` via 
 - Model/DB drift is a second tripwire: `photos.maintenance_id` stayed `Integer` in the model while migration `0004_align_photos_maintenance_id_fk` made the column `Uuid`. The model must mirror the DB — the mismatch prevented UUIDs from being bound under SQLite tests and made prod uploads rely on driver ad-hoc adaptation.
 
 ---
+## 5. A Runbook Can Be Confidently Wrong: There Was No Working Way to Create a Database
+
+**Context**: On 2026-09-26 the VPS deployment runbook was reviewed end to end. Its schema
+section read "load `init.sql` once, then `alembic upgrade head` for later releases". Both
+commands fail, and each fails *quietly enough to look deployed*:
+
+- `init.sql:13` needs `pg_uuidv7`, a third-party extension that only the shared custom image
+  provides. Stock `postgres:16` does not ship it, so on a stock server the load "succeeds" with
+  1 of 21 tables created.
+- `init.sql:115` declares `FOREIGN KEY (created_by) → fsm_users(user_id)` as `VARCHAR → SERIAL`,
+  which PostgreSQL refuses, skipping every table after it. **This one fails on every image**,
+  including the shared one.
+- The migrations are deltas that assume the base tables exist, so `alembic upgrade heads` on an
+  empty database dies with `relation "maintenances_technicians" does not exist`.
+- The graph has two heads, so `alembic upgrade head` fails outright with "Multiple head
+  revisions are present".
+- Two revision ids (35 and 48 chars) exceed Alembic's own
+  `alembic_version.version_num VARCHAR(32)`, so Alembic cannot record them.
+
+The only working fresh-install path found: build the schema from the SQLAlchemy **models** (the
+source of truth), create `alembic_version` at `varchar(64)`, stamp `heads`, then migrate
+normally. That procedure is now in `docs/deployment-guide.md` §2.2.
+
+**Lessons/Rule**:
+- A command that "works" because errors scroll past is the most dangerous kind. Every
+  `psql`/`mysql` invocation in a script or runbook needs `-v ON_ERROR_STOP=1`, and a schema
+  load must be followed by a comparison of *expected* against *actual* tables.
+- Verify the bootstrap path before writing a runbook, not after: spin up the image the guide
+  prescribes and run the exact commands in order.
+- **Reproduce against the target's real image, and never generalise from a substitute.** The
+  first version of this lesson reported that `pg_uuidv7` was "not available" and filed it as
+  such. The real server runs `infrastructure-companies-postgres-gci` (PostgreSQL 16.13), which
+  *does* ship `pg_uuidv7` 1.7 — the defect was never the extension, it was that the
+  requirement is undocumented, so a server built from stock `postgres:16` breaks. Proving a
+  bug on a convenient stand-in proves a bug *about the stand-in*. When the environment is
+  shared infrastructure, read the running container (`docker inspect … .Config.Image`,
+  `pg_available_extensions`) before writing the ticket.
+- **The live system is the only ground truth about the live system.** Inspecting the running
+  database overturned two assumptions: `tickets.created_by` is `integer` with a working
+  foreign key (so `init.sql` is the stale artifact, not the schema of record), and that
+  database has 23 tables against 17 in the models and 21 in `init.sql`. Its
+  `alembic_version` is `varchar(64)` although no script creates that width, and it records
+  only `0005` although `0004`'s foreign key is already present — so somebody patched it by
+  hand and the next `alembic upgrade` there will try to re-apply `0004`
+  (`TICKET-014`…`016`). Restore any shared container to the state you found it in.
+- When two artifacts define the schema (`init.sql` vs models/migrations), they will drift. The
+  models win; the other artifact is a liability until it is regenerated or retired. Three
+  artifacts, worse: agree explicitly on which one is of record.
+- `alembic upgrade head` failing is not a nuisance error: the deployment's core command does
+  not run. `alembic heads` is the first thing to check when migrations misbehave.
+- To prove a red suite is not yours, compare against a pristine tree rather than reasoning about
+  it: `git worktree add /tmp/pristine HEAD`, copy the untracked `.env` across, run the same
+  selection in both, then `git worktree remove`. Identical counts mean pre-existing
+  (TICKET-001…006 here: 31 failed / 114 passed on both).
+- **Skills should be agnostic; project runbooks should not.** A skill that hardcodes container,
+  database, bucket or app names is a runbook in the wrong place, and shipping shell scripts
+  inside a skill duplicates logic the agent can execute live and drift from. The method
+  belongs in the skill with placeholders; the concrete values and the measured defects belong
+  in the project's own runbook. That separation is also what let this correction be a
+  one-file change instead of a rewrite.
+
+---

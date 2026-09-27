@@ -20,9 +20,17 @@ cd app-tickets-backend
 # 2. Start PostgreSQL (Docker)
 docker compose up -d postgres
 
-# 3. Run database init script
-# (executed once to create schema and extensions)
-docker compose exec postgres psql -U postgres -d db_gestiket_acme -f /init.sql
+# 3. Create the schema (see docs/deployment-guide.md §2.2 — NOT `psql -f init.sql`)
+python - <<'PY'
+from app.core.database import engine
+from app.models.base import Base
+from app.models.registry import _autodiscover_models
+_autodiscover_models('app.models')
+Base.metadata.create_all(engine)
+print(len(Base.metadata.tables), 'tables created from the models')
+PY
+# then: create alembic_version at VARCHAR(64) and run `alembic stamp heads`
+# (executed once, to create the schema)
 
 # 4. Install Python dependencies
 pip install -r requirements.txt
@@ -101,13 +109,31 @@ docker compose ps
 
 ### 3. Initialize Database
 
+Create the schema from the SQLAlchemy models, then stamp the migration history —
+**not** `psql -f init.sql`. That script is broken today (`init.sql:115` declares a
+foreign key from `VARCHAR` onto a `SERIAL` key, which PostgreSQL refuses, and `psql`
+continues past the error, so the load appears to succeed while every table after that
+line is skipped). The full procedure, including why, is in
+[`deployment-guide.md`](deployment-guide.md) §2.2; tracked as `TICKET-007` and
+`TICKET-008`.
+
 ```bash
-docker compose exec postgres psql -U postgres -d db_gestiket_acme -f init.sql
+python - <<'PY'
+from app.core.database import engine
+from app.models.base import Base
+from app.models.registry import _autodiscover_models
+_autodiscover_models('app.models')
+Base.metadata.create_all(engine)
+print(len(Base.metadata.tables), 'tables created from the models')
+PY
 ```
 
 This creates:
-- PostgreSQL extensions (`pg_uuidv7`)
-- All tables (users, tickets, maintenances, catalogs, etc.)
+- All tables declared by the models (users, tickets, maintenances, catalogs, etc.)
+
+It does **not** create `alembic_version`; that must be created at `VARCHAR(64)` and
+then stamped with `alembic stamp heads`, because two revision ids are longer than
+Alembic's default `VARCHAR(32)` (`TICKET-010`).
 - Enum types (priority, status)
 - Audit columns and foreign keys
 
