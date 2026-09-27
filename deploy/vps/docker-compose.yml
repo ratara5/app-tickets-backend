@@ -1,0 +1,103 @@
+# ============================================================
+# VPS stack — app + TLS edge
+#
+# This file contains ONLY the components this project owns. The
+# shared data-plane containers (postgres-gci, minio-acme) are NOT
+# declared here on purpose: they are reused across tenants, so the
+# deployment procedure creates them once and then leaves them alone
+# (see docs/deployment-guide.md and the deploying-backend-vps skill).
+#
+# Topology (everything on the external network "infra-net"):
+#
+#   phone ──HTTPS──► caddy ──► api          (api.example.com)
+#                 └─► minio-acme:9000       (media.example.com)
+#   api ──postgres-gci:5432                  (no host port)
+#   api ──HTTPS──► media.example.com ──► caddy (in-network alias,
+#                                           no public DNS round trip)
+#
+# Publishing rules:
+#   - caddy is the ONLY service with public ports (80/443).
+#   - api is published on 127.0.0.1 only (Caddy reaches it by name).
+#   - postgres and minio publish nothing. Their host ports belong to
+#     other tenants and ufw does not filter docker-published ports.
+# ============================================================
+
+name: app-tickets-vps
+
+services:
+  # ------------------------------------------------------------
+  # API — FastAPI on the shared network, addressed by container name
+  # ------------------------------------------------------------
+  api:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: app-tickets-backend:vps
+    container_name: api-app-tickets
+    restart: unless-stopped
+    # Loopback only: the phone must never reach the API without TLS.
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - ../../.env
+    environment:
+      # Container name resolution works only inside a docker network.
+      # This is the same value the ETL uses with `docker exec`.
+      DB_HOST: postgres-gci
+      DB_PORT: "5432"
+      TEMPLATES_DIR: /srv/app/templates/reports
+      CHUNK_DIR: /tmp/upload_chunks
+    # Chunked uploads stage on local disk before reaching MinIO.
+    # Without a volume a restart loses every in-flight upload while
+    # its database rows survive.
+    volumes:
+      - api-upload-chunks:/tmp/upload_chunks
+    depends_on:
+      caddy:
+        condition: service_started
+    networks:
+      infra-net:
+        aliases:
+          - api
+
+  # ------------------------------------------------------------
+  # Caddy — automatic TLS for the API and the media host
+  # ------------------------------------------------------------
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: caddy-app-tickets
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in .env}
+      MEDIA_DOMAIN: ${MEDIA_DOMAIN:?set MEDIA_DOMAIN in .env}
+      # Required: Caddy will not start with an empty address, so fail here with a clear message.
+      ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL is required - set it in .env or the environment}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      infra-net:
+        aliases:
+          # The API signs media URLs with MEDIA_DOMAIN. This alias
+          # lets the API reach Caddy under that exact name over the
+          # private network, so uploads do not depend on public DNS
+          # or on NAT hairpinning. Phones still resolve the public
+          # A record. Signature host == client Host in both cases.
+          - ${MEDIA_DOMAIN:?set MEDIA_DOMAIN in .env}
+          - ${API_DOMAIN:?set API_DOMAIN in .env}
+
+volumes:
+  api-upload-chunks:
+  caddy-data:
+  caddy-config:
+
+networks:
+  infra-net:
+    # Created once by the deployment procedure and shared with the
+    # other tenants' containers. `docker compose` must not own it.
+    external: true
+    name: infra-net

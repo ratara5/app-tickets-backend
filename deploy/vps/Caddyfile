@@ -1,0 +1,58 @@
+# ============================================================
+# Caddyfile — TLS edge for this project only.
+#
+# Both site blocks reverse_proxy by CONTAINER NAME on infra-net, so
+# no host ports and no IP guessing are involved. Caddy preserves the
+# incoming Host header, which is what makes MinIO pre-signed URLs
+# validate: the API signs with MEDIA_DOMAIN and the phone sends
+# Host: MEDIA_DOMAIN.
+#
+# A site address may appear only ONCE (Caddy rejects duplicates), so
+# the media host declares its routes inside a single block.
+#
+# Placeholders are read from the environment (see docker-compose.yml).
+# ============================================================
+
+{
+	# Must be a real address: Caddy refuses to start on an empty value,
+	# so compose fails early if it is unset (see docker-compose.yml).
+	# Used only for expiry notices; renewal itself is automatic.
+	email {$ACME_EMAIL}
+	# Uncomment while a certificate is being issued if the ACME
+	# directory is unreachable, then re-enable immediately after.
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy api:8000 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+	log {
+		output stdout
+		format console
+	}
+}
+
+{$MEDIA_DOMAIN} {
+	# Liveness probe, public on purpose: it is the gate that proves
+	# the media path (TLS + proxy + MinIO) works from the internet.
+	handle /minio/health/live {
+		reverse_proxy minio-acme:9000
+	}
+
+	# Everything else is the S3 API serving pre-signed photo and PDF
+	# downloads. Never buffer large evidence photos here.
+	handle {
+		reverse_proxy minio-acme:9000 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

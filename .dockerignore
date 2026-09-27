@@ -1,0 +1,36 @@
+# Keep the build context lean and prevent secrets from entering the
+# image layer. Only app/ and requirements.txt are copied, but the
+# context is still sent to the daemon in full.
+.git
+.gitignore
+.env
+**/.env
+**/venv
+venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.coverage
+htmlcov
+tests
+docs
+openspec
+ai-specs
+.opencode
+.claude_example
+openspec_example
+deploy
+etl
+alembic
+alembic.ini
+scripts
+prompts
+gtk-companies
+packages
+core
+init.sql
+bootstrap.sh
+docker-compose.yml
+*.md
+*.json
+*.yml
