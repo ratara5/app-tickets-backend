@@ -20,17 +20,12 @@ cd app-tickets-backend
 # 2. Start PostgreSQL (Docker)
 docker compose up -d postgres
 
-# 3. Create the schema (see docs/deployment-guide.md §2.2 — NOT `psql -f init.sql`)
-python - <<'PY'
-from app.core.database import engine
-from app.models.base import Base
-from app.models.registry import _autodiscover_models
-_autodiscover_models('app.models')
-Base.metadata.create_all(engine)
-print(len(Base.metadata.tables), 'tables created from the models')
-PY
-# then: create alembic_version at VARCHAR(64) and run `alembic stamp heads`
-# (executed once, to create the schema)
+# 3. Create the schema from deploy/schema.sql (see docs/deployment-guide.md §2.2)
+#    The DATABASE must already exist; this creates the TABLES.
+docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -U postgres \
+    -d db_gestiket_acme < deploy/schema.sql
+# Expected: 23 tables. Do NOT build the schema from the models -- they are stale
+# against the live database in 9 places (TICKET-019).
 
 # 4. Install Python dependencies
 pip install -r requirements.txt
@@ -109,33 +104,35 @@ docker compose ps
 
 ### 3. Initialize Database
 
-Create the schema from the SQLAlchemy models, then stamp the migration history —
-**not** `psql -f init.sql`. That script is broken today (`init.sql:115` declares a
-foreign key from `VARCHAR` onto a `SERIAL` key, which PostgreSQL refuses, and `psql`
-continues past the error, so the load appears to succeed while every table after that
-line is skipped). The full procedure, including why, is in
-[`deployment-guide.md`](deployment-guide.md) §2.2; tracked as `TICKET-007` and
-`TICKET-008`.
+Create the schema from [`deploy/schema.sql`](../deploy/schema.sql), a
+`pg_dump --schema-only` snapshot of the live database. It gives you 23 tables, the
+two enum types, the `pg_uuidv7` extension, and the 5 reserved tables for unbuilt
+features.
+
+`init.sql` is **retired and deleted**. It declared a foreign key from `VARCHAR` onto a
+`SERIAL` key, which PostgreSQL refuses; because `psql` continued past the error, the
+load reported success while every table after that line was skipped (`TICKET-008`). It
+also needed `pg_uuidv7`, absent from stock `postgres:16` (`TICKET-007`), and omitted
+`token_blacklist`, which every authenticated request queries (`TICKET-017`).
 
 ```bash
-python - <<'PY'
-from app.core.database import engine
-from app.models.base import Base
-from app.models.registry import _autodiscover_models
-_autodiscover_models('app.models')
-Base.metadata.create_all(engine)
-print(len(Base.metadata.tables), 'tables created from the models')
-PY
+docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -U postgres \
+    -d db_gestiket_acme < deploy/schema.sql
 ```
 
-This creates:
-- All tables declared by the models (users, tickets, maintenances, catalogs, etc.)
+`-v ON_ERROR_STOP=1` is mandatory. Without it `psql` reports errors, continues, and
+exits 0, so a failed load looks like a successful one.
 
-It does **not** create `alembic_version`; that must be created at `VARCHAR(64)` and
-then stamped with `alembic stamp heads`, because two revision ids are longer than
-Alembic's default `VARCHAR(32)` (`TICKET-010`).
-- Enum types (priority, status)
-- Audit columns and foreign keys
+Do **not** build the schema from the SQLAlchemy models with `create_all`. Measured
+against the live database on 2026-09-27, the models are stale in nine structural
+places, so `create_all` produces a clean, wrong schema and nothing reports it
+(`TICKET-019`). The database is the ground truth; the models are a claim about it.
+
+Do **not** create `alembic_version` by hand or run `alembic stamp heads` yet. The
+history has two heads (`TICKET-009`), no revision creates the base tables
+(`TICKET-014`), and two revision ids exceed `VARCHAR(32)` (`TICKET-010`). A stamped
+incomplete graph makes `alembic heads` look healthy while no migration can actually
+repair the database. The baseline revision is derived from the same dump.
 
 ### 4. Install Python Dependencies
 
@@ -326,7 +323,12 @@ curl http://localhost:8000/openapi.json -o docs/api-spec.json
 # 4. Create app/services/<name>_service.py
 # 5. Create app/api/routes/<name>.py
 # 6. Register router in app/api/routes/__init__.py
-# 7. Add init.sql entry (if new table)
+# 7. Do NOT hand-edit any schema file. deploy/schema.sql is GENERATED: regenerate it
+#    from the live database with the command in its own header, after the migration
+#    has been applied. A hand edit is invisible until someone regenerates it.
+#    If the table is a placeholder for a feature you are not building, do not write a
+#    model: file a ticket like TICKET-018, so the discrepancy is documented instead
+#    of invisible.
 # 8. Generate Alembic migration
 # 9. Write tests
 ```

@@ -48,7 +48,16 @@
 - `docker rm`, rename, recreate or restart `postgres-gci` or `minio-acme`
 - publish 5432, 9000 or 9001, "just to test it"
 - put MinIO or PostgreSQL root credentials in `.env`, a commit, or the chat
-- run `init.sql` or `alembic upgrade head` (singular) to create a database — see the measured
-  defects in `docs/deployment-guide.md` §2.2 and the tickets listed at the end of that file
+- run any command expecting it to create the **database** — neither `alembic upgrade
+  head` nor `prisma migrate deploy` creates a database, and no single command does
+  both the database and its tables. The database is an admin-plane action, created
+  once, deliberately separate from the migration job. See the two-plane doctrine in
+  `ai-specs/skills/deploying-backend-vps/SKILL.md` §Phase 2 and
+  `docs/deployment-guide.md` §2.1
+- run `docker compose exec api alembic …` to migrate — it requires the app to already
+  be running, so it migrates after the code needing the new column is serving
+  traffic. Use the one-shot `run --rm migrate` job instead
+- hand-edit `deploy/schema.sql` — it is generated from the live database and is
+  regenerated, never edited
 - source `.env` in a shell (`set -a; . .env` corrupts the JSON in `ALLOWED_TYPES`)
 - continue past a failed gate, or "try a variation" of a runbook command on a shared box

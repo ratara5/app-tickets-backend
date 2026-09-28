@@ -76,29 +76,95 @@ docker exec postgres-gci psql -U gestiket_app -d db_gestiket_acme -tAc \
 
 Only `db_gestiket_acme` and `postgres` (revoked) should be visible.
 
-### 2.2 Schema — use the interim procedure, not `init.sql`
+### 2.2 Schema — `deploy/schema.sql`, the dump of the live database
 
-`init.sql` cannot build this schema today. Two of its failures are real, measured
-problems in this repository, not server configuration:
+The schema comes from [`deploy/schema.sql`](../deploy/schema.sql). It is a
+`pg_dump --schema-only` snapshot of the live database: 23 tables, 2 enum types, and
+the `pg_uuidv7` extension. Its header records the source, the exact command, and the
+commit it was generated from, and `tests/test_deploy_assets.py` fails if that header
+is removed or if the file stops declaring itself generated.
 
-- **Line 115** declares `FOREIGN KEY (created_by) REFERENCES fsm_users(user_id)` where
-  the columns are `VARCHAR` and `SERIAL`. PostgreSQL refuses the constraint, and
-  because `psql` keeps going after errors, **every table after that line is silently
-  skipped** and the result looks loaded. The live database has `created_by` as
-  `integer` with a working foreign key, which confirms `init.sql` is the stale
-  artifact, not the schema of record.
-- It needs `pg_uuidv7`. The current shared image provides it; a server built from
-  stock `postgres:16` would fail at line 13 and stop creating tables there.
+```bash
+# Plane 2: the TABLES. The database must already exist.
+docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -U "$DB_USER" \
+    -d "$DB_NAME" < deploy/schema.sql
+```
 
-The migrations cannot create the database either: they are deltas that assume the base
-tables exist, the graph has **two heads** (`0004_align_photos_maintenance_id_fk`,
-`0005_add_upload_replaces_photo_id_fix_parent_tab`), and two revision identifiers are
-35 and 48 characters long, longer than `alembic_version.version_num`.
+`init.sql` is **retired and deleted**. It failed in three measured ways: a
+`FOREIGN KEY` joining `VARCHAR` to `SERIAL` that PostgreSQL refuses, after which
+`psql` skipped every remaining table and the load still looked successful
+(`TICKET-008`); a dependency on `pg_uuidv7`, which stock `postgres:16` does not ship
+(`TICKET-007`); and no `token_blacklist`, which every authenticated request queries
+(`TICKET-017`). `bootstrap.sh` also ran `psql` without `-v ON_ERROR_STOP=1` and
+printed `✓ init.sql executed` regardless. It now defaults to `deploy/schema.sql`,
+passes `ON_ERROR_STOP=1`, and verifies afterwards that `token_blacklist` exists.
 
-So the schema is created from the SQLAlchemy models, which are the source of truth,
-and Alembic is stamped at every head so future migrations apply normally.
+`ON_ERROR_STOP=1` is not optional on any `psql` call. Without it `psql` reports each
+error, continues, and exits 0 — which is how three separate tickets stayed invisible.
 
-**Refuse to touch a populated database.** Check first:
+**Do not generate the schema from the SQLAlchemy models.** Measured against the live
+database on 2026-09-27, the models are stale in nine structural places: they would
+give `tickets.ticket_id` a `SERIAL` although its ids come from the external ticketing
+system, replace the live `priority_type` and `status_type` enums with `VARCHAR`, drop
+`TIMESTAMPTZ` to `TIMESTAMP`, change `photos.photo_id` from `text` to `SERIAL`,
+revert `token_blacklist.jti` to `VARCHAR(36)`, omit the `spares.unit` foreign key, and
+miss the audit columns' nullability. A script generated from them runs cleanly and
+builds the **wrong** schema, which is worse than one that fails loudly, because
+nothing reports it. The database is the ground truth; the models are a claim about
+it. Tracked as `TICKET-019`.
+
+That is also why the dump has 23 tables and not the models' 17: the 5 reserved
+tables for unbuilt features (`hollidays` — with a double L, as the live database
+spells it — plus `materials`, `preliquidated`, `services`, `uom`) exist in production
+and are carried through deliberately. Decision pending, owned by `ratara5`, review
+2026-12-27. See `TICKET-018`.
+
+`deploy/schema.sql` is a **dev bootstrap and the source for the Alembic baseline**,
+not a production path. Production runs `alembic upgrade head`, which cannot work yet:
+the graph has two heads (`TICKET-009`), no revision creates the base tables
+(`TICKET-014`), and two revision ids are 35 and 48 characters long, longer than
+`alembic_version.version_num` (`TICKET-010`). Regenerate the dump from the live
+database with the command in its own header, never by hand-editing it.
+
+### 2.2.1 The migration job is wired, but is not yet the path
+
+The `migrate` stage of the `Dockerfile` and the `migrate` service in
+`deploy/vps/docker-compose.yml` exist so that migrations run from the **same build**
+as the application:
+
+```bash
+docker compose -f deploy/vps/docker-compose.yml run --rm migrate alembic heads
+```
+
+`run --rm` is what makes it a job. The service carries `restart: "no"` and must never
+be started with `up`: a supervised migration that fails would restart-loop and
+re-attempt DDL against `postgres-gci`, which is shared with other applications.
+
+Two things this deliberately does **not** do:
+
+- It is not in the `entrypoint`. The API runs `gunicorn --workers 2`, so an
+  entrypoint migration would execute twice, concurrently, on every replica.
+- It is not `docker compose exec api …`. That form requires the app to be already
+  running, so it migrates *after* the code that needs the new column is serving
+  traffic. `run --rm` fixes the ordering and needs no running container.
+
+**Do not put this in the deploy sequence yet.** The blockers above mean
+`alembic upgrade head` still fails; the job exists so the baselining work can be
+*executed and verified from the image*.
+
+An earlier version of this image could not run migrations at all: `alembic` is in
+`requirements.txt` so the package was installed, but only `app/` was copied, so
+neither `alembic/` nor `alembic.ini` was present. The container started and passed its
+healthcheck while `alembic upgrade head` failed on missing config.
+`tests/test_deploy_assets.py` now guards that.
+
+**Autogenerate is destructive until the models are trusted.** `alembic/env.py`
+currently exposes only 2 tables in `target_metadata`, so `revision --autogenerate`
+reports the other 15 as `drop_table`. Fix that before letting the tool write
+anything. Once it is fixed, `alembic check` belongs in CI so drift fails the build
+instead of being discovered in production. Both are `TICKET-019`.
+
+**Refuse to touch a populated database.** Check before writing anything:
 
 ```bash
 docker exec postgres-gci psql -U postgres -tAc \
@@ -107,56 +173,42 @@ docker exec postgres-gci psql -U postgres -d db_gestiket_acme -tAc \
   "SELECT count(*) FROM pg_tables WHERE schemaname='public'"
 ```
 
-A non-zero table count means: stop. Apply migrations instead, or point `DB_NAME` at a
-new database. Never re-bootstrap over existing data.
+A non-zero table count means: stop. This procedure is for a **new, empty** database
+only. Never re-bootstrap over existing data, and never point `DB_NAME` at the live
+database by accident.
 
-**Create the schema** (run from the repository root, with the API's own environment
-loaded the way the app loads it — never `source .env`, see §4.1):
+**Then load the schema** with the `psql` command in §2.2, with
+`-v ON_ERROR_STOP=1`. A non-zero exit status there means the load failed; do not
+continue.
 
-```bash
-python - <<'PY'
-from app.core.database import engine
-from app.models.base import Base
-from app.models.registry import _autodiscover_models
-_autodiscover_models('app.models')
-Base.metadata.create_all(engine)
-print(len(Base.metadata.tables), 'tables created from the models')
-PY
-```
-
-Expected: `17 tables created from the models`.
-
-**Create the history table wide enough**, as the application role, so Alembic can write
-to it:
+**Verify** — compare **sets**, not totals. A count is equally satisfied by the wrong
+set of tables, and a count is what let a broken `init.sql` look loaded. The expected
+side is the dump, because the dump is what you just loaded:
 
 ```bash
-docker exec -i postgres-gci env PGPASSWORD='<generated>' \
-  psql -v ON_ERROR_STOP=1 -U gestiket_app -d db_gestiket_acme <<'SQL'
-CREATE TABLE IF NOT EXISTS alembic_version (
-  version_num VARCHAR(64) NOT NULL,
-  CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
-);
-SQL
-```
+# expected: the tables the dump declares
+grep -oE '^CREATE TABLE (public\.)?\w+' deploy/schema.sql | awk '{print $NF}' \
+  | sort > /tmp/expected-tables.txt
 
-**Stamp every head, then prove the graph is consistent:**
-
-```bash
-python -m alembic stamp heads      # 2 rows
-python -m alembic upgrade heads    # must be a no-op
-```
-
-**Verify:**
-
-```bash
+# actual: what the database really has
 docker exec postgres-gci psql -U postgres -d db_gestiket_acme -tAc \
-  "SELECT count(*) FROM pg_tables WHERE schemaname='public'"      # 18 = 17 + alembic_version
-docker exec postgres-gci psql -U postgres -d db_gestiket_acme -tAc \
-  "SELECT version_num FROM alembic_version"                        # 2 rows
+  "SELECT tablename FROM pg_tables WHERE schemaname='public'" \
+  | sort > /tmp/actual-tables.txt
+
+diff /tmp/expected-tables.txt /tmp/actual-tables.txt && echo "table set matches"
 ```
 
-Expect 18 tables and 2 stamped revisions. Any other number means the schema and the
-code disagree — stop and reconcile before deploying.
+Expect 23 tables and an empty `diff`. Any difference means the dump and the database
+disagree — stop and reconcile before deploying.
+
+**Alembic is not part of this procedure.** The history cannot bootstrap an empty
+database yet: two heads (`TICKET-009`), no revision creates the base tables
+(`TICKET-014`), and two revision ids exceed `alembic_version.version_num`
+(`TICKET-010`). The baseline revision is derived from this same dump, which is why
+the two cannot drift apart. Until that work lands, do not create an
+`alembic_version` table by hand and do not stamp — a hand-made history table stamped
+against an incomplete graph produces a green `alembic heads` and a database no
+migration can actually repair.
 
 ### 2.3 Seed
 
@@ -293,7 +345,9 @@ chmod 600 /root/pg-backup-*.sql
 grep -c "CREATE TABLE" /root/pg-backup-*.sql     # a dump with no CREATE TABLE is worthless
 ```
 
-**5.3 Schema** — §2.2's verify block: 18 tables, 2 stamped revisions, no-op upgrade.
+**5.3 Schema** — §2.2's verify block: the table **set** matches the models plus
+`alembic_version`, 2 stamped revisions, no-op upgrade. Compare sets, not counts; a
+matching total is not evidence.
 
 **5.4 Health** — in-network, then public:
 
@@ -337,6 +391,10 @@ Tracked as pre-proposals; each blocks a clean, reproducible deployment.
 | `TICKET-013` | `ALLOWED_TYPES` JSON breaks if anything sources `.env` | automation that sources the file |
 | `TICKET-011` | `PRESIGNED_TTL` is documented as seconds and consumed as hours | media link lifetime |
 | `TICKET-012` | one `MINIO_ENDPOINT` value is used for both internal I/O and public signing | media URLs, unless the network alias is in place |
+| `TICKET-017` | `init.sql` omits `token_blacklist`, which every authenticated request queries; now hand-patched as a stopgap | trusting `init.sql` for a new database |
+| `TICKET-018` | 5 tables for unbuilt features exist in the live database with no model; `uom` holds 9 rows and a broken reference. Owner ratara5, review 2026-12-27 | building against an unreviewed shape |
+| `TICKET-019` | the ORM models are stale against the live database in 6+ places, so `init.sql` cannot be regenerated from them | retiring `init.sql`, which is the fix for `TICKET-017` |
+| `TICKET-020` | `etl/seed_db.sh` loads under `session_replication_role = 'replica'` and prints success unconditionally | trusting seeded data to satisfy its foreign keys |
 
 ## Stop the bleeding
 

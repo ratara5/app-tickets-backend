@@ -97,9 +97,29 @@ normally. That procedure is now in `docs/deployment-guide.md` §2.2.
   only `0005` although `0004`'s foreign key is already present — so somebody patched it by
   hand and the next `alembic upgrade` there will try to re-apply `0004`
   (`TICKET-014`…`016`). Restore any shared container to the state you found it in.
-- When two artifacts define the schema (`init.sql` vs models/migrations), they will drift. The
-  models win; the other artifact is a liability until it is regenerated or retired. Three
-  artifacts, worse: agree explicitly on which one is of record.
+- When two artifacts define the schema (`init.sql` vs models/migrations), they will drift.
+  **Correction, 2026-09-27:** an earlier version of this line read "the models win; the other
+  artifact is a liability until it is regenerated or retired". That is wrong, and acting on it
+  would have made things worse. Measured against the live database, the models are stale in
+  six structural places (`tickets.ticket_id` would gain a `SERIAL`, two live enums become
+  `VARCHAR`, `TIMESTAMPTZ` becomes `TIMESTAMP`, `photos.photo_id` changes from `text`,
+  `token_blacklist.jti` reverts an applied migration, the `spares.unit` foreign key is not
+  declared at all). Regenerating `init.sql` from them yields a script that runs cleanly and
+  builds the wrong schema — a quiet failure replacing a loud one. See `TICKET-019`.
+  The corrected rule: **when two artifacts define the schema, do not assume either is of
+  record — measure both against the live database before regenerating, deleting or trusting
+  either.** Three artifacts is worse than two precisely because the third one looks like an
+  authority.
+- **A working application is not proof that its models describe its database.** The inference
+  feels safe and is false: `token_blacklist.jti` is `uuid` in the live, working database and
+  `String(36)` in the model, and `photos.photo_id` is `text` there with 12 rows behind it. A
+  working application proves only that the columns it *uses* are compatible. Never regenerate
+  a schema artifact from models on the strength of "the app runs".
+- **A validated foreign key can still be violated if the loader disables triggers.** `uom` has
+  one spare row pointing at a unit that does not exist, while `spares_unit_fkey` is validated
+  with NO ACTION — because `etl/seed_db.sh:99` runs `COPY` under
+  `session_replication_role = 'replica'`. Constraint enforcement that is switched off during
+  load and never re-checked is not enforcement. See `TICKET-020`.
 - `alembic upgrade head` failing is not a nuisance error: the deployment's core command does
   not run. `alembic heads` is the first thing to check when migrations misbehave.
 - To prove a red suite is not yours, compare against a pristine tree rather than reasoning about
