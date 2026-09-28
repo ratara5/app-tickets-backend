@@ -1,14 +1,39 @@
 # TK MGM API BACKEND
 ## SETUP: ONLY FIRST TIME
+
+> **The schema comes from [`deploy/schema.sql`](deploy/schema.sql), not from `init.sql`
+> and not from the models.**
+>
+> `init.sql` is retired. It declares a foreign key PostgreSQL refuses (`TICKET-008`),
+> needs an extension stock PostgreSQL does not ship (`TICKET-007`), and omitted
+> `token_blacklist`, which every authenticated request queries (`TICKET-017`).
+> `bootstrap.sh` ran `psql` without `-v ON_ERROR_STOP=1`, so it printed
+> `✓ init.sql executed` even when the load failed.
+>
+> `deploy/schema.sql` is a `pg_dump --schema-only` snapshot of the live database:
+> 23 tables, labelled generated, carrying its provenance. It is the dev bootstrap
+> and the source for the Alembic baseline revision, so the two cannot disagree.
+>
+> **Do not rebuild the schema from the SQLAlchemy models.** The models are stale
+> against the live database in 9 measured places, so a script generated from them
+> loads cleanly and builds the *wrong* schema — a worse failure than a loud one.
+> See `TICKET-019`.
+
 ```bash
 export ROOT_PATH=/path/to/your/python/projects/api-tickets-backend
-$ROOT_PATH/bootstrap.sh \
-    --project-root $ROOT_PATH/app-tickets-backend \
-    --compose-file docker-compose.yml \
-    --init-file init.sql
+
+# Provision once, as admin. This creates the DATABASE, not its tables.
+#   docker exec postgres-gci createdb -U postgres db_gestiket_acme
+#
+# Then build the schema, as the app role. This creates the TABLES.
+#   docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -U postgres \
+#       -d db_gestiket_acme < deploy/schema.sql
+#
+# Two separate steps on purpose. Neither one creates both.
+# Full procedure: docs/deployment-guide.md §2.
 
 uvicorn app.main:app --reload --reload-dir app
-```  
+```
 
 ## RUN: NEXT TIME  
 ```bash
