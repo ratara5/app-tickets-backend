@@ -1,6 +1,14 @@
 # Keep the build context lean and prevent secrets from entering the
-# image layer. Only app/ and requirements.txt are copied, but the
-# context is still sent to the daemon in full.
+# image layer. Only app/, requirements.txt, alembic/ and alembic.ini are
+# copied, but the context is still sent to the daemon in full.
+#
+# `alembic/` and `alembic.ini` MUST NOT be listed here. They were, until
+# 2026-09-27, which meant the `migrate` stage could not COPY them: the
+# package was installed and the revision scripts were not, so the image
+# started, passed its healthcheck, and could not run a migration. A file
+# excluded from the build context fails the COPY loudly, but only once
+# someone builds the stage.
+# Guarded by tests/test_deploy_assets.py.
 .git
 .gitignore
 .env
@@ -21,8 +29,6 @@ ai-specs
 openspec_example
 deploy
 etl
-alembic
-alembic.ini
 scripts
 prompts
 gtk-companies

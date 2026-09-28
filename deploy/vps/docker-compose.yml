@@ -61,6 +61,44 @@ services:
           - api
 
   # ------------------------------------------------------------
+  # migrate — ONE-SHOT JOB, never a service
+  # ------------------------------------------------------------
+  # Invoke as:  docker compose run --rm migrate
+  #
+  # `run --rm` is the whole point. This entry is never started with `up`, and
+  # `restart: "no"` is not optional: a supervised migration that fails would
+  # restart-loop and re-attempt DDL against postgres-gci, which is shared with
+  # other applications. One failure must stop, not become a self-inflicted
+  # outage for other tenants.
+  #
+  # It builds the `migrate` target of the SAME Dockerfile as `api`, so the
+  # migration always runs the same app/models the API will run.
+  #
+  # It publishes no port and declares no healthcheck: a job has no traffic to
+  # receive and no uptime to supervise.
+  #
+  # NOT YET THE DEPLOYMENT PATH: `alembic upgrade head` still fails while the
+  # history has two heads and no baseline (TICKET-009, TICKET-014). Keep using
+  # docs/deployment-guide.md §2.2's procedure until that lands. This job exists
+  # so the baselining can be executed and verified from the image.
+  migrate:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      target: migrate
+    image: app-tickets-backend:vps-migrate
+    restart: "no"
+    env_file:
+      - ../../.env
+    environment:
+      # Same value the API and the ETL use: container-name resolution only works
+      # inside a docker network.
+      DB_HOST: postgres-gci
+      DB_PORT: "5432"
+    networks:
+      - infra-net
+
+  # ------------------------------------------------------------
   # Caddy — automatic TLS for the API and the media host
   # ------------------------------------------------------------
   caddy:

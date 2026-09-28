@@ -7,7 +7,7 @@
 #   ./bootstrap.sh \
 #     --project-root ~/Documents/python_scripts/app-tickets-backend \
 #     --compose-file docker-compose.yml \
-#     --init-file init.sql \
+#     --init-file deploy/schema.sql \
 # ========================================
 set -euo pipefail
 
@@ -21,7 +21,7 @@ usage() {
     echo ""
     echo "  --project-root  Project root path (mandatory)"
     echo "  --compose-file  Compose file name (default: docker-compose.yml)"
-    echo "  --init-file     Name of creation script init.sql (default: init.sql)"
+    echo "  --init-file     Schema script (default: deploy/schema.sql)"
     exit 1
 }
 
@@ -38,7 +38,7 @@ done
 
 # ── Derivated variables ───────────────────────────────────────
 COMPOSE_FILE="${PROJECT_ROOT}/${COMPOSE_FILE_ARG:-docker-compose.yml}"
-INIT_SQL="${PROJECT_ROOT}/${INIT_FILE_ARG:-init.sql}" # /templates/gci/
+INIT_SQL="${PROJECT_ROOT}/${INIT_FILE_ARG:-deploy/schema.sql}" # /templates/gci/
 ETL_PATH="$PROJECT_ROOT/etl" # BASE_PATH=.../gci-companies/gci-base/bq-sync-base
 
 # ── Variables loaded via env ─────────────────────
@@ -97,16 +97,24 @@ DB_EXISTS=$(docker exec postgres-gci psql -U "$DB_USER" -tAc \
     "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'")
 
 if [ "$DB_EXISTS" = "1" ]; then
-    ok "Databse '$DB_NAME' already exists"
+    ok "Database '$DB_NAME' already exists"
 else
     docker exec postgres-gci psql -U "$DB_USER" -c "CREATE DATABASE $DB_NAME"
     ok "Database '$DB_NAME' created"
 fi
 
-# ── Init SQL ─────────────────────────────────────────────────
-log "Running init.sql..."
-docker exec -i postgres-gci psql -U "$DB_USER" -d "$DB_NAME" < "$INIT_SQL"
-ok "init.sql executed"
+# ── Schema ─────────────────────────────────────────────────
+# ON_ERROR_STOP=1 is mandatory here, not a hardening nicety. Without it psql logs
+# the error, keeps going, exits 0, and the script reports success on a schema that
+# was never built. That is how TICKET-007, TICKET-008 and TICKET-017 stayed hidden.
+log "Loading schema from $INIT_SQL..."
+if ! docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -q -U "$DB_USER" -d "$DB_NAME" < "$INIT_SQL"; then
+    fail "Schema load failed. $INIT_SQL was NOT applied — the database is incomplete."
+fi
+[ -n "$(docker exec postgres-gci psql -U "$DB_USER" -tAc \
+    "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='token_blacklist'" \
+    -d "$DB_NAME")" ] || fail "token_blacklist is missing after the load; every authenticated request will fail (TICKET-017)."
+ok "Schema loaded"
 
 # ── Data load ─────────────────────────────────────────────────
 log "Loading initial data..."
