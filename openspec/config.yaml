@@ -91,16 +91,17 @@ ai_specs_structure: |
   │   ├── adversarial-review/
   │   ├── code-auditing/
   │   ├── commit/
+  │   ├── deploying-backend-vps/     ← Shared VPS deployment doctrine (canonical, cross-project)
   │   ├── enrich-us/
   │   ├── explain/
   │   ├── meta-prompt/
-  │   ├── openspec-sync-specs/
   │   ├── show-spec-working/
   │   ├── sync-agent-symlinks/
   │   ├── update-docs/
   │   ├── using-git-worktrees/
   │   └── writing-skills/
-  └── specboot-instructions.md
+  ├── harness-ia.md                  ← The harness map: canonical vs pointer, read order
+  └── specboot-instructions.md       ← Symlink to ../README.md, deliberately: the README is the entry point
 
 paths: |
   All paths relative to project root.

@@ -42,9 +42,11 @@ For detailed standards and guidelines specific to different areas of the project
 
 - **Canonical Source**: Keep reusable artifacts in `ai-specs` as the canonical source. Agent-specific paths (such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `codex.md`) reference `docs/base-standards.md` through symlinks.
 - **Update Safety**: Whenever a file is renamed, moved, or its suffix changes, verify and update all symlinks that target it before considering the change complete.
-- **New Artifact Linking**: Whenever creating a new artifact that requires multi-agent exposure (for example new agents or skills in `ai-specs`), create the corresponding symlinks from the expected agent-specific reference paths.
+- **New Artifact Linking**: Whenever creating a new artifact that requires multi-agent exposure (for example new agents or skills in `ai-specs`), expose it from the agent folders with **relative** symlinks. The committed exposure path is `.opencode/skills/`. Note that `.gitignore` excludes `**/.claude_example/` and `**/openspec_example/`, so a symlink placed there is never committed and cannot survive a clone — treat those folders as local, untracked copies, and do not rely on them as the exposure path.
 - **External Customization Review**: Whenever customization is introduced outside `ai-specs`, evaluate whether it should be moved into `ai-specs` and replaced with symlinks from the original locations.
 - **Completion Gate**: A change is incomplete if it leaves broken symlinks, stale targets, or duplicated canonical artifacts across agent-specific folders.
+- **Harness Map**: The full topology — what is canonical, what is a pointer, the read order, and the procedure for adding a skill, agent, or command — is in [`ai-specs/harness-ia.md`](../ai-specs/harness-ia.md). Read it before changing anything in `ai-specs`, `.opencode`, or `.claude_example`.
+- **Declared Tree Is a Claim**: The `ai_specs_structure` block in `openspec/config.yaml` declares the `ai-specs` tree. If it disagrees with the filesystem, the declaration is the defect; fix the declaration.
 
 ## 6. Mandatory OpenSpec Artifact Updates for Post-Apply Changes
 

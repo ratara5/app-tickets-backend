@@ -59,8 +59,35 @@ already listens on.
 
 ## Phase 2: PostgreSQL Role, Database, Schema
 
-Use `ON_ERROR_STOP=1` on **every** `psql` invocation. Without it `psql` reports each
-error and continues, and you end up with a half-built schema that looks deployed.
+Provisioning and schema are **two different planes**, and keeping them apart is the
+most important habit in this skill. They have different actors, different privileges,
+and different failure modes.
+
+| | Plane 1: provisioning | Plane 2: migration |
+|---|---|---|
+| Creates | the role, the database, the credentials | the tables, columns, indexes |
+| Actor | a human, as an administrator | the app's own source, unattended |
+| Privilege | superuser / `CREATEDB` | the app role only |
+| Cadence | once per project, ever | every release |
+| Failure means | the project never existed | that release is wrong |
+| Belongs to | the shared estate | the application |
+
+Neither plane creates the other, and no single command does both.
+
+Use `ON_ERROR_STOP=1` on **every** `psql` invocation, without exception. Without it
+`psql` reports each error and continues, and you end up with a half-built schema that
+looks deployed. This one flag is the difference between a loud failure and a silent
+one, and it is the most common defect in this area.
+
+### Plane 1: the database is not the app's to create
+
+`alembic upgrade head` creates tables. `prisma migrate deploy` creates tables. Neither
+creates the database, and that is not an oversight — `CREATE DATABASE` cannot run
+inside a transaction, and it needs privileges the application role must never hold.
+Some Prisma commands will create a database for you, but that is a development-time
+convenience, not a deployment path.
+
+Create it as an administrator, once, deliberately, separately:
 
 ```bash
 # Never reuse the shared instance's superuser for the app.
@@ -72,26 +99,130 @@ REVOKE ALL ON DATABASE postgres FROM <app_role>;
 SQL
 ```
 
+**Why this must not happen from the app's own `docker compose up`.** The shared
+instance hosts other tenants' databases. If the application's compose file can create
+the role and the database, then:
+
+- the app container must hold administrative credentials, so a compromise of the app
+  is a compromise of every other tenant on the server;
+- the create becomes a second, unaudited path to the same state, and it races with
+  any other create;
+- the database's lifetime becomes coupled to the app container's, which is false —
+  the data outlives the deployment, and `compose down` must never imply otherwise;
+- the role's password must live somewhere, and a compose file is the wrong place for
+  a credential.
+
+A tenancy on a shared server is provisioned by whoever administers the server. The
+application is a client of that tenancy, not its owner.
+
 Confirm the role cannot see other tenants' databases:
 
 ```bash
-docker exec <pg-container> psql -v ON_ERROR_STOP=1 -U <app_role> -d <app_db> -tAc \
+docker exec -i <pg-container> psql -v ON_ERROR_STOP=1 -U <app_role> -d <app_db> -tAc \
   "SELECT datname FROM pg_database WHERE datistemplate = false"
 ```
 
-### Schema creation, in order of preference
+### Plane 2: the schema, from the app's own source
 
-1. **The app's own migration tool**, applied to a freshly created database. Before
-   trusting it, prove it: run it against a disposable database, then check that
-   upgrading again is a no-op afterwards.
-2. **The app's ORM metadata** (`create_all`), then stamp the migration history,
-   when the migrations are deltas that assume a base schema already exists.
-3. A raw `init.sql` only if it is proven to run clean on a fresh database today.
+Plane 2 comes from the application's own migration tool, applied as a one-shot job
+built from the same source as the running app. In order of preference:
 
-Any of these can be wrong. Check before deploying:
+1. **The app's own migration tool**, against an already-created database. Prove it on
+   a disposable database first: migrate, then migrate again and confirm the second run
+   is a no-op.
+2. **A schema dump of the real database**, when no trustworthy migration history
+   exists. This is a bootstrap, not a production path — see below.
 
-- Does the schema script depend on an extension that must exist? A stock
-  `postgres:16` image has only `plpgsql`, `uuid-ossp`, `pgcrypto`.
+#### When the ORM and the database disagree, the database is right
+
+If an ORM is in play, its models and the live database will eventually disagree. The
+database is the ground truth; the models are a claim about it, and the models can be
+wrong. When they are, a script generated from the models loads cleanly and builds the
+**wrong** schema — strictly worse than a script that fails loudly, because nothing
+tells you it is wrong.
+
+So reconcile the models to the database first, and only then generate anything. Do not
+generate from unreconciled models, and do not "repair" a broken schema file by
+regenerating it from the ORM. A file that is broken loudly today was doing you a
+favour.
+
+#### If there is no migration history: dump, then baseline
+
+When the schema predates the migration tool, the history is usually incomplete — often
+a single revision that creates one table and assumes the rest already exist. That
+cannot bootstrap an empty database, and `upgrade head` fails partway.
+
+Dump the real schema and use it as the source for a baseline revision, so the history
+becomes replayable from empty:
+
+```bash
+docker exec <pg-container> pg_dump -U <admin-user> --schema-only \
+  --no-owner --no-privileges -d <app_db> > schema.sql
+```
+
+`--no-owner` is not optional: without it `pg_dump` emits `ALTER … OWNER TO <role>` for
+whichever role happened to own the live objects, and the file then fails on any server
+where that role is named differently. `--schema-only` is not optional either: it keeps
+production rows out of the repository.
+
+One dump, two outputs — the dev bootstrap and the baseline revision. Deriving both
+from a single snapshot is what makes them incapable of disagreeing.
+
+Label any generated artifact as generated and record its provenance (source, command,
+commit, date). An unlabelled generated file is read as hand-maintained, edited by hand,
+and diverges silently. A test should assert the header survives, so the contract
+cannot be quietly dropped.
+
+### Running migrations as a job, not a service
+
+Migrations are a one-shot job that exits. They are not a supervised process.
+
+- Never `restart: unless-stopped` a migration. One failure becomes a restart loop
+  re-hammering a database shared with other tenants.
+- Never `compose exec <app> alembic …`. It requires the app to already be running, so
+  the migration lands *after* the code needing the new column is serving traffic.
+- Build the job from the same source as the app, so "what migrated" and "what runs"
+  can never be different code. A separate `migrate` stage in the same Dockerfile plus a
+  `run --rm` service in the same compose file is the shape that guarantees this.
+
+```yaml
+migrate:
+  build:
+    target: migrate          # same Dockerfile, same commit as the app
+  command: ["alembic", "upgrade", "head"]
+  restart: "no"             # a job exits; it is not a service
+  networks: [infra-net]     # reaches the database, like the app
+  # no published ports: a job has no traffic to receive
+```
+
+```bash
+docker compose run --rm migrate                    # on a new release
+docker compose run --rm migrate alembic heads      # prove the scripts are in the image
+```
+
+### Make drift a build failure, not a discovery
+
+A one-time reconciliation rots. Wire drift detection into CI so the models can never
+silently diverge again:
+
+```bash
+alembic check        # == revision --autogenerate --check; non-zero on any difference
+```
+
+It needs a database, so it belongs in a CI job with a throwaway PostgreSQL — not in a
+unit-test suite required to run without one.
+
+**Autogenerate is destructive until the metadata is trustworthy.** If the ORM metadata
+does not hold the full schema, autogenerate reports the missing tables as `drop_table`
+operations, and applying that output deletes live data. Fix the metadata first, count
+the tables the metadata holds against the tables the database holds, reconcile any
+difference by hand, and confirm the tool reports no operations before you let it write
+anything.
+
+### Things to check before deploying
+
+- Does the schema depend on an extension that must exist? A stock `postgres:16` has
+  only `plpgsql`, `uuid-ossp`, `pgcrypto`.
   ```bash
   docker exec <pg-container> psql -U <admin-user> -d <app_db> -tAc \
     "SELECT name, default_version FROM pg_available_extensions WHERE name = '<extension>'"
@@ -105,19 +236,54 @@ Any of these can be wrong. Check before deploying:
 - Are revision identifiers longer than the history table's version column? They
   truncate or fail. Check the column width against the longest identifier.
 
-After the schema exists, compare it against what the code expects. Counts must agree;
-a mismatch in either direction means drift, not success.
+### Verify the schema is what the code expects
 
 ```bash
 docker exec <pg-container> psql -U <app_role> -d <app_db> -tAc \
   "SELECT count(*) FROM pg_tables WHERE schemaname = 'public'"
 ```
 
+A count is the weakest check available: a script that skips every table after its first
+error can leave the right number by coincidence. Compare table **sets**, not counts. A
+dump missing one table still boots, and the application then fails on the routes that
+need it — and if that table is on the auth path, it fails open.
+
 ### Seed data
 
-Only reference or lookup data. Never seed rows owned by tenants, and never seed
-credentials. Re-running a seed must be idempotent, and it must never run against a
-database that already holds live data without an explicit human decision.
+A third plane, and the most dangerous to get wrong. Only reference or lookup data. Never
+seed rows owned by tenants, and never seed credentials.
+
+A seeder that disables referential integrity to get data in will load clean and hide
+every violation it caused. Do not set `session_replication_role = replica`; do not defer
+constraints to paper over an ordering problem; do not use a row count to decide
+success. Re-running a seed must be idempotent, and it must never run against a database
+that already holds live data without an explicit human decision. If a load has to
+disable constraints to succeed, it must verify afterwards that the constraints hold.
+
+### Adapter table
+
+The doctrine is the same in every project; only the migration adapter changes.
+
+| | This project (Alembic) | Sibling project (Prisma) |
+|---|---|---|
+| Plane 2 command | `alembic upgrade head` | `prisma migrate deploy` |
+| Creates tables | yes | yes |
+| Creates the database | no | no |
+| Plane 1 | `createdb` as admin, once | `createdb` as admin, once |
+| Schema of record | the generated dump | `schema.prisma` + `migrations/` |
+| Dev bootstrap | `psql -f <dump>` | `migrate deploy` on a fresh database |
+| Run as | one-shot `migrate` job | one-shot `migrate` job |
+| Drift gate | `alembic check` in CI | `prisma migrate diff` in CI |
+| Extra artifact to maintain | one generated dump | **none** |
+
+The asymmetry in the last row is the point. Prisma was adopted together with the
+schema, so `migrate deploy` replays a complete history onto an empty database and
+there is nothing else to keep in step. Alembic was adopted after the schema existed, so
+this project owns a hand-built baseline. A project that already has Prisma should
+**not** add an inferred `init.sql`: it would be a fourth artifact describing the same
+schema, and it would drift.
+
+For how this doctrine reaches a second repository, see `ai-specs/harness-ia.md` §6.
 
 ## Phase 3: MinIO User, Bucket, Policy, Credentials, CORS
 
