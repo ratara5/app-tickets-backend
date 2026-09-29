@@ -629,11 +629,11 @@ Do not proceed past a failing gate; fix it and re-run. Record each gate's output
    **`psql` still exits 0**. The restore looks successful and the result has less
    referential integrity than the database it came from.
 
-   `db_gestiket_acme` is in exactly that state: three rows violated
-   `spares_unit_fkey` and `uom_ref_unit_fkey`, so restoring it dropped both
-   constraints without failing loudly. See TICKET-024. Fixed on 2026-09-29, but
-   the failure mode is not specific to those constraints and will recur the next
-   time data violates anything.
+   This is not hypothetical, and it is not specific to any one set of
+   constraints. It happened in this project: three rows violated two foreign
+   keys, so every restore silently dropped both. The general rule is that any
+   row violating a foreign key makes that key vanish from the restore, and the
+   next violation will do the same.
 
    **Never drill a restore against the running server.** Use a single-database
    dump and a fresh empty database:
@@ -649,8 +649,8 @@ Do not proceed past a failing gate; fix it and re-run. Record each gate's output
    contains `CREATE DATABASE` and `\connect`; replayed onto an instance that
    already exists, those fail with "already exists", the script connects to the
    **existing** database anyway, and the restore starts inserting into live. That
-   is not hypothetical — it happened here, and it doubled two tables that have no
-   primary key, silently.
+   is not hypothetical — it happened in this project, and it doubled two tables
+   that have no primary key, silently.
 
    Check the output rather than the exit code, and assert the object counts:
 
