@@ -47,3 +47,19 @@ python -m alembic upgrade head
 - `docs/deployment-guide.md` and the deployment skill use `upgrade heads` and
   `alembic stamp heads` is an interim measure; both should revert to `head`
   once this is fixed.
+
+## Resolution
+
+**Resolved 2026-09-27, by replacing the history rather than repairing it.**
+
+`alembic heads` now prints exactly one line, `0001_baseline`.
+
+The two heads are gone because the seven-revision history is gone. It was
+replaced by a single baseline derived from `deploy/schema.sql`, on the finding
+that the history was never applied to any database: the live `alembic_version`
+held one hand-stamped row, not a real history. There was no correct chain to
+merge, only an inaccurate one to discard. `git` retains the deleted revisions, so
+this is revertible.
+
+See `docs/deployment-guide.md` §2.2.2 for when to undo it and how. Guarded by
+`tests/test_alembic_baseline.py`.

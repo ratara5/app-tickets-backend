@@ -15,7 +15,8 @@
 > and the source for the Alembic baseline revision, so the two cannot disagree.
 >
 > **Do not rebuild the schema from the SQLAlchemy models.** The models are stale
-> against the live database in 9 measured places, so a script generated from them
+> against the live database — `alembic check` reports 94 pending operations — so a
+> script generated from them
 > loads cleanly and builds the *wrong* schema — a worse failure than a loud one.
 > See `TICKET-019`.
 

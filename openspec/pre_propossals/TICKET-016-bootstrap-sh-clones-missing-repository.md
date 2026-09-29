@@ -51,3 +51,20 @@ grep -n "git clone" bootstrap.sh
 - Because the script is the documented entry point, consider whether the environment
   bootstrap belongs in version control at all, or should be a documented sequence of
   commands like the rest of the deployment guide.
+
+## Resolution
+
+**Not reproducible, 2026-09-27. Closed as already-fixed rather than fixed here.**
+
+`grep -n "git clone" bootstrap.sh` returns nothing, and it also returns nothing
+at commit `6305a4c`, the commit before any of this session's work. The clone of
+`gtk-companies/gtk-base` described here is not in the current tree, so
+`./bootstrap.sh` has no clone step to fail.
+
+Nothing in this session removed it, so this ticket was stale when filed and was
+not caught earlier because the reproduction was not re-run. Recorded here so the
+next reader does not go looking for a line that is not there.
+
+The one real fragility in `bootstrap.sh` that remains is different and is
+`TICKET-013`: it sources `.env` at line 45, which corrupts the JSON in
+`ALLOWED_TYPES`.

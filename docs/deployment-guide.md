@@ -103,7 +103,8 @@ passes `ON_ERROR_STOP=1`, and verifies afterwards that `token_blacklist` exists.
 error, continues, and exits 0 — which is how three separate tickets stayed invisible.
 
 **Do not generate the schema from the SQLAlchemy models.** Measured against the live
-database on 2026-09-27, the models are stale in nine structural places: they would
+database on 2026-09-27, `alembic check` reports 94 pending operations (37 type changes, 52 nullability changes, 2 sequence changes, 3 removals), so the models are stale
+far past a handful of columns. The ones that matter most: they would
 give `tickets.ticket_id` a `SERIAL` although its ids come from the external ticketing
 system, replace the live `priority_type` and `status_type` enums with `VARCHAR`, drop
 `TIMESTAMPTZ` to `TIMESTAMP`, change `photos.photo_id` from `text` to `SERIAL`,
@@ -148,9 +149,9 @@ Two things this deliberately does **not** do:
   running, so it migrates *after* the code that needs the new column is serving
   traffic. `run --rm` fixes the ordering and needs no running container.
 
-**Do not put this in the deploy sequence yet.** The blockers above mean
-`alembic upgrade head` still fails; the job exists so the baselining work can be
-*executed and verified from the image*.
+**Do not put this in the deploy sequence yet.** `alembic check` reports 94
+pending operations, so autogenerate still writes a destructive revision. The job
+exists so the remaining model work can be executed and verified from the image.
 
 An earlier version of this image could not run migrations at all: `alembic` is in
 `requirements.txt` so the package was installed, but only `app/` was copied, so
@@ -164,9 +165,87 @@ healthcheck while `alembic upgrade head` failed on missing config.
 (measured against a database built from `deploy/schema.sql`; Alembic excludes its
 own `alembic_version`). Both defects are now fixed — the imports and a named
 exclusion for the 5 tables that have no models — and the result is 0
-`remove_table`, verified against a disposable database. `alembic check` still
-belongs in CI so drift fails the build instead of being discovered in production,
-and the models themselves are still stale. That is `TICKET-019`.
+`remove_table`, verified against a disposable database.
+
+The models themselves are still stale, and `alembic check` now measures it: **94
+pending operations**, being 37 type changes, 52 nullability changes, 2 sequence
+changes and 3 removals. That is `TICKET-019`, and it is why autogenerate is still
+forbidden. The three removals are the reason it is not merely untidy:
+
+| What autogenerate wants to remove | Consequence if applied |
+|---|---|
+| `spares.unit` foreign key (`spares_unit_fkey`) | the only thing making a `spares` row's unit verifiable — and the constraint `TICKET-020` is about |
+| `maintenances.ticket_id` unique constraint | one maintenance per ticket stops being enforced |
+| `technicians.user_id` index | a silent performance regression, no error |
+
+It would also convert `photos.photo_id` from `text` to `Integer` and
+`token_blacklist.jti` from `uuid` to `String(36)`, both against live data.
+
+### 2.2.2 The baseline, and when to undo it
+
+The Alembic history is one revision, `0001_baseline`, and it creates nothing.
+
+**Why the seven previous revisions were deleted rather than repaired.** They
+described how the schema got here, and that was never true. The live database was
+built by hand and by the ETL loader; its `alembic_version` table was stamped by
+hand and held one row, a 48-character revision id, inside a `varchar(64)` column
+that Alembic's own DDL creates as `varchar(32)`. No environment had ever been
+migrated by Alembic. So the history could not be replayed, and it could not even
+be stamped: two heads, and ids too long for the column meant to hold them. There
+was no correct history to repair, only an accurate one to write.
+
+**How a database is built and brought under Alembic.** The schema comes from the
+dump, never from the migration:
+
+```bash
+psql -v ON_ERROR_STOP=1 -d <db> < deploy/schema.sql   # build the schema
+alembic stamp head                                   # record where it now stands
+alembic upgrade head                                 # no-op, by design
+```
+
+`alembic stamp` writes only bookkeeping. It never alters a table, which is why it
+is safe on the live database and why the baseline has empty `upgrade()` and
+`downgrade()` bodies.
+
+#### When to undo this, and how
+
+Regret this only if one of these turns out to be true. Each is checkable before
+you commit to anything.
+
+| Trigger | How to undo |
+|---|---|
+| You need to **replay the old migrations** to build a schema from empty, step by step | `git revert` the squash commit. The seven revisions and their chain come back, and with them the two heads. |
+| The live schema turns out **not** to be the truth for some environment (a second deployment whose schema differs) | Do **not** un-squash. Two schemas means one dump and one baseline are wrong; reconcile the environments first, then re-dump and re-baseline. |
+| You discover a **column missing from the dump** | Fix the live database, regenerate `deploy/schema.sql` from it, then `alembic stamp head`. The baseline does not need to change: it is an anchor, not a copy. |
+| A real migration is needed **now** | Write a revision with `down_revision = "0001_baseline"`. That is the normal path and needs no undo. |
+
+What you give up by squashing: the ability to walk 0001→0005 incrementally. What
+you keep: `deploy/schema.sql` as the single description of the schema, and a
+bookkeeping table that fits its own column. `git` holds the deleted revisions, so
+the undo is a revert, not an archaeology exercise.
+
+**The one part that is not in git.** Stamping the live database overwrites its
+`alembic_version` row. The current value is
+`0005_add_upload_replaces_photo_id_fix_parent_tab`, and after the squash it names
+a revision that no longer exists, so `alembic downgrade` has nowhere to walk to
+either way. It is still the last surviving trace of the old history, and it is
+the one piece of state the dump does **not** preserve — `pg_dump --schema-only`
+emits the `alembic_version` table but not its rows. Read the value out **before**
+stamping and keep it.
+
+#### Guardrails
+
+`tests/test_alembic_baseline.py` fails the build if a second revision reappears
+(two heads), if the baseline gains a `down_revision`, or if any revision id
+exceeds 32 characters. `alembic heads` must print exactly one line.
+
+A stale detail worth knowing: `deploy/schema.sql` carries
+`alembic_version.version_num` as `varchar(64)`, inherited from the hand-widened
+live column. Harmless with a 14-character id, but the dump is the schema of
+record, so that widening is now inherited by every new environment built from it.
+Fixing it means a migration on the live database plus a regenerated dump — not a
+hand-edit of the generated file.
+
 
 **Refuse to touch a populated database.** Check before writing anything:
 
@@ -397,7 +476,7 @@ Tracked as pre-proposals; each blocks a clean, reproducible deployment.
 | `TICKET-012` | one `MINIO_ENDPOINT` value is used for both internal I/O and public signing | media URLs, unless the network alias is in place |
 | `TICKET-017` | `init.sql` omits `token_blacklist`, which every authenticated request queries; now hand-patched as a stopgap | trusting `init.sql` for a new database |
 | `TICKET-018` | 5 tables for unbuilt features exist in the live database with no model; `uom` holds 9 rows and a broken reference. Owner ratara5, review 2026-12-27 | building against an unreviewed shape |
-| `TICKET-019` | the ORM models are stale against the live database in 6+ places, so `init.sql` cannot be regenerated from them | retiring `init.sql`, which is the fix for `TICKET-017` |
+| `TICKET-019` | the ORM models are stale against the live database (`alembic check`: 94 pending operations), so `init.sql` cannot be regenerated from them | retiring `init.sql`, which is the fix for `TICKET-017` |
 | `TICKET-020` | `etl/seed_db.sh` loads under `session_replication_role = 'replica'` and prints success unconditionally | trusting seeded data to satisfy its foreign keys |
 
 ## Stop the bleeding

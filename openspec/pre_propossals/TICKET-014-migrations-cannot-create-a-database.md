@@ -61,3 +61,24 @@ python -m alembic upgrade head          # with DATABASE_URL pointed at d
 - Related: `TICKET-007`, `TICKET-008`, `TICKET-009`, `TICKET-010`, and
   `TICKET-015` (the live database's history is stale relative to its own contents).
 - `TICKET-011` is unrelated: it concerns the presigned-URL TTL unit.
+
+## Resolution
+
+**Partly resolved 2026-09-27, and deliberately not "fixed" in migrations.**
+
+The premise of this ticket is right and the conclusion has changed. Migrations
+should not create a database, and they do not: `alembic upgrade head` is now a
+verified no-op on a correctly stamped database, and a new database is built by
+loading `deploy/schema.sql` and then `alembic stamp head`. Database creation
+stays an admin action, because `postgres-gci` is shared and the app must not hold
+the credentials to create one.
+
+What is resolved: there is now a reproducible path from empty to current —
+`deploy/schema.sql`, a dump of the live database, verified to build all 23 tables
+on a stock PostgreSQL 16 with only `pg_uuidv7` added.
+
+What is deliberately not provided: a migration that creates the database, because
+that is the arrangement the two-plane doctrine forbids.
+
+The reported absence of a baseline revision is also resolved: `0001_baseline`
+exists and is the anchor. See `docs/deployment-guide.md` §2.2.2.

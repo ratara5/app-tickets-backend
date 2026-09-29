@@ -160,7 +160,7 @@ Three properties make this the correct answer rather than a third hand-maintaine
 copy:
 
 - **It cannot be wrong, only stale.** The database is the ground truth about the
-  database. The models are stale in nine measured places (`TICKET-019`), so a
+  database. The models are stale in 94 measured places (`TICKET-019`), so a
   generated-from-models script would load cleanly and build the wrong schema.
 - **One dump, two outputs.** The dev bootstrap and the future Alembic baseline are
   derived from the same snapshot, so they cannot disagree.

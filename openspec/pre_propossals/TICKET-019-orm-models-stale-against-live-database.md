@@ -2,7 +2,7 @@
 
 ## Metadata
 
-- **Summary**: the SQLAlchemy models disagree with the live database in at least six structural places, so regenerating `init.sql` from them would produce a valid script for the wrong schema
+- **Summary**: the SQLAlchemy models disagree with the live database badly enough that `alembic check` reports 94 pending operations (37 type changes, 52 nullability changes, 2 sequence changes, 3 removals), so regenerating a schema from them would produce a valid script for the wrong schema
 - **Issue Type**: Bug
 - **Project**: app-tickets-backend
 - **Priority**: High

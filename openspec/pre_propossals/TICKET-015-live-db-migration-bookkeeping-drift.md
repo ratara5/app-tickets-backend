@@ -71,3 +71,27 @@ is present.
   than the history column) and `TICKET-014` (no reproducible path from empty).
 - Verifying this requires starting the shared container read-only; restore it to its
   previous state afterwards.
+
+## Resolution
+
+**Confirmed and then superseded, 2026-09-27.**
+
+The diagnosis here was right and is now measured rather than inferred. Read-only
+inspection of the live database found exactly one row:
+
+    0005_add_upload_replaces_photo_id_fix_parent_tab
+
+a 48-character id, in a `varchar(64)` column that Alembic's own DDL creates as
+`varchar(32)`. That is a hand-stamped row in a hand-widened table, which confirms
+the history was never applied to this database.
+
+Superseded rather than repaired: the history has been replaced by the single
+baseline `0001_baseline`, so the row is now wrong in a new way — it names a
+revision that no longer exists. Stamping the live database fixes it, and stamping
+writes only bookkeeping, never schema.
+
+**Not yet done, because it writes to the shared database:** re-stamping
+`db_gestiket_acme`. It is a one-row `UPDATE` on a shared instance and needs the
+owner's go-ahead. The procedure and the exact value to restore are in
+`docs/deployment-guide.md` §2.2.2. Read the current value out first — it is the
+only trace of the old history that neither git nor the dump preserves.

@@ -46,3 +46,21 @@ python -m alembic stamp heads
   environment that already recorded it.
 - No existing environment was found with a widened `alembic_version`; how the current databases
   were stamped should be confirmed before choosing an option.
+
+## Resolution
+
+**Resolved 2026-09-27.**
+
+The 35- and 48-character revision ids no longer exist. The single revision is
+`0001_baseline`, 14 characters, which fits the `varchar(32)` Alembic creates.
+
+Verified on a disposable database built from `deploy/schema.sql`: `alembic stamp
+head` succeeded and stored the id without any column being widened. The live
+database's `varchar(64)` was hand-widened to fit the old 48-character id; it is
+left alone, and its value is the one trace of the old history that git does not
+hold, so read it before stamping.
+
+One residue: `deploy/schema.sql` carries that widened `varchar(64)` forward, so
+new environments inherit it. Harmless with a 14-character id. Fixing it means a
+migration on the live database plus a regenerated dump, not a hand-edit of the
+generated file.

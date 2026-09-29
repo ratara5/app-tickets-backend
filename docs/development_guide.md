@@ -25,7 +25,7 @@ docker compose up -d postgres
 docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -U postgres \
     -d db_gestiket_acme < deploy/schema.sql
 # Expected: 23 tables. Do NOT build the schema from the models -- they are stale
-# against the live database in 9 places (TICKET-019).
+# against the live database: alembic check reports 94 pending operations (37 type changes, 52 nullability changes, 2 sequence changes, 3 removals) (TICKET-019).
 
 # 4. Install Python dependencies
 pip install -r requirements.txt

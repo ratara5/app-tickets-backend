@@ -437,7 +437,8 @@ def test_bootstrap_schema_load_cannot_report_false_success() -> None:
 def test_readme_does_not_recommend_generating_the_schema_from_the_models() -> None:
     """The subtle failure: the README correctly forbade `init.sql` and then
     recommended building the schema "from the SQLAlchemy models". The models are
-    stale against the live database in 9 measured places, so that advice loads
+    stale against the live database (alembic check reports 94 pending operations),
+    so that advice loads
     cleanly and produces the wrong schema. A warning that points at the wrong fix is
     worse than no warning, because it is followed."""
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")

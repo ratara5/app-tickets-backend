@@ -77,10 +77,11 @@ services:
   # It publishes no port and declares no healthcheck: a job has no traffic to
   # receive and no uptime to supervise.
   #
-  # NOT YET THE DEPLOYMENT PATH: `alembic upgrade head` still fails while the
-  # history has two heads and no baseline (TICKET-009, TICKET-014). Keep using
-  # docs/deployment-guide.md §2.2's procedure until that lands. This job exists
-  # so the baselining can be executed and verified from the image.
+  # NOT YET THE DEPLOYMENT PATH: the models are stale against the live database
+  # (`alembic check` reports 94 pending operations, TICKET-019), so autogenerate
+  # would still write a destructive revision. `alembic upgrade head` itself is
+  # now sound: one head, a single `0001_baseline` that creates nothing. Keep
+  # using docs/deployment-guide.md §2.2 until the model drift is fixed.
   migrate:
     build:
       context: ../..

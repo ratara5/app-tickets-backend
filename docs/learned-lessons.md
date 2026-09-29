@@ -100,8 +100,8 @@ normally. That procedure is now in `docs/deployment-guide.md` §2.2.
 - When two artifacts define the schema (`init.sql` vs models/migrations), they will drift.
   **Correction, 2026-09-27:** an earlier version of this line read "the models win; the other
   artifact is a liability until it is regenerated or retired". That is wrong, and acting on it
-  would have made things worse. Measured against the live database, the models are stale in
-  six structural places (`tickets.ticket_id` would gain a `SERIAL`, two live enums become
+  would have made things worse. Measured against the live database, `alembic check` reports
+  94 pending operations (37 type changes, 52 nullability changes, 2 sequence changes, 3 removals). A sample of them: `tickets.ticket_id` would gain a `SERIAL`, two live enums become
   `VARCHAR`, `TIMESTAMPTZ` becomes `TIMESTAMP`, `photos.photo_id` changes from `text`,
   `token_blacklist.jti` reverts an applied migration, the `spares.unit` foreign key is not
   declared at all). Regenerating `init.sql` from them yields a script that runs cleanly and
