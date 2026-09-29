@@ -11,10 +11,17 @@ Seven hand-patched revisions described a path nobody walked, and they could not
 be executed: two heads, and revision ids too long to store in the table that is
 supposed to store them.
 
-They were replaced by a single baseline derived from `deploy/schema.sql`. These
-tests hold that arrangement in place. The failure they prevent is not subtle: a
-second revision reintroduces a second head, and a long id reintroduces the
+They were replaced by a baseline derived from `deploy/schema.sql`. These tests
+hold that arrangement in place. The failure they prevent is not subtle: an
+unconnected revision reintroduces a second head, and a long id reintroduces the
 column that had to be hand-widened in the first place.
+
+Note what the invariant is and is not. It is a single head reached by one linear
+chain, NOT a single revision file. The baseline is an empty anchor so that
+forward migrations have something to descend from, and the first one,
+`0002_widen_uom_factor`, already exists (TICKET-021). A test that counted files
+would have blocked a correct migration, so the count assertions below became
+chain assertions.
 
 No database is required, so these run in CI.
 """
@@ -48,27 +55,68 @@ def _revisions() -> dict[str, str]:
     return result
 
 
-def test_exactly_one_revision_exists() -> None:
-    """More than one revision means a second head, which blocks autogenerate."""
-    files = _revision_files()
-    assert len(files) == 1, (
-        f"expected exactly one revision in alembic/versions/, found {len(files)}: "
-        f"{[p.name for p in files]}. The history was replaced by a single baseline "
-        f"because the seven revisions it replaced were never applied to any "
-        f"database. Adding a second revision reintroduces the two-heads failure "
-        f"that made `alembic upgrade head` unrunnable. See TICKET-009."
+def _heads() -> list[str]:
+    """Revisions that no other revision descends from. More than one is a fork.
+
+    A head is identified by having no *children*, not by having no parent. Those
+    are opposite ends of the chain, and conflating them reports the baseline as
+    the head, which is the bug this helper was written to avoid.
+    """
+    revisions = _revisions()
+    parents = set(revisions.values())
+    return [rev for rev in revisions if rev not in parents]
+
+
+def test_the_history_is_a_single_linear_chain_ending_in_one_head() -> None:
+    """One head, reached by one unbroken chain. A second head blocks autogenerate.
+
+    This replaced an assertion that exactly one revision file exists. That was
+    wrong as a rule: the baseline is deliberately empty so real migrations have
+    something to descend from, and asserting a single file would fail the first
+    correct migration anyone added. What actually breaks `alembic upgrade head` is
+    a fork, not a length.
+    """
+    revisions = _revisions()
+    heads = _heads()
+    assert len(heads) == 1, (
+        f"expected exactly one head, found {len(heads)}: {heads}. The history was "
+        f"replaced by a single baseline because the seven revisions it replaced were "
+        f"never applied to any database, and two heads is what made `alembic upgrade "
+        f"head` unrunnable and what autogenerate refuses to run against. See TICKET-009."
+    )
+
+    # Walk back from the head. Every step must resolve, and the walk must cover
+    # every revision: a cycle, or a revision whose down_revision names something
+    # that does not exist, would otherwise pass the head count.
+    seen: list[str] = []
+    cursor = heads[0]
+    while cursor in revisions and cursor not in seen:
+        seen.append(cursor)
+        cursor = revisions[cursor]
+    assert len(seen) == len(revisions), (
+        f"walking back from head {heads[0]!r} reached {seen} and left "
+        f"{sorted(set(revisions) - set(seen))} unvisited. Every revision must be on "
+        f"the one chain, otherwise the history branches or dangles."
+    )
+    assert revisions[seen[-1]] in ("", "None"), (
+        f"the walk from head {heads[0]!r} bottoms out at {seen[-1]!r}, which still "
+        f"names a parent {revisions[seen[-1]]!r} that is not on the chain. The oldest "
+        f"revision must have no down_revision so there is exactly one root."
     )
 
 
 def test_the_baseline_has_no_down_revision() -> None:
-    """A down_revision would make the single revision a second head again."""
+    """The root of the chain is the baseline, and it is a root."""
     revisions = _revisions()
-    assert len(revisions) == 1, f"expected one revision id, parsed {revisions}"
-    revision_id, down = next(iter(revisions.items()))
-    assert down in ("", "None"), (
-        f"the baseline {revision_id!r} declares down_revision={down!r}. A chain of "
-        f"two or more is a history again, and two heads is what autogenerate "
-        f"refuses to run against."
+    roots = [rev for rev, down in revisions.items() if down in ("", "None")]
+    assert len(roots) == 1, (
+        f"expected exactly one root revision with no down_revision, found {roots} "
+        f"in {revisions}. A second root is a second head."
+    )
+    assert "0001_baseline" in roots, (
+        f"the root is {roots[0]!r}, not the baseline. The baseline is the anchor "
+        f"every forward migration descends from; renaming it silently orphans the "
+        f"migrations that point at it."
     )
 
 
@@ -90,8 +138,9 @@ def test_the_baseline_says_it_creates_nothing_and_how_to_stamp() -> None:
     assume the migration is broken. The file has to say what it is for and what
     to do instead, because the schema comes from deploy/schema.sql.
     """
-    (only,) = _revision_files()
-    text = only.read_text(encoding="utf-8")
+    baseline = VERSIONS_DIR / "0001_baseline.py"
+    assert baseline.exists(), f"the baseline is missing from {VERSIONS_DIR}"
+    text = baseline.read_text(encoding="utf-8")
     for phrase in ("deploy/schema.sql", "stamp", "baseline"):
         assert phrase in text, (
             f"alembic/versions/{only.name} never mentions {phrase!r}. The baseline "
