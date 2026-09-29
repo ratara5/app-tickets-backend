@@ -410,9 +410,35 @@ which breaks the app's settings validation. The app reads the file itself throug
 grep -E "^(DB_NAME|DB_USER|DB_HOST|DB_PORT)=" .env   # to export one value by hand
 ```
 
-`MINIO_ENDPOINT` must be exactly `media.example.com` with `MINIO_PORT=443` and
-`MINIO_SECURE=true` — the address clients use. Changing it later invalidates every URL
-already delivered to a phone, so decide it now.
+MinIO is configured with **two origins**, because the backend and the phone live on
+different sides of the same storage:
+
+| Variable | Job | VPS value | Why |
+|---|---|---|---|
+| `MINIO_ENDPOINT` + `MINIO_PORT` + `MINIO_SECURE` | where the **backend** dials the store | `minio-acme`, `9000`, `false` | the API's own traffic must not depend on a public identity, a DNS name, or a proxy hop |
+| `MINIO_PUBLIC_ENDPOINT` (+ `MINIO_PUBLIC_PORT`, `MINIO_PUBLIC_SECURE`) | the origin **baked into presigned URLs** | `media.example.com`, `443`, `true` | the phone must resolve it, and the SigV4 signature covers `Host` |
+| `MINIO_REGION` | the SigV4 region | `us-east-1` | pins the region so pre-signing is local instead of issuing `GET /{bucket}?location=` per URL |
+
+`MINIO_PUBLIC_ENDPOINT` falls back to `MINIO_ENDPOINT` when unset, so an existing
+single-value configuration keeps working unchanged. On the VPS, set **both**:
+
+```bash
+grep -E "^(MINIO_ENDPOINT|MINIO_PORT|MINIO_SECURE|MINIO_PUBLIC_|MINIO_REGION)=" .env
+```
+
+Rules that follow from the split:
+
+- **A presigned URL is never rewritten.** The signature covers `Host`; changing the host
+  in a delivered URL returns `403 SignatureDoesNotMatch`. The public origin is applied at
+  signing time, and changing it later only affects newly issued URLs.
+- **`MINIO_ENDPOINT` is never a LAN address.** A DHCP lease in that variable is a latent
+  outage — this is exactly what broke on 2026-09-29 (see
+  `docs/post-mortems/2026-09-29-minio-endpoint-lease-outage.md`).
+- **The public origin is stable or it is nothing.** A domain served by Caddy, or a DHCP
+  reservation. A bare lease takes photo loading down when the lease rotates.
+- **Startup fails fast.** The bucket is checked once in the app lifespan, so an
+  unreachable store aborts `uvicorn` with one message naming `MINIO_ENDPOINT` instead of
+  producing a retry storm on every photo.
 
 ### 4.2 Start
 
@@ -468,12 +494,14 @@ ss -ltn | grep -vE '127\.0\.0\.1'    # only the proxy's ports may be public
 
 **5.5 Media round-trip** — the gate that actually catches storage breakage. Health
 checks pass while photos are broken. From a network that is not the server: presign an
-upload, `PUT` real bytes, presign a download, fetch it back, compare, delete. Then
-upload a file **larger than 5 MiB** from the app, which is where the multipart policy
-errors appear.
+upload, `PUT` real bytes, presign a download, fetch it back, compare, delete. Confirm the
+presigned URL's host is `MINIO_PUBLIC_ENDPOINT` and **not** `MINIO_ENDPOINT` — a wrong
+public origin is invisible to every other gate and only shows up as broken photos in the
+app. Then upload a file **larger than 5 MiB** from the app, which is where the multipart
+policy errors appear.
 
-**5.6 Configuration** — `.env` holds no root credentials, and
-`MINIO_ENDPOINT` equals the media host.
+**5.6 Configuration** — `.env` holds no root credentials, `MINIO_ENDPOINT` is an internal
+address (never a LAN IP), and `MINIO_PUBLIC_ENDPOINT` is the media host.
 
 ## 6. Update and rollback
 
@@ -499,7 +527,7 @@ Tracked as pre-proposals; each blocks a clean, reproducible deployment.
 | `TICKET-016` | `bootstrap.sh` clones a repository that does not exist in this tree | the documented first-run path |
 | `TICKET-013` | `ALLOWED_TYPES` JSON breaks if anything sources `.env` | automation that sources the file |
 | `TICKET-011` | `PRESIGNED_TTL` is documented as seconds and consumed as hours | media link lifetime |
-| `TICKET-012` | one `MINIO_ENDPOINT` value is used for both internal I/O and public signing | media URLs, unless the network alias is in place |
+| `TICKET-012` | ~~one `MINIO_ENDPOINT` value is used for both internal I/O and public signing~~ **RESOLVED 2026-09-29** by `MINIO_PUBLIC_ENDPOINT` + a pinned `MINIO_REGION`; see `openspec/changes/split-minio-internal-and-public-endpoints/` | — |
 | `TICKET-017` | `init.sql` omits `token_blacklist`, which every authenticated request queries; now hand-patched as a stopgap | trusting `init.sql` for a new database |
 | `TICKET-018` | 5 tables for unbuilt features exist in the live database with no model; `uom` holds 9 rows and a broken reference. Owner ratara5, review 2026-12-27 | building against an unreviewed shape |
 | `TICKET-019` | the ORM models are stale against the live database (`alembic check`: 94 pending operations), so `init.sql` cannot be regenerated from them | retiring `init.sql`, which is the fix for `TICKET-017` |

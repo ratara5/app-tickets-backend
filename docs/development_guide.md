@@ -58,21 +58,31 @@ DB_PASSWORD=postgres
 DB_NAME=db_gestiket_acme
 
 # MinIO (optional for development)
-# NOTE: this host becomes the base of every presigned photo_url that the mobile
-# app must load, but it is ALSO the endpoint the backend uses to reach MinIO.
-# `localhost` therefore breaks photos on an emulator/device (the app cannot
-# resolve localhost to your machine) - use the host machine's LAN IP instead,
-# which the backend, the Android emulator and a device on the same network can
-# all reach. The API base URL has the same constraint (see app.config / api.ts).
-MINIO_ENDPOINT=192.168.10.26
+# TWO origins, because the backend and the phone live on different sides.
+#
+# MINIO_ENDPOINT: where the BACKEND dials the store. Host run -> 127.0.0.1.
+# In Docker -> minio-acme. Never a LAN address: a DHCP lease in this variable
+# takes photo uploads down when the lease moves (post-mortem 2026-09-29).
+MINIO_ENDPOINT=127.0.0.1
 MINIO_PORT=9000
+#
+# MINIO_PUBLIC_ENDPOINT: the origin baked into every presigned photo_url, i.e.
+# what the emulator or device must resolve. The signature covers the Host
+# header, so this is fixed at signing time and the URL is never rewritten
+# afterwards. Use the machine LAN address for a stopgap, and a DHCP reservation
+# or a domain for anything longer lived. Emulator note: the stock Android
+# emulator also reaches the host at 10.0.2.2, but a physical device cannot, so
+# prefer a reservation that both can resolve.
+MINIO_PUBLIC_ENDPOINT=192.168.10.30
+MINIO_REGION=us-east-1
 MINIO_ACCESS_KEY=<your-key>
 MINIO_SECRET_KEY=<your-secret>
 MINIO_DEFAULT_BUCKET=company-uploads
 BASE_OBJECT_PATH="Maintenances/Correctivos"
 EXT_BY_TYPE={"image/jpeg":".jpg","image/png":".png","application/pdf":".pdf"}
 ALLOWED_TYPES=["image/jpeg","image/png","application/pdf"]
-PRESIGNED_TTL=3600
+PRESIGNED_TTL=1  # HOURS, not seconds (see TICKET-011)
+
 
 # JWT
 JWT_SECRET=<your-secret>

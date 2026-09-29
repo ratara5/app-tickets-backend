@@ -5,6 +5,7 @@ from typing import Generator, Any
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from minio import Minio
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -37,6 +38,32 @@ def setup_database() -> Generator[None, None, None]:
     yield
     engine.dispose()
     Path(_db_path).unlink(missing_ok=True)
+
+
+class _OfflineResponse:
+    """Stand-in for a MinIO HTTP response: the probe only checks for exceptions."""
+
+    status = 200
+    headers: dict = {}
+    data = b""
+
+
+@pytest.fixture(scope="session", autouse=True)
+def offline_storage() -> Generator[None, None, None]:
+    """Keep the suite hermetic: the app lifespan probes MinIO on startup.
+
+    The transport is stubbed, not the client class, so tests that exercise the real
+    ``minio.Minio`` (see tests/test_minio_endpoints.py) can still patch the same
+    seam and assert on it.
+    """
+
+    def _offline_url_open(self: Any, method: str, region: str, **kwargs: Any) -> Any:
+        return _OfflineResponse()
+
+    original = Minio._url_open
+    Minio._url_open = _offline_url_open
+    yield
+    Minio._url_open = original
 
 
 @pytest.fixture(autouse=True)

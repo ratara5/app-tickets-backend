@@ -12,8 +12,18 @@
 #   phone ──HTTPS──► caddy ──► api          (api.example.com)
 #                 └─► minio-acme:9000       (media.example.com)
 #   api ──postgres-gci:5432                  (no host port)
-#   api ──HTTPS──► media.example.com ──► caddy (in-network alias,
-#                                           no public DNS round trip)
+#   api ──► minio-acme:9000                   (internal dial, since 2026-09-29)
+#
+# MinIO is configured with TWO origins (TICKET-012, resolved):
+#   MINIO_ENDPOINT / _PORT / _SECURE       where the API dials the store
+#                                         -> minio-acme:9000, plain HTTP
+#   MINIO_PUBLIC_ENDPOINT / _PORT / _SECURE  origin baked into presigned URLs
+#                                         -> media.example.com:443, TLS
+# Before the split, one value had to serve both, so the API's own uploads were
+# routed out through Caddy and back via an in-network alias. That alias is no
+# longer required for uploads; it is kept below so a not-yet-migrated
+# configuration (MINIO_PUBLIC_ENDPOINT unset -> falls back to the internal
+# value) still resolves media.example.com from inside the network.
 #
 # Publishing rules:
 #   - caddy is the ONLY service with public ports (80/443).

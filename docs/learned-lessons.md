@@ -133,4 +133,45 @@ normally. That procedure is now in `docs/deployment-guide.md` §2.2.
   in the project's own runbook. That separation is also what let this correction be a
   one-file change instead of a rewrite.
 
+
+## 6. One Setting With Two Owners Is a Latent Outage, and a Signed URL Is Never Rewritten
+
+- **A single variable that serves two clients on opposite sides of a network is a
+  configuration defect, not a convenience.** `MINIO_ENDPOINT` was both the backend's dial
+  target and the origin baked into presigned URLs, so the only value that worked for both
+  was a bare LAN address, because SigV4 signs the `Host` header and the phone cannot resolve
+  `localhost` or a container name. A DHCP lease is not an address, it is a loan. The outage
+  arrived on the next renewal, with no code change and no commit to blame — see
+  `docs/post-mortems/2026-09-29-minio-endpoint-lease-outage.md` and `TICKET-012`.
+- **"It has to be one value" is the conclusion of a conflated design, not a constraint of
+  S3.** The moment two actors need two different answers from one setting, split the setting.
+  `MINIO_ENDPOINT` now dials (127.0.0.1 on the host, `minio-acme` in Docker) and
+  `MINIO_PUBLIC_ENDPOINT` signs, with a fallback to the internal value so no existing
+  configuration changes behaviour.
+- **A signed URL is immutable, and the mutation fails silently in production terms.** The
+  signature covers `Host`; swapping the host in a delivered URL returns
+  `403 SignatureDoesNotMatch`. Verified on the affected host: the real URL fetched from the
+  Android emulator returns 200 with the exact bytes, and the same URL rewritten to
+  `127.0.0.1` returns 403 from both the host and the emulator. Therefore the public origin
+  is applied *at signing time*, and changing it later only affects newly issued URLs.
+- **`minio-py` pre-signing is a network call unless you pin the region.** `get_presigned_url`
+  calls `_get_region`, which answers from the client only when it was constructed with
+  `region=`; otherwise it issues `GET /{bucket}?location=`. `__init__` always installs a
+  credential provider, so the `not self._provider` early return never fires for this app.
+  A second client bound to the public host without `region=` failed after **6.02 s** against
+  an unresolvable host: the "fix" would have swapped the outage for a six-second stall per
+  photo. With `region` pinned, pre-signing took **11.86 ms** and touched no socket.
+- **Probe a dependency once, at startup, not on every request.** `ensure_bucket()` ran per
+  upload, so one unreachable store became six connection attempts *per photo* through
+  minio-py's `Retry(total=5, backoff_factor=0.2)`. One probe in the lifespan turns that into
+  a single failure at boot. Memoize the success, never the failure, so a store that comes up
+  later needs no restart.
+- **Report a configuration mistake as a configuration mistake.** `EHOSTUNREACH` from a wrong
+  setting should name the setting, the current value, and the fix; not surface as a urllib3
+  retry traceback pointing at the network. Keep the cause chained for diagnosis, but render
+  a compact chain (`errno 113 (EHOSTUNREACH)`), never `repr()` of a retry tree.
+- **Cross-references, not duplicates.** The mobile repository records the mirror image of
+  this incident in lessons 61/62 (the app can only resolve whatever host the backend signed).
+  One canonical account here, one there, and an explicit link between them — the lesson is
+  shared, the repository is not.
 ---
