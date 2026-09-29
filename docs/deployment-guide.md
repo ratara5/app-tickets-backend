@@ -301,7 +301,7 @@ a fresh local database and for demos.
 
 The loader separates two classes, because they are not the same thing:
 
-- **Reference data** — `uom`, `holidays`. No dependency on business rows, so
+- **Reference data** — `uom`, `hollidays`. No dependency on business rows, so
   these can be loaded anywhere. Production reference data is still a deliberate,
   human decision, not a side effect of deploying.
 - **Business/demo data** — everything else, which requires `--allow-business-data`.

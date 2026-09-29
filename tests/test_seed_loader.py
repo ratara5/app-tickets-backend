@@ -131,14 +131,68 @@ def test_declares_an_explicit_allowlist(script: str) -> None:
 def test_reference_data_is_the_allowlisted_default(script: str) -> None:
     """Reference data must be loadable without any extra flag.
 
-    uom and holidays are the only seeded tables with no dependency on business
+    uom and hollidays are the only seeded tables with no dependency on business
     rows, so they are the only ones that may be loaded near production.
     """
     reference = re.search(r"REFERENCE_TABLES=\(([^)]*)\)", script)
     assert reference
     names = reference.group(1).split()
     assert "uom" in names
-    assert "holidays" in names
+    assert "hollidays" in names, "the live table is spelled with a double L"
+
+
+def test_no_reference_to_the_non_existent_single_l_table(script: str) -> None:
+    """`holidays` does not exist. Live spells it `hollidays`, with two Ls.
+
+    The loader previously used the single-L name in its allowlist, so the
+    reference-data load would have failed on a table name that has never existed.
+    Asserting the correct name is not enough, because a future edit can add the
+    wrong one back alongside it.
+    """
+    for match in re.finditer(r"\bholidays\b", script):
+        line = script[: match.start()].splitlines()[-1]
+        assert "hollidays" not in line, f"single-L 'holidays' on a line that also names the real table: {line!r}"
+    assert not re.search(r"\bholidays\b", script), "the loader references a table that does not exist"
+
+
+def test_every_connection_names_its_database_explicitly(script: str) -> None:
+    """A psql call with no -d silently falls back to a database named after the role.
+
+    That works only for a role that happens to own a same-named database, which is
+    how the existence check passed while running as `postgres`. Under the
+    least-privilege runtime role — which owns nothing by design — it fails
+    outright, so the check was incompatible with the role model it was supposed
+    to support.
+
+    The guarantee lives in the wrapper, so the wrapper is what is asserted: a
+    call site that invokes `psql_db` inherits the `-d` from its definition.
+    """
+    wrapper = re.search(r"^psql_db\(\)\s*\{.*$", script, re.MULTILINE)
+    assert wrapper, "no psql_db wrapper"
+    assert '-d "$DB_NAME"' in wrapper.group(0), "the wrapper does not pin the database"
+
+    # Any psql invoked directly, bypassing the wrapper, must name it too.
+    for line in script.splitlines():
+        stripped = line.strip()
+        if "psql" not in stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("psql_db()"):
+            continue  # the wrapper itself, asserted above
+        assert "psql_db" in stripped or '-d "$DB_NAME"' in stripped, (
+            f"psql invoked outside the wrapper without naming a database: {stripped!r}"
+        )
+
+
+def test_the_loader_never_lists_pg_database_to_check_existence(script: str) -> None:
+    """Asking the target database whether it is itself is the portable check.
+
+    Listing the catalog requires a connection to some *other* database, which is
+    the connection the least-privilege role is least likely to be able to make.
+    Comments are stripped, because the file explains at length why this query is
+    no longer used.
+    """
+    executable = re.sub(r"^\s*#.*$", "", script, flags=re.MULTILINE)
+    assert "pg_database" not in executable
 
 
 @pytest.mark.parametrize(

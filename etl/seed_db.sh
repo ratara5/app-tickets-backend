@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ── Purpose ────────────────────────────────────────────────────────────────
-# Load reference data (units of measure, holidays) and, on explicit request,
+# Load reference data (units of measure, hollidays) and, on explicit request,
 # demo/business data into an existing database.
 #
 # This script is NOT a deployment step. It never creates a database and never
@@ -32,8 +32,10 @@ warn()    { echo -e "\e[33m[WARN]\e[0m  $*"; }
 success() { echo -e "\e[32m[OK]\e[0m    $*"; }
 fail()    { echo -e "\e[31m[FAIL]\e[0m  $*" >&2; exit 1; }
 
-psql_db()    { docker exec "$DB_HOST" psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 "$@"; }
-psql_admin() { docker exec "$DB_HOST" psql -U "$DB_USER" -tA "$@"; }
+# Every connection names the database explicitly. psql otherwise falls back to a
+# database named after the role, which succeeds only for a role that happens to
+# have a same-named database and fails for a least-privilege one.
+psql_db() { docker exec "$DB_HOST" psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 "$@"; }
 
 usage() {
     cat <<'EOF'
@@ -84,7 +86,7 @@ done
 # table. The allowlist is the security boundary, so it is explicit and ordered.
 #
 # Reference data: no dependency on business rows, safe to load anywhere.
-REFERENCE_TABLES=(uom holidays)
+REFERENCE_TABLES=(uom hollidays)
 
 # Business data: every one of these either depends on other business rows or is
 # part of the operational record. Refused unless --allow-business-data.
@@ -185,10 +187,20 @@ if [ ${#plan[@]} -eq 0 ]; then
     exit 0
 fi
 
-# ── 3. Verify the database exists ──────────────────────────────────────────
-db_exists=$(psql_admin -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';")
-[ "$db_exists" = "1" ] || fail "Database '$DB_NAME' does not exist. This script never creates databases."
-info "Target database '$DB_NAME' exists."
+# ── 3. Verify the database is reachable ─────────────────────────────────────
+# Ask the target database whether it is itself, rather than listing pg_database
+# from an unspecified one. The old check connected with no -d, so psql fell back
+# to a database named after the role: it worked only because the role happened
+# to be `postgres`, and fails outright for the least-privilege runtime role, which
+# by design owns nothing and has no database of its own to fall back to.
+#
+# A failed connection here is the answer: the database is missing, or this role
+# cannot reach it. Both are a reason to stop, and the message says which.
+if ! connected=$(psql_db -tAc "SELECT current_database();" 2>/dev/null) || [ -z "$connected" ]; then
+    fail "Cannot connect to database '$DB_NAME' as role '$DB_USER'. Either it does not exist, or this role has no CONNECT on it. This script never creates databases and never elevates."
+fi
+[ "$connected" = "$DB_NAME" ] || fail "Connected to '$connected' but expected '$DB_NAME'."
+info "Target database '$DB_NAME' is reachable as '$DB_USER'."
 
 # ── 4. Plan output ─────────────────────────────────────────────────────────
 echo ""
