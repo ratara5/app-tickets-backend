@@ -278,8 +278,13 @@ def delete_maintenance_by_ticket(db: Session, ticket_id: int) -> list[str]:
     return object_paths
 
 def delete_maintenance_by_id(db, maintenance, current_user):
-    ticket = db.query(Maintenance).join(Maintenance.ticket)
+    # Capture the ticket id off the loaded relationship before the delete. This
+    # previously ran `db.query(Maintenance).join(Maintenance.ticket)`, which
+    # builds a Query rather than returning a Ticket, and then read `.ticket_id`
+    # off it — so every DELETE /maintenances/{id} raised AttributeError (a 500)
+    # even though the row had already been committed as deleted.
+    ticket_id = maintenance.ticket_id
     db.delete(maintenance)
     db.commit()
-   
-    return ticket.ticket_id
+
+    return ticket_id
