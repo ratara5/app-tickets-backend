@@ -1,9 +1,13 @@
 from pathlib import Path
 from typing import NamedTuple
 
-from pydantic import AliasChoices, Field
+import json
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Annotated
+
+from pydantic import AliasChoices, Field, field_validator
+
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 ENV_PATH_CORE = ROOT_DIR / ".env"
@@ -32,6 +36,59 @@ class MinioOrigin(NamedTuple):
     @property
     def origin(self) -> str:
         return f"{self.scheme}://{self.netloc}"
+
+
+def _split_env_list(raw: str) -> list[str]:
+    """Split a shell-safe env list: `a,b , c` -> ['a', 'b', 'c'].
+
+    Tolerates the brackets and quotes a JSON array loses when a shell sources
+    the file, so a value mangled that way still parses instead of aborting the
+    process at import.
+    """
+    # Strip the JSON punctuation too: a shell that sourced the file removed the
+    # quotes but left the brackets, and keeping them turned the first key into
+    # "{image/jpeg" -- a silent corruption rather than a visible failure.
+    def _clean(part: str) -> str:
+        return part.strip().strip('"').strip("'").strip("{}[]").strip('"').strip("'")
+
+    return [cleaned for cleaned in (_clean(part) for part in raw.split(",")) if cleaned]
+
+
+def _parse_mapping(raw: str) -> dict[str, str]:
+    """Parse a mapping that is either JSON or a shell-safe `k:v,k:v` list.
+
+    A JSON object cannot survive `set -a; . .env` -- the shell strips the quotes
+    and the result is not valid JSON -- so accept the flat form as well. Media
+    types and extensions contain no comma or colon, so the first colon splits.
+    """
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        parsed = {}
+        for pair in _split_env_list(raw):
+            key, sep, value = pair.partition(":")
+            if not sep:
+                raise ValueError(
+                    f"expected a JSON object or a k:v list, got {pair!r}"
+                ) from None
+            parsed[key] = value
+    if not isinstance(parsed, dict):
+        raise ValueError(f"expected a mapping, got {type(parsed).__name__}")
+    return {str(k): str(v) for k, v in parsed.items()}
+
+
+def _parse_string_list(raw):
+    """Accept a JSON array, a comma-separated list, or an already-parsed list."""
+    if isinstance(raw, list):
+        return raw
+    text = str(raw).strip()
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return _split_env_list(text)
+    if not isinstance(parsed, list):
+        raise ValueError(f"expected a list, got {type(parsed).__name__}")
+    return parsed
 
 
 class Settings(BaseSettings):
@@ -82,8 +139,8 @@ class Settings(BaseSettings):
     minio_region: str           = Field("us-east-1", alias="MINIO_REGION")
     minio_default_bucket: str   = Field("company-uploads", alias="MINIO_DEFAULT_BUCKET")
     base_object_path: str       = Field("Maintenances", alias="BASE_OBJECT_PATH")
-    ext_by_type: dict[str, str] = Field(..., alias="EXT_BY_TYPE")
-    allowed_types: list[str]    = Field(..., alias="ALLOWED_TYPES")
+    ext_by_type: Annotated[dict[str, str], NoDecode] = Field(..., alias="EXT_BY_TYPE")
+    allowed_types: Annotated[list[str], NoDecode] = Field(..., alias="ALLOWED_TYPES")
     # The unit is in the name because it was not derivable from it: the old
     # PRESIGNED_TTL was documented in seconds, shipped as 1, and consumed as
     # hours, so the default (3600, annotated "1 hour") contradicted its own
@@ -119,6 +176,17 @@ class Settings(BaseSettings):
             port=self.minio_port,
             secure=self.minio_secure,
         )
+    @field_validator("allowed_types", mode="before")
+    @classmethod
+    def _coerce_allowed_types(cls, raw):
+        return _parse_string_list(raw)
+
+    @field_validator("ext_by_type", mode="before")
+    @classmethod
+    def _coerce_ext_by_type(cls, raw):
+        if isinstance(raw, dict):
+            return {str(k): str(v) for k, v in raw.items()}
+        return _parse_mapping(str(raw))
 
     @property
     def minio_public(self) -> MinioOrigin:
