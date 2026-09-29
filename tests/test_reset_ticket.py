@@ -6,6 +6,7 @@ Covers the `reset-ticket` change:
 - Resetting an allowed state returns the ticket to OPEN while PRESERVING the
   assigned technician and removes the linked maintenance rows (children first).
 """
+import secrets
 from datetime import datetime
 
 from fastapi.testclient import TestClient
@@ -102,6 +103,7 @@ def test_reset_used_ticket_with_photos_and_worksheet_removes_them(
     maintenance_id = maintenance.maintenance_id
     db_session.add_all([
         Photo(
+            photo_id=secrets.token_hex(4),
             maintenance_id=maintenance_id,
             photo_path="maintenances/reset/photo-1.jpg",
             processed=True,
@@ -109,6 +111,7 @@ def test_reset_used_ticket_with_photos_and_worksheet_removes_them(
             updated_by=test_user["user_id"],
         ),
         Photo(
+            photo_id=secrets.token_hex(4),
             maintenance_id=maintenance_id,
             photo_path="maintenances/reset/photo-2.jpg",
             processed=True,

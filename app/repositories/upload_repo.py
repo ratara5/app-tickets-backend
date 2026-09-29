@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
+
 from uuid6 import uuid7
 
 import os
@@ -14,7 +16,7 @@ from app.models.upload import UploadSession
 chunk_dir = settings.chunk_dir
 
 def get_upload_session(db: Session, 
-                       upload_id: uuid7, 
+                       upload_id: UUID, 
                        user_id: int) -> UploadSession:
     return db.query(UploadSession).filter(
         UploadSession.upload_id == upload_id,

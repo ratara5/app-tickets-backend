@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.core.database import get_db
 
+from pydantic import UUID7
+
 from app.schemas.upload import (UploadInitRequest, 
                                UploadInitResponse, 
                                ChunkResponse,
@@ -18,7 +20,7 @@ router = APIRouter(prefix="/uploads", tags=["uploads"])
 
 
 # ── 1. Start upload ─────────────────────────────────────────────────────────
-@router.post("/init", response_model=UploadInitResponse)
+@router.post("/init", response_model=UploadInitResponse, status_code=201)
 async def init_upload(
     payload: UploadInitRequest,
     current_user = Depends(get_current_user),
@@ -32,7 +34,7 @@ async def init_upload(
 # ── 2. Upload chunk ────────────────────────────────────────────────────────────
 @router.post("/chunk", response_model=ChunkResponse)
 async def upload_chunk(
-    upload_id: str,
+    upload_id: UUID7,
     chunk_index: int,
     chunk: UploadFile = File(...),
     x_chunk_checksum: Optional[str] = Header(None),  # MD5 optional
@@ -50,11 +52,11 @@ async def upload_chunk(
 # ── 3. Status upload  ────────────────────────────────────────────────────────────
 @router.get("/status/{upload_id}", response_model=ChunkStatusResponse)
 async def upload_status(
-    upload_id: str,
+    upload_id: UUID7,
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    url, received_chunks, total_chunks = await upload_svc.get_status_upload( 
+    received_chunks, total_chunks = await upload_svc.get_status_upload(
         db, upload_id, current_user
     )
     return ChunkStatusResponse(
@@ -67,7 +69,7 @@ async def upload_status(
 # ── 4. Upload complete ──────────────────────────────────────────────────────────
 @router.post("/complete", response_model=ChunkStatusResponse)
 async def complete_upload(
-    upload_id: str,
+    upload_id: UUID7,
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

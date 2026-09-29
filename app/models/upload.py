@@ -22,7 +22,7 @@ class UploadSession(Base):
     total_chunks = Column(Integer)  
     received_chunks = Column(Integer)
 
-    expires_at  = Column(DateTime)
+    expires_at  = Column(DateTime(timezone=True))
     completed = Column(Boolean)
     replaces_photo_id = Column(Integer, nullable=True)
 

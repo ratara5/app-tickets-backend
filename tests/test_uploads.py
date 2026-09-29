@@ -1,7 +1,12 @@
+from datetime import datetime
+
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 from uuid6 import uuid7
 
 from app.models.master import Market, Equipment, Technician
+from app.models.maintenance import Maintenance
 
 
 PARENT_ID = str(uuid7())
@@ -16,6 +21,30 @@ UPLOAD_INIT_PAYLOAD = {
     "total_size": 1024,
     "total_chunks": 1,
 }
+
+
+
+@pytest.fixture
+def parent_maintenance_id(db_session: Session) -> str:
+    """A maintenance that actually exists, for the upload flow to hang files off.
+
+    UPLOAD_INIT_PAYLOAD carried a random uuid7 that no row ever had. Completing
+    the upload resolved the parent to None and the object-path handler raised
+    AttributeError on it, so the "success" path never actually ran.
+    """
+    maintenance = Maintenance(
+        maintenance_id=uuid7(),
+        maintenance_date=datetime.now(),
+        created_by=1,
+        updated_by=1,
+    )
+    db_session.add(maintenance)
+    db_session.commit()
+    return str(maintenance.maintenance_id)
+
+
+def _init_payload(parent_id: str) -> dict:
+    return {**UPLOAD_INIT_PAYLOAD, "parent_id": parent_id}
 
 
 def test_init_upload_success(
@@ -45,7 +74,8 @@ def test_init_upload_invalid_content_type(
 ) -> None:
     payload = {**UPLOAD_INIT_PAYLOAD, "content_type": "application/x-unknown"}
     response = client.post("/uploads/init", json=payload, headers=auth_headers)
-    assert response.status_code == 422
+    # 415, not FastAPI's default 422: the service rejects the media type itself.
+    assert response.status_code == 415
 
 
 def test_init_upload_invalid_data(
@@ -165,11 +195,12 @@ def test_complete_upload_not_found(
 
 
 def test_complete_upload_success(
-    client: TestClient, auth_headers: dict
+    client: TestClient, auth_headers: dict,
+    parent_maintenance_id: str
 ) -> None:
     init_resp = client.post(
         "/uploads/init",
-        json=UPLOAD_INIT_PAYLOAD,
+        json=_init_payload(parent_maintenance_id),
         headers=auth_headers
     )
     upload_id = init_resp.json()["upload_id"]

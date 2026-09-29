@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+from uuid import UUID
+
 from uuid6 import uuid7
 import os, aiofiles, asyncio, hashlib, secrets
 
@@ -38,6 +40,19 @@ chunk_dir = settings.chunk_dir
 os.makedirs(chunk_dir, exist_ok=True)
 
 
+def _as_utc(value):
+    """Return a timezone-aware UTC datetime for a value read back from the DB.
+
+    Postgres returns aware datetimes for a timestamptz column, but SQLite has no
+    timezone type at all and hands back naive ones. Comparing the two directly
+    raises TypeError, so normalise on the read side instead of assuming a
+    backend.
+    """
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 async def init_upload(db: Session, current_user, payload):
     # Here the logic in order to create new upload session 
     # 1. Validates payload (allow file type, max size, etc.)
@@ -49,7 +64,8 @@ async def init_upload(db: Session, current_user, payload):
     if payload.total_size > MAX_SIZE:
         raise HTTPException(413, "File too large (max 50 MB)")
 
-    upload_id = str(uuid7())
+    # A UUID, not a str: this is the primary key of a Uuid column.
+    upload_id = uuid7()
 
     # Persists
     upload_session = save_upload_session(db, upload_id, current_user.user_id, payload) # Session is sync, not async, therefore no await
@@ -60,11 +76,11 @@ async def init_upload(db: Session, current_user, payload):
         next_chunk=0,
     )
 
-async def upload_chunk(db: Session, current_user, upload_id, chunk_index, chunk, x_chunk_checksum):
+async def upload_chunk(db: Session, current_user, upload_id: UUID, chunk_index, chunk, x_chunk_checksum):
     upload_session = get_upload_session(db, upload_id, current_user.user_id) # Session is sync, not async, therefore no await
     if not upload_session:
         raise HTTPException(404, "Upload sesion not found")
-    if upload_session.expires_at < datetime.now(timezone.utc):
+    if _as_utc(upload_session.expires_at) < datetime.now(timezone.utc):
         raise HTTPException(410, "Expired sesion. Please start a new upload.")
     if chunk_index >= upload_session.total_chunks:
         raise HTTPException(422, "Chunk index out of range")
@@ -78,12 +94,13 @@ async def upload_chunk(db: Session, current_user, upload_id, chunk_index, chunk,
             raise HTTPException(422, "Incorrect checksum — please resend the chunk")
 
     # Save chunk in temporary disk
-    chunk_path = os.path.join(chunk_dir, f"{upload_id}_{chunk_index:04d}")
+    upload_key = str(upload_id)
+    chunk_path = os.path.join(chunk_dir, f"{upload_key}_{chunk_index:04d}")
     async with aiofiles.open(chunk_path, "wb") as f:
         await f.write(chunk_data)
 
     # Update counter (idempotent: if the chunk already existed, it is not added again)
-    chunks_in_disk = get_chunks_on_disk(upload_id)
+    chunks_in_disk = get_chunks_on_disk(upload_key)
 
     ## Persist: It's useless to add a function
     upload_session.received_chunks = len(chunks_in_disk)
@@ -96,7 +113,7 @@ async def upload_chunk(db: Session, current_user, upload_id, chunk_index, chunk,
         total_chunks=upload_session.total_chunks
     )
 
-async def get_status_upload(db: Session, upload_id: str, current_user):
+async def get_status_upload(db: Session, upload_id: UUID, current_user):
     # 1. Validate session
     upload_session = get_upload_session(db, upload_id, current_user.user_id)
     if not upload_session:
@@ -105,7 +122,7 @@ async def get_status_upload(db: Session, upload_id: str, current_user):
         raise HTTPException(409, "Upload is already completed")
     
     total_chunks = upload_session.total_chunks
-    missing_chunks = get_chunks_missing(upload_id, upload_session.total_chunks)
+    missing_chunks = get_chunks_missing(str(upload_id), upload_session.total_chunks)
     received_chunks = total_chunks - len(missing_chunks)
 
     return received_chunks, total_chunks
@@ -113,7 +130,7 @@ async def get_status_upload(db: Session, upload_id: str, current_user):
 _executor = ThreadPoolExecutor()  # for synchronous operations in Minio
 _autodiscover("app.services")
 _autodiscover_models("app.models")
-async def complete_upload(db: Session, upload_id: str, current_user):
+async def complete_upload(db: Session, upload_id: UUID, current_user):
     # 1. Validate session
     upload_session = get_upload_session(db, upload_id, current_user.user_id)
     if not upload_session:
@@ -134,8 +151,8 @@ async def complete_upload(db: Session, upload_id: str, current_user):
         })
 
     # 3. Assemble in disk (not in memory)
-    chunks_in_disk = get_chunks_on_disk(upload_id)
-    assembled_path = await assemble_chunks(upload_id, chunks_in_disk)
+    chunks_in_disk = get_chunks_on_disk(str(upload_id))
+    assembled_path = await assemble_chunks(str(upload_id), chunks_in_disk)
     size_bytes = os.path.getsize(assembled_path)
 
     # 4. Upload to MinIO in thread (boto3 client is synchronous)
@@ -148,6 +165,11 @@ async def complete_upload(db: Session, upload_id: str, current_user):
     parent = db.query(ParentModel).filter(
         pk_attr == parent_id
         ).first()
+    if parent is None:
+        # The parent can disappear between init and complete. Say so, instead of
+        # handing None to a path builder that dereferences it and turning a
+        # recoverable client error into an AttributeError 500.
+        raise HTTPException(404, f"{parent_tab} {parent_id} no longer exists")
     
     # ANTES #
     # fecha_trabajo = maintenance.fecha_trabajo
