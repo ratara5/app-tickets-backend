@@ -181,3 +181,92 @@ path.
    `spares_unit_fkey` and removes a typo from user-visible reference data.
 3. Re-take the backup and prove the restore: zero errors, 38 foreign keys present.
 4. Only then treat disaster recovery as working.
+
+## Resolved 2026-09-29
+
+Both repairs applied to live in one transaction, and disaster recovery re-proven.
+
+### The `lb` decision
+
+`factor_conversion` reads as **how many `ref_unit` per 1 `unit`**, which the
+existing rows confirm exactly: the five base units (`kg`, `l`, `m`, `rollo`, `u`)
+are self-ratios at `1.00`, and the derived units point at a base (`gal`→`l` 3.79,
+`par`→`u` 2.00, `cilindro`→`lb` 40.00, `medio cilindro`→`lb` 20.00).
+
+So `lb` is a **missing base unit**, not a missing derived one, and it gets a
+self-ratio like the others:
+
+| unit | magnitude | uom_description | ref_unit | factor_conversion |
+|---|---|---|---|---|
+| `lb` | `masa` | `libras` | `lb` | 1.00 |
+
+`magnitude` is a category, not a number — `masa`, `volumen`, `longitud`,
+`unidad`, `rollo` — and descriptions are plural, so `libras` matches `kilogramos`.
+`0.45359237` was **not** used, for a structural reason worth recording:
+
+**`uom.unit` is the primary key, so a unit can have exactly one row.** `lb` can
+therefore be self-referential (`1.00`) *or* expressed against `kg`
+(`0.45359237`), never both. Storing the lb→kg factor would have meant deleting
+the `lb` row that `cilindro` and `medio cilindro` depend on. The self-ratio is
+the only non-destructive choice.
+
+This is a genuine limitation of the table's design, not of this ticket: the
+widen in TICKET-021 gives precision room, but with `unit` as the PK that room is
+unreachable for a unit that already has a self-ratio. A unit whose only
+relationship is to a base cannot be expressed. Fixing it means a composite
+primary key on `(unit, ref_unit)`, which is a schema change and a TICKET-018
+design decision, deliberately **not** taken here. The widening is still correct —
+it prevents silent rounding of whatever factors are stored — but the motivating
+lb→kg example is not loadable into this table as designed.
+
+### The typo
+
+`UPDATE uom SET unit='medio cilindro' WHERE unit='medio cilidndro'`, safe
+because nothing referenced the misspelled key. Corroborated by the row's own
+`uom_description`, which already read `medios cilindros` — only the key was
+transposed, so the description was the source of truth for the intended value.
+
+No committed source reintroduces it: `etl/data/` holds only `.gitkeep`, so the
+typo lived in live data alone.
+
+### Disaster recovery re-proven
+
+A single-database `pg_dump` (not `pg_dumpall`, which carries `CREATE DATABASE`
+and `\connect`) was restored into a fresh empty database:
+
+- **0 errors**, not anchored to `^ERROR`, which misses all of them.
+- All 38 foreign keys present, both previously-dropped ones included, with
+  `convalidated=true`.
+- All 23 table row counts identical to live.
+- `uom` carries the repair: `lb` present, typo absent.
+- `alembic_version` survives with `0002_widen_uom_factor`.
+
+Live is at baseline plus exactly the intended change: `uom` 9→10 rows.
+
+## Incident during this work — how the missing primary keys caused data loss
+
+The first restore attempt used the full-instance `pg_dumpall` file against the
+running server. `CREATE DATABASE` failed with "already exists", so the script
+`\connect`ed to the **live** database and began inserting its rows into it.
+
+20 of 23 tables were protected by a primary key and rejected the duplicates with
+errors. **`mantenimientos_repuestos` and `mantenimientos_tecnicos` were not.** They
+have no primary key in live — the TICKET-019 finding — so nothing rejected their
+rows and both tables doubled: 3→6 and 5→10. The restore was writing into the
+operational record of a system the user is actively testing.
+
+Detected within one step, by diffing exact row counts against the pre-work
+baseline, and repaired by deleting the 8 injected rows by `ctid` (they were exact
+copies; the originals had the lower `ctid`). All 23 tables verified back to
+baseline, contents inspected row by row.
+
+Two lessons, both now encoded:
+
+1. **A restore drill must not target the running server.** Use a single-database
+   `pg_dump` and a fresh empty database. `pg_dumpall` is for rebuilding an
+   instance, not for testing a restore, and against a live instance it fails
+   open into the wrong database.
+2. **The tables with no primary key are exactly the ones a restore corrupts
+   silently.** This raises the priority of the TICKET-019 live-side work: adding
+   those two primary keys is not cosmetic, it is the difference between a failed
+   restore being loud and being silent.
