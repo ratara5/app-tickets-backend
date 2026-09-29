@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, Text, ForeignKey
 from sqlalchemy.orm import relationship 
 
 from app.models.base import Base
@@ -11,7 +11,7 @@ class Cancellation(Base, AuditMixin):
 
     ticket_id = Column(Integer, ForeignKey("tickets.ticket_id"), primary_key=True)
     # cancellation_date = Column(DateTime) # Equals to created_at ** It's not the same case for tickets (because those are writting from out of ORM) and for maintenances (because those are probably updating in several times and the date are include in these updates)
-    cancellation_reason = Column(String)
+    cancellation_reason = Column(Text)
     # cancellation_responsible = Column(Integer, ForeignKey("fsm_users.user_id")) # The same creator
 
     ticket = relationship("Ticket", back_populates="cancellation")

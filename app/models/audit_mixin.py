@@ -5,19 +5,22 @@ from sqlalchemy.orm import relationship, declared_attr
 
 
 class AuditMixin:
+    # Live declares these as timestamptz and nullable (real rows carry NULL,
+    # e.g. photos.created_by). The model reproduces live so Alembic drift stays
+    # empty; the app still populates them on write.
     created_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         default=func.now(), # App-side timestamp; keeps SQLite tests working
-        nullable=False
+        nullable=True
     )
     updated_at = Column(
-        DateTime,
+        DateTime(timezone=True),
         default=func.now(),
         onupdate=func.now(),
-        nullable=False
+        nullable=True
     )
-    created_by = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False)
-    updated_by = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False)
+    created_by = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=True)
+    updated_by = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=True)
 
     @declared_attr
     def creator(cls): # Use: record.creator.user_name

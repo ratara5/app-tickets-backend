@@ -16,12 +16,12 @@ class Worksheet(Base):
     receiver_position = Column(String(100))
     receiver_sap = Column(String(50))
     receiver_signature = Column(Text) # base64 PNG
-    receiver_signature_timestamp = Column(DateTime)
+    receiver_signature_timestamp = Column(DateTime(timezone=True))
 
     # Snapshot / auditory
     sheet_number = Column(String(30), unique=True) 
-    pdf_path = Column(String(500)) # Minio path
-    generated_at = Column(DateTime)
+    pdf_path = Column(String(100)) # Minio path
+    generated_at = Column(DateTime(timezone=True))
     closed = Column(Boolean, default=False)   # 0=draft, 1=closed (PDF generated)
 
     # Relation

@@ -137,3 +137,88 @@ after the models are corrected and a check exists that the two agree.
   mirror the database, not the other way round.
 - Read-only inspection. `postgres-gci` was started and returned to `exited`;
   `minio-acme` was not touched.
+
+## Progress 2026-09-29 — model-side drift closed, 10 live-side defects remain
+
+Measured with `DB_NAME=atb_drift alembic check` against a disposable database
+built from `deploy/schema.sql` and stamped `0001_baseline`. Autogenerate was used
+only as a *measuring instrument* on a throwaway database; no revision was
+generated from it, and live was not touched.
+
+`alembic check` reported **60 operations**. After the model corrections below it
+reports **10**, and the full suite is green (360 passed, 7 xfailed).
+
+### Closed in the models (the database was right, the models were wrong)
+
+| Change | Live | Was declared as |
+| --- | --- | --- |
+| `AuditMixin.created_at/updated_at` | `timestamptz`, nullable | naive `DateTime`, `NOT NULL` |
+| `AuditMixin.created_by/updated_by` | nullable | `NOT NULL` |
+| `pauses` audit columns (own copy, not the mixin) | `timestamptz`, nullable | naive `DateTime`, `NOT NULL` |
+| `tickets.priority` | enum `priority_type` | `String` |
+| `tickets.status` | enum `status_type` | `String` |
+| `tickets.ticket_date`, `maintenances.maintenance_date` | `date` | `DateTime` |
+| 11 free-text columns | `text` | `String` (implicit `varchar`) |
+| `token_blacklist.jti` | `uuid` | `String(36)` |
+| `worksheets.pdf_path` | `varchar(100)` | `String(500)` |
+| `worksheets.receiver_signature_timestamp/generated_at` | `timestamptz` | naive `DateTime` |
+| `fsm_users.email/user_name/user_role` | `NOT NULL` | nullable |
+| 9 `uploads_sessions` columns | `NOT NULL` | nullable |
+| `technicians.user_id` | named `UNIQUE` + named index | unnamed `unique=True` + `index=True` |
+
+Two constraints had to be *named* rather than merely present: Alembic compares
+constraints and indexes by name, so an unnamed `unique=True` is reported as a
+difference even when the live column is unique in the same way.
+
+Two details worth keeping:
+
+- The enums use `Enum(...).with_variant(String(), "sqlite")`. The live types are
+  real PostgreSQL enums, but `conftest.py` builds the test schema on SQLite, and
+  a native enum cannot be created there.
+- `token_blacklist.jti` is `Uuid(as_uuid=False)`. The column is a genuine `uuid`
+  in live, but the code keys the blacklist on the raw JWT string, so the Python
+  side must keep accepting strings. `as_uuid=False` preserves the DDL type while
+  letting the existing string binding work; `as_uuid=True` broke 101 tests with
+  `'str' object has no attribute 'hex'`.
+
+`tests/test_model_live_alignment.py` (52 cases) pins all of the above against
+`Base.metadata` with no database, so this drift cannot silently return. Verified
+to bite: reverting the audit timestamps to naive, the enum to `String`, or
+`pdf_path` to `String(500)` each fails it.
+
+### The database is wrong here — these need a live migration, not a model edit
+
+These 10 are the *opposite* defect. Editing the models to match them would weaken
+the schema, so they are deliberately left outstanding:
+
+1. `maintenances_spares` and `maintenances_technicians` have **no primary key at
+   all** in live. The models declare `PrimaryKeyConstraint`. Duplicate join rows
+   are therefore possible. **`alembic check` cannot see this**: autogenerate does
+   not compare primary keys, so this drift is invisible to the check that is
+   supposed to catch drift. It was found by querying `pg_constraint` directly.
+2. `maintenances_spares.{maintenance_id,spare_id,qty}`,
+   `maintenances_technicians.{maintenance_id,technician_id,start_hour,end_hour}`
+   and `pauses.maintenance_id` are nullable in live but `NOT NULL` in the models
+   (8 columns). The first six are the columns of the two missing primary keys, so
+   adding the keys fixes them.
+3. `maintenances` carries **two** identical unique constraints on `ticket_id`,
+   `maintenances_ticket_id_key` and `uq_maintenances_ticket_id`. The model
+   declares one. The duplicate should be dropped in live, not modelled twice —
+   declaring both would make every future database carry the redundancy.
+4. `spares.unit` has foreign key `spares_unit_fkey` to `uom(unit)`, but `uom` is
+   one of the 5 deliberately unmodelled tables from TICKET-018. The FK cannot be
+   declared in the model without breaking `create_all` on SQLite, and it is a
+   real integrity constraint worth keeping. This one needs a decision rather
+   than a mechanical fix: either drop the FK in live, or extend the reserved-table
+   exclusion in `app/models/reserved.py` to cover foreign keys pointing at
+   reserved tables.
+
+### Why the audit columns were made nullable rather than tightened
+
+Live genuinely contains NULLs: **all 16 rows in `photos` have `created_by`
+NULL**. The app itself produced them, because `save_photo` did not populate the
+audit columns (fixed in `61510b6`). Tightening live to `NOT NULL` would fail on
+existing data and would need a backfill that cannot invent the missing user. So
+the models reproduce what live is, and the data-quality issue is recorded here
+instead of being hidden behind a constraint the database does not actually
+enforce.

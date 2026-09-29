@@ -2,7 +2,7 @@
 # A Catalog Table (Reference/Lookup) contains low level info, descriptive/configuration, (Code, States) data wich very rarely change
 # Here: Master includes Catalog
 
-from sqlalchemy import Column, Integer, String, Numeric, ForeignKey
+from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -10,9 +10,15 @@ from app.models.base import Base
 
 class Technician(Base):
     __tablename__ = "technicians"
+    # Live names both objects explicitly, and `alembic check` compares constraints
+    # and indexes by name, so the names are declared here to match.
+    __table_args__ = (
+        UniqueConstraint("user_id", name="technicians_user_id_unique"),
+        Index("fki_technicians_user_id_fkey", "user_id"),
+    )
 
     technician_id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False, unique=True)
+    user_id = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False)
     # more fields ...
 
     fsm_user = relationship("FSMUser", back_populates="technician")

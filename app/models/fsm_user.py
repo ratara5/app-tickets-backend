@@ -8,10 +8,10 @@ class FSMUser(Base):
     __tablename__ = "fsm_users"
 
     user_id = Column(Integer, primary_key=True)
-    email = Column(String, unique=True)
-    user_name = Column(String)
+    email = Column(String, unique=True, nullable=False)
+    user_name = Column(String, nullable=False)
     passwd   = Column(String(255), nullable=False)        # hash, never plain text
-    user_role = Column(String) # : Mapped[str] = mapped_column("rol")    
+    user_role = Column(String, nullable=False) # : Mapped[str] = mapped_column("rol")    
     photo_path = Column(String)
     created_at = Column(DateTime, default=func.now(), nullable=False)
 

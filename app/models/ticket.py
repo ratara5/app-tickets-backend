@@ -1,4 +1,14 @@
-from sqlalchemy import Column, Integer, Numeric, String, DateTime, Boolean, ForeignKey
+from sqlalchemy import (
+    Column,
+    Integer,
+    Numeric,
+    String,
+    Date,
+    Boolean,
+    ForeignKey,
+    Text,
+    Enum as SAEnum,
+)
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -6,14 +16,26 @@ from app.models.base import Base
 from app.models.audit_mixin import AuditMixin
 
 
+# Live stores these as PostgreSQL ENUM types (priority_type, status_type).
+# Declaring them as plain String produced permanent Alembic drift; the SQLite
+# variant keeps the in-memory test database on VARCHAR.
+priority_type = SAEnum("LOW", "MEDIUM", "HIGH", name="priority_type").with_variant(
+    String(), "sqlite"
+)
+status_type = SAEnum(
+    "OPEN", "ASSIGNED", "CANCELLED", "IN PROGRESS", "PAUSED", "CLOSED", "SIGNED",
+    name="status_type",
+).with_variant(String(), "sqlite")
+
+
 class Ticket(Base, AuditMixin):
     __tablename__ = "tickets"
 
     ticket_id = Column(Integer, primary_key=True)
-    ticket_date = Column(DateTime)
+    ticket_date = Column(Date)
     ticket_description = Column(String)
-    priority = Column(String)
-    status = Column(String)
+    priority = Column(priority_type)
+    status = Column(status_type)
     market_id = Column(Integer, ForeignKey("markets.market_id"))
     equipment_id = Column(Integer, ForeignKey("equipments.equipment_id"))
     assigned_to = Column(Integer, ForeignKey("technicians.technician_id"), nullable=True) # One ticket may have assigned_to null 
@@ -35,7 +57,7 @@ class AddWkd(Base, AuditMixin):
     market_temperature = Column(Numeric)
     operation_damage = Column(Boolean)
     completed = Column(Boolean)
-    observations_wkd = Column(String)
+    observations_wkd = Column(Text)
 
     # relationships
     ticket = relationship("Ticket", back_populates="add_wkd")

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, Uuid, DateTime
 
 from app.models.base import Base
 
@@ -6,5 +6,7 @@ from app.models.base import Base
 class TokenBlacklist(Base):
     __tablename__ = "token_blacklist"
 
-    jti = Column(String(36), primary_key=True)
+    # Live stores jti as a real uuid column, but the code keys on the raw JWT
+    # string, so the type is declared as_uuid=False to keep string binding.
+    jti = Column(Uuid(as_uuid=False), primary_key=True)
     expires_at = Column(DateTime, nullable=False)

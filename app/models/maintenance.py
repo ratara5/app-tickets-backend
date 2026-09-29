@@ -1,6 +1,6 @@
 from uuid6 import uuid7 
 
-from sqlalchemy import Column, Integer, Numeric, String, DateTime, Time, Uuid, PrimaryKeyConstraint, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, Numeric, DateTime, Date, Time, Text, Uuid, PrimaryKeyConstraint, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -16,16 +16,16 @@ class Maintenance(Base, AuditMixin):
 
     maintenance_id = Column(Uuid, primary_key=True, default=uuid7)
     ticket_id = Column(Integer, ForeignKey("tickets.ticket_id"))
-    maintenance_date = Column(DateTime) 
-    maintenance_description = Column(String)
+    maintenance_date = Column(Date) 
+    maintenance_description = Column(Text)
     labsdl_id = Column(Integer, ForeignKey("labsdls.labsdl_id"))
     # carpeta_soporte = Column(String)
     # formato_soporte = Column(String)
-    initial_photo_path = Column(String)
+    initial_photo_path = Column(Text)
     # url_foto_inicio = Column(String)
     # url_informe_soporte = Column(String)
     # maintenance_start = Column(DateTime) # equals to created_at
-    observations = Column(String)
+    observations = Column(Text)
 
     # Campos para la hoja de trabajo
     # nombre_recibe = Column(String)
@@ -77,11 +77,12 @@ class Pause(Base):
     pause_id = Column(Integer, primary_key=True, autoincrement=True) # Type is no more UNIQUEID()
     maintenance_id = Column(Uuid, ForeignKey("maintenances.maintenance_id"), nullable=False)
     # pause_timestamp = Column(DateTime) # equals to created_at
-    pause_reason = Column(String)
+    pause_reason = Column(Text)
 
-    created_at = Column(DateTime, nullable=False)
-    updated_at = Column(DateTime, nullable=False)
-    created_by = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False)
-    updated_by = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False)
+    # Mirrors live: timestamptz and nullable (see AuditMixin).
+    created_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), nullable=True)
+    created_by = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=True)
+    updated_by = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=True)
 
     maintenance = relationship("Maintenance", back_populates="pauses")

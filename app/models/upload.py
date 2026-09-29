@@ -1,6 +1,6 @@
 from uuid6 import uuid7 
 
-from sqlalchemy import Uuid, Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Uuid, Column, Integer, Text, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 
 from app.models.base import Base
@@ -12,17 +12,17 @@ class UploadSession(Base):
     upload_id = Column(Uuid, primary_key=True, default=uuid7)
     user_id = Column(Integer, ForeignKey("fsm_users.user_id"), nullable=False)
 
-    parent_tab = Column (String) # The name of parent table
-    parent_id = Column(Uuid) # The id of parent registry
-    tab_name = Column(String) # The table name (child table name)     
-    col_name = Column(String) # The column name in table (child table)  
+    parent_tab = Column(Text, nullable=False) # The name of parent table
+    parent_id = Column(Uuid, nullable=False) # The id of parent registry
+    tab_name = Column(Text, nullable=False) # The table name (child table name)     
+    col_name = Column(Text, nullable=False) # The column name in table (child table)  
     
-    content_type = Column(String)             
-    total_size = Column(Integer)              
-    total_chunks = Column(Integer)  
-    received_chunks = Column(Integer)
+    content_type = Column(Text, nullable=False)             
+    total_size = Column(Integer, nullable=False)              
+    total_chunks = Column(Integer, nullable=False)  
+    received_chunks = Column(Integer, nullable=False)
 
-    expires_at  = Column(DateTime(timezone=True))
+    expires_at  = Column(DateTime(timezone=True), nullable=False)
     completed = Column(Boolean)
     replaces_photo_id = Column(Integer, nullable=True)
 
