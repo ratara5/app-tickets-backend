@@ -629,19 +629,40 @@ Do not proceed past a failing gate; fix it and re-run. Record each gate's output
    **`psql` still exits 0**. The restore looks successful and the result has less
    referential integrity than the database it came from.
 
-   `db_gestiket_acme` is in exactly that state: three rows violate
-   `spares_unit_fkey` and `uom_ref_unit_fkey`, so restoring it drops both
-   constraints without failing loudly. See TICKET-024.
+   `db_gestiket_acme` is in exactly that state: three rows violated
+   `spares_unit_fkey` and `uom_ref_unit_fkey`, so restoring it dropped both
+   constraints without failing loudly. See TICKET-024. Fixed on 2026-09-29, but
+   the failure mode is not specific to those constraints and will recur the next
+   time data violates anything.
 
-   So check the output rather than the exit code, and assert the object count:
+   **Never drill a restore against the running server.** Use a single-database
+   dump and a fresh empty database:
 
    ```bash
-   grep -c "ERROR" restore.log            # must be 0
+   docker exec <pg> pg_dump -U <admin> --no-owner --no-privileges \
+       -d <app_db> > /tmp/restore-drill.sql
+   docker exec <pg> createdb -U <admin> restore_drill
+   docker exec -i <pg> psql -U <admin> -d restore_drill -f - < /tmp/restore-drill.sql
+   ```
+
+   `pg_dumpall` is for rebuilding an instance, not for testing a restore. It
+   contains `CREATE DATABASE` and `\connect`; replayed onto an instance that
+   already exists, those fail with "already exists", the script connects to the
+   **existing** database anyway, and the restore starts inserting into live. That
+   is not hypothetical — it happened here, and it doubled two tables that have no
+   primary key, silently.
+
+   Check the output rather than the exit code, and assert the object counts:
+
+   ```bash
+   grep "ERROR" restore.log | grep -v "already exists"   # must be empty
    psql -d <app_db> -tAc "SELECT count(*) FROM pg_constraint WHERE contype='f';"
    ```
 
    Compare that count against the source database before relying on a restore.
-   Record it next to the backup.
+   Record it next to the backup. Note that `ERROR` is prefixed with
+   `psql:<stdin>:NNN:`, so `grep "^ERROR"` matches nothing — this is how a broken
+   restore reads as a clean one.
 3. **Schema**, Phase 2: object count and history state agree with the code.
 4. **Health**, from inside the network and from the public entry point.
 5. **Media round-trip.** This is the gate that actually catches storage breakage:
