@@ -225,13 +225,30 @@ bookkeeping table that fits its own column. `git` holds the deleted revisions, s
 the undo is a revert, not an archaeology exercise.
 
 **The one part that is not in git.** Stamping the live database overwrites its
-`alembic_version` row. The current value is
-`0005_add_upload_replaces_photo_id_fix_parent_tab`, and after the squash it names
-a revision that no longer exists, so `alembic downgrade` has nowhere to walk to
+`alembic_version` row. Until 2026-09-29 the current value was
+`0005_add_upload_replaces_photo_id_fix_parent_tab`, and after the squash it named
+a revision that no longer existed, so `alembic downgrade` had nowhere to walk to
 either way. It is still the last surviving trace of the old history, and it is
 the one piece of state the dump does **not** preserve — `pg_dump --schema-only`
 emits the `alembic_version` table but not its rows. Read the value out **before**
 stamping and keep it.
+
+**Resolved on 2026-09-29.** Live is stamped `0002_widen_uom_factor` (head), so
+the squashed history is now the one that matches reality. The old value is
+preserved in `TICKET-009`, `TICKET-015` and this file, and in the pre-migration
+backup.
+
+**`alembic stamp` cannot do this on its own.** It reads the current revision to
+compute the new one, so it fails with `Can't locate revision identified by
+'0005_...'` — it cannot stamp over a revision it is unable to find. Write the
+single row directly instead, which is what `stamp` does internally:
+
+```sql
+UPDATE alembic_version SET version_num = '0001_baseline';
+```
+
+Then `alembic upgrade head` works normally. This is bookkeeping, not schema: the
+table holds one `varchar` row, and the dump above does not preserve it.
 
 #### Guardrails
 

@@ -621,6 +621,27 @@ Do not proceed past a failing gate; fix it and re-run. Record each gate's output
    docker exec <pg-container> pg_dumpall -U <admin-user> > /root/pg-backup-$(date +%F-%H%M).sql
    chmod 600 /root/pg-backup-*.sql
    ```
+   **A backup is not proven until it has been restored.** `pg_dumpall` emits
+   `COPY` statements before it emits `ADD CONSTRAINT`, so a restore loads the
+   data with the foreign keys not yet in place and creates them at the end. If any
+   row violates one of those constraints, the `ALTER TABLE ... ADD CONSTRAINT`
+   fails, that constraint is silently absent from the restored database, and
+   **`psql` still exits 0**. The restore looks successful and the result has less
+   referential integrity than the database it came from.
+
+   `db_gestiket_acme` is in exactly that state: three rows violate
+   `spares_unit_fkey` and `uom_ref_unit_fkey`, so restoring it drops both
+   constraints without failing loudly. See TICKET-024.
+
+   So check the output rather than the exit code, and assert the object count:
+
+   ```bash
+   grep -c "ERROR" restore.log            # must be 0
+   psql -d <app_db> -tAc "SELECT count(*) FROM pg_constraint WHERE contype='f';"
+   ```
+
+   Compare that count against the source database before relying on a restore.
+   Record it next to the backup.
 3. **Schema**, Phase 2: object count and history state agree with the code.
 4. **Health**, from inside the network and from the public entry point.
 5. **Media round-trip.** This is the gate that actually catches storage breakage:

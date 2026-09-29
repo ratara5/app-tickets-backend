@@ -157,3 +157,48 @@ long as the schema has existed.
 The rehearsal also surfaced a defect unrelated to precision: live `uom` has two
 rows that violate `uom_ref_unit_fkey` while PostgreSQL reports the constraint as
 validated, and re-loading `uom` therefore fails. Recorded as TICKET-024.
+
+## Applied to live 2026-09-29
+
+Live is stamped `0002_widen_uom_factor` (head) and `uom.factor_conversion` is
+`numeric(20,10)`. `deploy/schema.sql` was regenerated from live in the same
+commit, and the five `strict xfail` markers were removed, so the suite is now 369
+passed, 2 xfailed. The two remaining are the TICKET-023 pause endpoint.
+
+What was done, in order, with the reversal for each recorded before it started:
+
+1. `pg_dumpall` of the whole shared instance, `chmod 600`, checksum kept. 23
+   tables in `db_gestiket_acme`, all 4 databases present in the dump.
+2. Pre-state recorded: the `alembic_version` value, the column type, the 9 `uom`
+   rows, and the row count of all 23 tables.
+3. `alembic_version` set to `0001_baseline`. `alembic stamp` could not be used:
+   it reads the current revision to compute the new one, so it fails with
+   `Can't locate revision identified by '0005_...'` — it cannot stamp over a
+   revision it cannot find. The single row was written directly, which is what
+   `stamp` does internally. Recorded in `docs/deployment-guide.md`.
+4. `alembic upgrade head`, which is the single `ALTER TABLE uom ALTER COLUMN
+   factor_conversion TYPE numeric(20,10)`.
+
+Verified afterwards:
+
+- All 9 `uom` values are numerically identical to their pre-state
+  (`factor_conversion = round(factor_conversion, 2)` held for every one).
+- Row counts identical across all 23 tables.
+- 38 foreign keys and 21 primary keys, unchanged.
+- `alembic check` against live reports the same 9 known items as the disposable
+  replica, so live and the replica agree.
+- A database built from the regenerated `deploy/schema.sql` has
+  `numeric(20,10)` and stores `0.45359237` exactly.
+
+The widened column was also proved on live by storing `0.45359237` and reading it
+back unchanged. That test row was then deleted, and the deletion needed
+`DISABLE TRIGGER ALL` because `cilindro` and `medio cilidndro` reference the `lb`
+unit it defined. The deletion is incidental proof that the constraint *is*
+enforced for new writes while the pre-existing rows it should have rejected are
+still there. Live's 23 table counts were re-checked afterwards and match the
+pre-state exactly.
+
+Reversibility, restated with what is now known: the downgrade is lossless for
+every value live holds today, so this can still be undone exactly. It stops being
+undoable the moment a precise factor is loaded, at which point the downgrade
+rounds silently and the dump taken above is the only reversal.

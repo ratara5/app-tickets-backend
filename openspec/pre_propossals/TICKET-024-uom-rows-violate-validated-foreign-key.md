@@ -115,3 +115,69 @@ would make the repair harder to review, so they are deliberately kept apart.
   bad rows, so the failure reproduces there too.
 - The rehearsal database used for TICKET-021 was dropped after the round trip.
 - Read-only inspection. `postgres-gci` was not stopped, restarted or reconfigured.
+
+## Escalation 2026-09-29 — this breaks disaster recovery, not just the loader
+
+Taking the pre-migration backup for TICKET-021 exposed a worse consequence than
+the loader failing. `pg_dump` emits `COPY` statements *before* it emits
+`ADD CONSTRAINT`, so a restore loads all the data with the foreign keys not yet
+in place and creates them at the very end. The three violating rows are therefore
+present when the constraints are finally added, and the `ALTER TABLE` fails:
+
+```
+psql:<stdin>:2274: ERROR:  insert or update on table "spares" violates foreign key constraint "spares_unit_fkey"
+psql:<stdin>:2330: ERROR:  insert or update on table "uom" violates foreign key constraint "uom_ref_unit_fkey"
+```
+
+The consequences are worse than the error itself:
+
+- **Neither constraint exists in the restored database.** Verified by querying
+  `pg_constraint` after the restore: both names are absent.
+- **`psql` exits 0.** The restore reports success. Only reading stderr reveals
+  it, and `ERROR` does not start the line — it is prefixed with
+  `psql:<stdin>:2274:`, so a `grep '^ERROR'` misses every one of them. That is
+  how this was nearly missed during the window: the first attempt appeared clean.
+- **All 23 tables and all data restore correctly.** Row counts match live
+  exactly for `uom`, `spares`, `tickets`, `photos`, `maintenances`, `fsm_users`
+  and `worksheets`. Nothing else is wrong.
+
+So a disaster recovery today would restore a database that is missing two
+referential-integrity constraints and would tell the operator it succeeded. The
+instant the container is restored and something writes `spares.unit` or
+`uom.ref_unit`, the constraint that was supposed to stop it is not there.
+
+This is now documented in
+`ai-specs/skills/deploying-backend-vps/SKILL.md` Phase 5 gate 2: a backup is not
+proven until it has been restored, and the check is a constraint count plus a
+grep that does not assume errors start at the beginning of a line.
+
+### The second violation is the TICKET-018 typo
+
+`spares.spare_id = 411` (`Gas nitrogeno X 5.0 M3`) has
+`unit = 'medio cilindro'` — the correct spelling. `uom` stores
+`medio cilidndro`, with the typo. So the `spares` row is right and the `uom` row
+is wrong, and the typo is what breaks the constraint.
+
+That ties this ticket to TICKET-018 tightly, and it argues for fixing the two
+together after all: the spelling fix repairs `spares_unit_fkey` on its own, and
+adding the missing `lb` unit repairs `uom_ref_unit_fkey`. Both repairs are data
+changes to `uom`, which currently has no writer.
+
+A full inventory of every foreign key in live was taken as part of this: 38
+checked, exactly 3 violating rows, all three pointing into `uom`. Nothing outside
+`uom` is affected, so the blast radius is one reserved table and the recovery
+path.
+
+### Recommended order
+
+1. Add the `lb` unit, with `factor_conversion` decided: a self-ratio `1.00`,
+   consistent with all 9 existing rows, or `0.45359237` as lb to kg. The widened
+   column now stores either exactly. Note that `0.45359237` is only meaningful as
+   a conversion to a *reference* unit, so this depends on whether `ref_unit` is
+   meant to be "the unit this is measured against" — the other 9 rows being
+   self-ratios suggests the column is used two different ways and the design
+   needs a decision before the value is chosen.
+2. Correct `medio cilidndro` to `medio cilindro` (TICKET-018). This repairs
+   `spares_unit_fkey` and removes a typo from user-visible reference data.
+3. Re-take the backup and prove the restore: zero errors, 38 foreign keys present.
+4. Only then treat disaster recovery as working.

@@ -42,24 +42,6 @@ def revision() -> str:
 
 
 # ── The schema of record must actually be wide enough ──────────────────────
-#
-# These five assertions read deploy/schema.sql, which is generated from the live
-# database and must never be hand-edited. They therefore cannot pass until
-# 0002_widen_uom_factor has been applied to live and the dump regenerated. They
-# are marked strict xfail so that:
-#   - the suite stays green while the live change is pending, and
-#   - the day someone edits schema.sql by hand to make them pass, the strict
-#     marker turns that into a failure rather than a silent green.
-#
-# Remove these markers in the same commit that regenerates the dump from live.
-PENDING_LIVE_MIGRATION = pytest.mark.xfail(
-    strict=True,
-    reason="deploy/schema.sql is derived from live; 0002_widen_uom_factor is "
-    "written and proven but not yet applied to the live database, so the dump "
-    "still declares numeric(5,2)",
-)
-
-
 def _column_precision_and_scale() -> tuple[int | None, int | None]:
     match = re.search(
         r"^\s+factor_conversion\s+numeric\((\d+),\s*(\d+)\)", SCHEMA_SQL.read_text(encoding="utf-8"), re.MULTILINE
@@ -68,7 +50,6 @@ def _column_precision_and_scale() -> tuple[int | None, int | None]:
     return int(match.group(1)), int(match.group(2))
 
 
-@PENDING_LIVE_MIGRATION
 def test_schema_of_record_holds_every_real_conversion_factor() -> None:
     """The generated dump is what a new database is built from.
 
@@ -81,7 +62,6 @@ def test_schema_of_record_holds_every_real_conversion_factor() -> None:
     assert scale >= REQUIRED_SCALE, f"scale {scale} is below {REQUIRED_SCALE}"
 
 
-@PENDING_LIVE_MIGRATION
 @pytest.mark.parametrize(
     ("value", "meaning", "why"),
     REAL_FACTORS,
