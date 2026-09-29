@@ -158,11 +158,15 @@ neither `alembic/` nor `alembic.ini` was present. The container started and pass
 healthcheck while `alembic upgrade head` failed on missing config.
 `tests/test_deploy_assets.py` now guards that.
 
-**Autogenerate is destructive until the models are trusted.** `alembic/env.py`
-currently exposes only 2 tables in `target_metadata`, so `revision --autogenerate`
-reports the other 15 as `drop_table`. Fix that before letting the tool write
-anything. Once it is fixed, `alembic check` belongs in CI so drift fails the build
-instead of being discovered in production. Both are `TICKET-019`.
+**Autogenerate is destructive until the models are trusted.** Until 2026-09-27
+`alembic/env.py` exposed only 2 tables in `target_metadata`, so
+`revision --autogenerate` reported **20 of the 23 live tables** as `drop_table`
+(measured against a database built from `deploy/schema.sql`; Alembic excludes its
+own `alembic_version`). Both defects are now fixed — the imports and a named
+exclusion for the 5 tables that have no models — and the result is 0
+`remove_table`, verified against a disposable database. `alembic check` still
+belongs in CI so drift fails the build instead of being discovered in production,
+and the models themselves are still stale. That is `TICKET-019`.
 
 **Refuse to touch a populated database.** Check before writing anything:
 

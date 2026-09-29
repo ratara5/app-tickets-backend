@@ -100,10 +100,17 @@ after the models are corrected and a check exists that the two agree.
       type names, so the types are emitted and reused rather than replaced.
 - [ ] The models declare `server_default` for `uuid_generate_v7()` on the columns
       that have it in the live database, so the ETL write path survives a rebuild.
-- [ ] `alembic/env.py` exposes all 17 model tables in `target_metadata`, and
-      `alembic check` reports no operations against a disposable database. Until
-      this is done, `revision --autogenerate` proposes `drop_table` for the other
-      15 tables and applying it would delete the database.
+- [x] `alembic/env.py` imports every model module, so `target_metadata` reports
+      all 17 model tables. Done 2026-09-27: measured against a database built from
+      `deploy/schema.sql`, the old two-table metadata made autogenerate emit
+      `remove_table` for 20 of the 23 live tables.
+- [x] The 5 tables that have no models are excluded by a named, tested
+      `include_object` hook rather than by the absence of a model. Done
+      2026-09-27, kept for future features per TICKET-018. Verified against a
+      disposable database: 5 `remove_table` before the hook, 0 after.
+- [ ] `alembic check` reports no operations against a disposable database. Still
+      open, and blocked by the two heads (`TICKET-009`), which make autogenerate
+      refuse to run at all: "Target database is not up to date".
 - [ ] The baseline revision is derived from `deploy/schema.sql`, the same dump that
       serves as the dev bootstrap, so the two cannot disagree.
 - [ ] The `NOT NULL` divergence on the audit columns is resolved in one direction

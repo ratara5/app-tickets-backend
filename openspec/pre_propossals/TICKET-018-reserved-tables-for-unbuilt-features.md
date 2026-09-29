@@ -10,6 +10,7 @@
 - **Owner**: **ratara5** (repository maintainer and sole committer — no other owner was specified, so this is assigned to the only accountable identity in `git log`)
 - **Review date**: **2026-12-27** (90 days from filing). If no decision is recorded by then, this escalates rather than lapsing.
 - **Decision options**: build the feature, redesign the table, or drop it after backup and approval
+- **Decision**: **Keep all five for future features** (ratara5, 2026-09-27). None is to be dropped, and none is to be modelled until its feature is actually built. The consequence is that Alembic must be told to skip them, which is now implemented — see "What was done instead" below.
 
 ## Description
 
@@ -134,21 +135,25 @@ is a trap.
 
 ## Acceptance criteria
 
-- [ ] A decision is recorded for each of the five tables: build, redesign, or drop.
-- [ ] For any table to be dropped: a backup is taken and the drop is approved
-      explicitly. `uom` additionally requires resolving the `spares.unit`
-      reference first.
+- [x] A decision is recorded for each of the five tables: **keep for future features** (ratara5, 2026-09-27). No drop, no model until the feature is built.
+- [x] Nothing is dropped, so no backup or drop approval is required. This also removes the `spares.unit` blocker: `uom` stays, so the foreign key stays valid.
 - [ ] The `medio cilindro` / `medio cilidndro` discrepancy is resolved: the spare row
       pointing at a non-existent unit is corrected or the unit is created, and the
       typo'd row is confirmed as intended or dropped. Until then `uom` is known to be
-      inconsistent.
-- [ ] If a table is kept for a future feature, the feature gets a ticket of its own
-      and this ticket closes.
-- [ ] `RESERVED_TABLES` in `tests/test_deploy_assets.py` is updated to match the
-      decision, and the suite stays green.
+      inconsistent. Keeping the table does not fix its contents, and this is tracked
+      with the loader defect in `TICKET-020`.
+- [ ] Each of the five gets a ticket of its own for the feature it is reserved for,
+      and this ticket then closes. Not yet filed.
+- [x] The exclusion is enforced where it matters, not only recorded. `app/models/reserved.py`
+      declares the five by name and supplies Alembic's `include_object` hook, wired
+      into both the offline and the online path in `alembic/env.py`. Verified against
+      a disposable database built from `deploy/schema.sql`: 5 `remove_table` before
+      the hook, 0 after. `tests/test_alembic_env.py` guards the list against the dump
+      and the imports against `app/models/`.
 - [ ] If `hollidays` is renamed, the misspelling is fixed in the live database, in
-      a migration, in `deploy/schema.sql` (by regeneration), and in this ticket, in
-      one change.
+      a migration, in `deploy/schema.sql` (by regeneration), in this ticket and in
+      `app/models/reserved.py`, in one change. Until then the exclusion list must
+      keep the double L, or autogenerate would stop protecting the real table.
 
 ## Notes
 
