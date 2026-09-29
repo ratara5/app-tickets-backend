@@ -204,11 +204,49 @@ def test_documents_public_privilege_isolation(prose: str) -> None:
 
     This is the single most load-bearing provision step on a shared instance, and
     the non-obvious one: revoking from your own role changes nothing.
+
+    The earlier version of this guard required the word "server-wide" and so
+    required the wrong claim. REVOKE is per database and never was server-wide;
+    asserting that it was baked the misconception into shared doctrine that other
+    projects were told to follow.
     """
-    assert "PUBLIC" in prose
     lowered = prose.lower()
+    assert "PUBLIC" in prose
     assert "inherit" in lowered or "inherits" in lowered
-    assert "server-wide" in lowered, "the server-wide impact must be stated"
+    assert "per database" in lowered, "REVOKE is per database, and that is the trap"
+    assert "pg_hba" in lowered, "the mechanism that does enforce it should be named"
+
+
+def test_recommends_pg_hba_over_revoke_from_public(prose: str) -> None:
+    """The enforcement that works, and the one that only appears to.
+
+    `REVOKE CONNECT ... FROM PUBLIC` is the instinctive move and it is a
+    different, smaller thing than the instinct expects. `pg_hba.conf` is evaluated
+    before any SQL, applies to every database at once, and is scoped to one role.
+    A reader following this skill has to be told which one is load-bearing.
+    """
+    lowered = prose.lower()
+    assert "host-based" in lowered or "host based" in lowered
+    assert "first-match" in lowered or "first match" in lowered
+    assert "reload" in lowered, "restarting the server would drop other tenants' connections"
+    assert "reject" in lowered, "the deny line should be shown, not described"
+
+
+def test_warns_against_a_second_migration_role(skill_text: str) -> None:
+    """A DDL role that cannot do DDL is a trap someone will fall into again.
+
+    Without ownership, `GRANT CREATE ON SCHEMA` permits creating new objects and
+    nothing else; a test that alters a table the role just created appears to
+    prove otherwise. The skill has to warn about the test as well as the design,
+    because the test is what makes people reinstate the role.
+    """
+    lowered = skill_text.lower()
+    assert "migration" in lowered
+    for phrase in ("ownership", "create"):
+        assert phrase in lowered
+    assert "just created" in lowered or "just created it" in lowered, (
+        "the flattering test should be named, since it is what people rely on"
+    )
 
 
 def test_documents_the_sequence_grant_trap(prose: str) -> None:

@@ -91,21 +91,18 @@ create a second database on a shared instance if it is ever wired into a deploy.
 Whatever the tool, the rule is the same: the database is created by a person, once,
 with an administrator's credentials, deliberately.
 
-#### Two roles, and the app role owns nothing
-
-The one-line provisioning command below is the shape of the problem, not a
-recommendation. Split it, and give the runtime service less than ownership:
+#### One role, and it owns nothing
 
 ```bash
 # Never reuse the shared instance's superuser for the app.
 docker exec -i <pg-container> psql -v ON_ERROR_STOP=1 -U <admin-user> -d postgres <<'SQL'
 \l  -- confirm the name is free, or you will collide with another tenant
 
--- Runtime: DML only. Cannot CREATE, ALTER or DROP.
-CREATE ROLE <app_role> WITH LOGIN PASSWORD '<generated-password>';
-
--- Migrations: DDL. Holds the password only while a migration is being run.
-CREATE ROLE <app_migr_role> WITH LOGIN PASSWORD '<generated-password>';
+-- DML only. Cannot CREATE, ALTER or DROP. Every capability attribute named
+-- explicitly, so a hardened postgresql.conf cannot change what this role is.
+CREATE ROLE <app_role> WITH LOGIN
+  PASSWORD '<generated-password>'
+  NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT;
 
 -- The database is NOT owned by the app role. Ownership implies the right to
 -- drop and alter every object in it.
@@ -115,61 +112,95 @@ SQL
 
 `CREATE DATABASE ... OWNER <app_role>` is the common shortcut and it quietly
 grants schema-changing rights to the service. An owner can drop its own tables and
-alter the schema; a role that merely holds grants cannot. The point of the split
-is that "what damage can the running service do?" has an answer. The cost is one
-extra variable, and the migration password can be rotated between runs.
+alter the schema; a role that merely holds grants cannot. That asymmetry is the
+whole point, so ownership is never transferred — not at creation, not later, and
+not to a second role.
 
 Do not create the database and the schema in the same step. Create the database
 empty, load the schema from the app's own source of record, then grant — because
 grants that are meant to cover existing tables do nothing if the tables do not
 exist yet.
 
-#### Isolation from other tenants needs a PUBLIC revoke
+#### Do not provision a second, "migration" role
 
-This is the step most projects skip, and it does not work by revoking from the
-app role. Every role on a PostgreSQL server inherits `CONNECT` on every database
-from the `PUBLIC` pseudo-role. Revoking `CONNECT` **from your own role** changes
-nothing, because your role was never the source of that privilege — and any other
-role on the instance still has it.
+It is tempting to give DDL its own role so the service credential cannot change
+the schema. On a server where ownership is never granted, that role cannot do its
+job: in PostgreSQL `GRANT CREATE ON SCHEMA` permits creating *new* objects, while
+`ALTER` and `DROP` on existing ones require ownership. The role can create an
+empty table and cannot alter a real one.
 
-Verified on a disposable instance: a role that had been granted nothing at all on
-a second database could still connect to it, because `PUBLIC` held `CONNECT`.
+The two ways to make it work both defeat the boundary. Transferring table
+ownership to it puts the schema-changing credential in charge of the data and
+removes the owner/grantee distinction entirely. Granting that role to the service
+role hands every DDL capability to the running service, which is the thing the
+split was meant to prevent.
+
+Run migrations as the administrator who owns the schema, by hand, the same way the
+schema of record is loaded. One role, one credential in the compose file, and
+"what damage can the running service do?" has an answer.
+
+Beware of the test that flatters this design: create a table as the migration role
+and then `ALTER` it, and the whole thing appears to work. That is the role
+altering a table it just created. Alter a table it did not create, and it fails.
+
+#### Isolation from other tenants is a pg_hba.conf rule, not a REVOKE
+
+Every role on a PostgreSQL server inherits `CONNECT` on every database from the
+`PUBLIC` pseudo-role, so out of the box a role granted nothing at all on a sibling
+database can still connect to it.
+
+The instinctive fix is `REVOKE CONNECT ... FROM PUBLIC`. Do not use it for this.
+`REVOKE` is **per database**: it does not make the server-wide, it makes that one
+database unreachable to every tenant relying on the default, and it leaves every
+sibling database exactly as reachable as before. An app that has run it and
+believes it is isolated is not. It is also someone else's change to make.
+
+What actually enforces it, and cannot affect a tenant you have nothing to do with,
+is a host-based rule. It is evaluated before any SQL runs, applies across all
+databases at once, and is scoped to a single role:
+
+```
+# TYPE     DATABASE   USER         ADDRESS       METHOD
+host      <app_db>   <app_role>   <app-cidr>    scram-sha-256
+host      all        <app_role>   0.0.0.0/0     reject
+```
+
+`pg_hba.conf` is first-match, so the deny line must come **after** the allow line
+and both must sit above any broader existing rule. Locate the file, append, and
+reload rather than restart, so in-flight connections survive:
+
+```bash
+docker exec -it <pg-container> psql -U <admin-user> -c 'SHOW hba_file;'
+docker exec -it <pg-container> psql -U <admin-user> -c 'SELECT pg_reload_conf();'
+```
+
+Then verify the deny line actually bites, from a different host — the rule is
+address-scoped, so a loopback test exercises a different path than a peer would.
+A *permission* error rather than a connection rejection means the rule is not in
+effect yet.
+
+Within the database, revoke `PUBLIC` on your own and grant the role back
+explicitly, or you lock it out of its own data:
 
 ```sql
--- Server-wide. See the warning below before running this.
-REVOKE CONNECT ON DATABASE postgres  FROM PUBLIC;
-REVOKE CONNECT ON DATABASE template1 FROM PUBLIC;
-
--- Then, on the target database, the part that is specific to this project.
-\c <app_db>
 REVOKE ALL ON DATABASE <app_db> FROM PUBLIC;
-GRANT CONNECT ON DATABASE <app_db> TO <app_role>, <app_migr_role>;
+GRANT CONNECT ON DATABASE <app_db> TO <app_role>;
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
-
 GRANT USAGE ON SCHEMA public TO <app_role>;
-GRANT USAGE, CREATE ON SCHEMA public TO <app_migr_role>;
 
 -- Table grants cover what exists now; ALTER DEFAULT PRIVILEGES covers what is
 -- created later. Both are needed, and the sequence grant is not optional.
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO <app_role>;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO <app_role>;
-ALTER DEFAULT PRIVILEGES FOR ROLE <app_migr_role> IN SCHEMA public
-    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO <app_role>;
 ```
 
-**`REVOKE ... FROM PUBLIC` is a server-wide change**, and it affects every other
-application on the instance, including ones you have nothing to do with. It will
-break any tenant that currently relies on the default `CONNECT` without holding an
-explicit grant. Inventory the instance and coordinate before running it:
-
-```sql
-SELECT datname, datacl FROM pg_database ORDER BY datname;
--- A NULL datacl means "default": that database's CONNECT comes from PUBLIC.
-```
-
-It is idempotent, and is often better applied once by whoever administers the
-instance than by each application separately. Raise it with the owner; do not
-quietly change another tenant's access from inside a project that is not theirs.
+`FOR ROLE` in `ALTER DEFAULT PRIVILEGES` must name the role that **creates the
+objects** — the administrator loading the schema — not the app role. Naming the
+app role produces a script that reads correctly, applies without error, and
+grants nothing to anything ever created afterwards, while the pre-existing tables
+look correctly granted. Verified on a disposable instance: naming the app role
+left a table created afterwards with no privileges for it, naming the owner did
+not.
 
 `GRANT USAGE, SELECT ON ALL SEQUENCES` is easy to omit and fails late: a role with
 table-level DML but no sequence grant cannot call `nextval`, so every insert

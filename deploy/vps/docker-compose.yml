@@ -90,8 +90,21 @@ services:
   # NOT YET THE DEPLOYMENT PATH: the models are stale against the live database
   # (`alembic check` reports 94 pending operations, TICKET-019), so autogenerate
   # would still write a destructive revision. `alembic upgrade head` itself is
-  # now sound: one head, a single `0001_baseline` that creates nothing. Keep
-  # using docs/deployment-guide.md §2.2 until the model drift is fixed.
+  # now sound: one head, a single `0001_baseline` that creates nothing, plus
+  # `0002_widen_uom_factor`. Keep using docs/deployment-guide.md §2.2 until the
+  # model drift is fixed.
+  #
+  # CREDENTIALS. This job needs schema-modification rights, so it cannot use the
+  # application's runtime credentials — the runtime role holds DML only and is
+  # deliberately never given ownership (deploy/provision/README.md). It has no
+  # `env_file` for that reason: the elevated values must be passed explicitly, by
+  # hand, so that an elevated credential is never a default in a file that also
+  # configures the running service. Run it as, for example:
+  #
+  #   docker compose run --rm -e DB_USER=<admin-user> -e DB_PASSWORD=<admin-password> migrate
+  #
+  # Supplying only DB_HOST and DB_PORT leaves it to read the ambient environment,
+  # which will fail the migration rather than silently do it with the wrong role.
   migrate:
     build:
       context: ../..
@@ -99,8 +112,6 @@ services:
       target: migrate
     image: app-tickets-backend:vps-migrate
     restart: "no"
-    env_file:
-      - ../../.env
     environment:
       # Same value the API and the ETL use: container-name resolution only works
       # inside a docker network.

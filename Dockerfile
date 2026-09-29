@@ -10,6 +10,20 @@
 #
 # This is a JOB, not a service. Never add a restart policy to it: a failed
 # migration must stop, not retry against a Postgres shared with other tenants.
+#
+# WHAT CREDENTIAL RUNS IT. It runs with the administrator credentials the operator
+# supplies, because schema change belongs to whoever owns the schema. There is no
+# dedicated migration role, and that is deliberate rather than an omission: on a
+# server where ownership is never granted to an application credential,
+# `GRANT CREATE ON SCHEMA` permits creating new objects but not altering existing
+# ones, so such a role could create an empty table and could not alter a real one.
+# Making it able to would require giving it ownership, which removes the boundary
+# this job is supposed to sit outside of. See deploy/provision/README.md.
+#
+# The practical consequence: DB_USER/DB_PASSWORD passed to this job must be
+# elevated, and must therefore never be the values the running service uses. The
+# runtime role holds DML only and will fail here with a permission error, which is
+# the correct outcome rather than a misconfiguration to work around.
 FROM python:3.12.12-slim-bookworm AS migrate
 
 WORKDIR /srv
