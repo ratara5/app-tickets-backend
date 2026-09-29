@@ -81,23 +81,100 @@ one, and it is the most common defect in this area.
 
 ### Plane 1: the database is not the app's to create
 
-`alembic upgrade head` creates tables. `prisma migrate deploy` creates tables. Neither
-creates the database, and that is not an oversight — `CREATE DATABASE` cannot run
-inside a transaction, and it needs privileges the application role must never hold.
-Some Prisma commands will create a database for you, but that is a development-time
-convenience, not a deployment path.
+The schema tool creates tables. It does not create the database, and that is not an
+oversight — `CREATE DATABASE` cannot run inside a transaction, and it needs
+privileges the application role must never hold. Some migration tools will create a
+database for you when run interactively, but that is a development-time convenience,
+not a deployment path: the same command that is convenient locally will happily
+create a second database on a shared instance if it is ever wired into a deploy.
 
-Create it as an administrator, once, deliberately, separately:
+Whatever the tool, the rule is the same: the database is created by a person, once,
+with an administrator's credentials, deliberately.
+
+#### Two roles, and the app role owns nothing
+
+The one-line provisioning command below is the shape of the problem, not a
+recommendation. Split it, and give the runtime service less than ownership:
 
 ```bash
 # Never reuse the shared instance's superuser for the app.
 docker exec -i <pg-container> psql -v ON_ERROR_STOP=1 -U <admin-user> -d postgres <<'SQL'
-\l
+\l  -- confirm the name is free, or you will collide with another tenant
+
+-- Runtime: DML only. Cannot CREATE, ALTER or DROP.
 CREATE ROLE <app_role> WITH LOGIN PASSWORD '<generated-password>';
-CREATE DATABASE <app_db> OWNER <app_role>;
-REVOKE ALL ON DATABASE postgres FROM <app_role>;
+
+-- Migrations: DDL. Holds the password only while a migration is being run.
+CREATE ROLE <app_migr_role> WITH LOGIN PASSWORD '<generated-password>';
+
+-- The database is NOT owned by the app role. Ownership implies the right to
+-- drop and alter every object in it.
+CREATE DATABASE <app_db>;
 SQL
 ```
+
+`CREATE DATABASE ... OWNER <app_role>` is the common shortcut and it quietly
+grants schema-changing rights to the service. An owner can drop its own tables and
+alter the schema; a role that merely holds grants cannot. The point of the split
+is that "what damage can the running service do?" has an answer. The cost is one
+extra variable, and the migration password can be rotated between runs.
+
+Do not create the database and the schema in the same step. Create the database
+empty, load the schema from the app's own source of record, then grant — because
+grants that are meant to cover existing tables do nothing if the tables do not
+exist yet.
+
+#### Isolation from other tenants needs a PUBLIC revoke
+
+This is the step most projects skip, and it does not work by revoking from the
+app role. Every role on a PostgreSQL server inherits `CONNECT` on every database
+from the `PUBLIC` pseudo-role. Revoking `CONNECT` **from your own role** changes
+nothing, because your role was never the source of that privilege — and any other
+role on the instance still has it.
+
+Verified on a disposable instance: a role that had been granted nothing at all on
+a second database could still connect to it, because `PUBLIC` held `CONNECT`.
+
+```sql
+-- Server-wide. See the warning below before running this.
+REVOKE CONNECT ON DATABASE postgres  FROM PUBLIC;
+REVOKE CONNECT ON DATABASE template1 FROM PUBLIC;
+
+-- Then, on the target database, the part that is specific to this project.
+\c <app_db>
+REVOKE ALL ON DATABASE <app_db> FROM PUBLIC;
+GRANT CONNECT ON DATABASE <app_db> TO <app_role>, <app_migr_role>;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+
+GRANT USAGE ON SCHEMA public TO <app_role>;
+GRANT USAGE, CREATE ON SCHEMA public TO <app_migr_role>;
+
+-- Table grants cover what exists now; ALTER DEFAULT PRIVILEGES covers what is
+-- created later. Both are needed, and the sequence grant is not optional.
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO <app_role>;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO <app_role>;
+ALTER DEFAULT PRIVILEGES FOR ROLE <app_migr_role> IN SCHEMA public
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO <app_role>;
+```
+
+**`REVOKE ... FROM PUBLIC` is a server-wide change**, and it affects every other
+application on the instance, including ones you have nothing to do with. It will
+break any tenant that currently relies on the default `CONNECT` without holding an
+explicit grant. Inventory the instance and coordinate before running it:
+
+```sql
+SELECT datname, datacl FROM pg_database ORDER BY datname;
+-- A NULL datacl means "default": that database's CONNECT comes from PUBLIC.
+```
+
+It is idempotent, and is often better applied once by whoever administers the
+instance than by each application separately. Raise it with the owner; do not
+quietly change another tenant's access from inside a project that is not theirs.
+
+`GRANT USAGE, SELECT ON ALL SEQUENCES` is easy to omit and fails late: a role with
+table-level DML but no sequence grant cannot call `nextval`, so every insert
+against a serial column breaks at runtime with a permission error that looks
+unrelated to provisioning.
 
 **Why this must not happen from the app's own `docker compose up`.** The shared
 instance hosts other tenants' databases. If the application's compose file can create
@@ -115,12 +192,39 @@ the role and the database, then:
 A tenancy on a shared server is provisioned by whoever administers the server. The
 application is a client of that tenancy, not its owner.
 
-Confirm the role cannot see other tenants' databases:
+#### Verify the boundary, do not assume it
+
+Listing the databases proves nothing — every role can see the catalog. Assert the
+capabilities directly, and treat a check that passes when it was expected to fail
+as a defect to fix before pointing the app at the role:
 
 ```bash
-docker exec -i <pg-container> psql -v ON_ERROR_STOP=1 -U <app_role> -d <app_db> -tAc \
-  "SELECT datname FROM pg_database WHERE datistemplate = false"
+# Must return 0 rows: the app role is not a superuser and cannot create
+# databases, roles, or replication.
+docker exec -i <pg-container> psql -v ON_ERROR_STOP=1 -U <admin-user> -d <app_db> -tAc \
+  "SELECT rolname FROM pg_roles WHERE rolname = '<app_role>'
+     AND (rolsuper OR rolcreaterole OR rolcreatedb OR rolreplication)"
+
+# Must return 0 rows: the app role owns nothing.
+docker exec -i <pg-container> psql -v ON_ERROR_STOP=1 -U <admin-user> -d <app_db> -tAc \
+  "SELECT tablename FROM pg_tables
+     WHERE schemaname = 'public' AND tableowner = '<app_role>'"
 ```
+
+Then, **as the app role**, each of these must fail except where marked:
+
+| Check                                        | Expected |
+|----------------------------------------------|----------|
+| `CREATE TABLE public.x (id int)`              | fails    |
+| `DROP TABLE <some_table>`                     | fails    |
+| `ALTER TABLE <some_table> ADD COLUMN c int`   | fails    |
+| `SELECT count(*) FROM <some_table>`           | succeeds |
+| `INSERT INTO <some_table> ...`                | succeeds |
+| `SELECT nextval('<some>_id_seq')`             | succeeds |
+| connect to another tenant's database          | fails    |
+
+The last one is the isolation claim, and it only holds if the `PUBLIC` revoke
+above was actually applied.
 
 ### Plane 2: the schema, from the app's own source
 
@@ -179,7 +283,7 @@ Migrations are a one-shot job that exits. They are not a supervised process.
 
 - Never `restart: unless-stopped` a migration. One failure becomes a restart loop
   re-hammering a database shared with other tenants.
-- Never `compose exec <app> alembic …`. It requires the app to already be running, so
+- Never run migrations through the app container's own shell. It requires the app to already be running, so
   the migration lands *after* the code needing the new column is serving traffic.
 - Build the job from the same source as the app, so "what migrated" and "what runs"
   can never be different code. A separate `migrate` stage in the same Dockerfile plus a
@@ -253,35 +357,111 @@ need it — and if that table is on the auth path, it fails open.
 A third plane, and the most dangerous to get wrong. Only reference or lookup data. Never
 seed rows owned by tenants, and never seed credentials.
 
-A seeder that disables referential integrity to get data in will load clean and hide
-every violation it caused. Do not set `session_replication_role = replica`; do not defer
-constraints to paper over an ordering problem; do not use a row count to decide
-success. Re-running a seed must be idempotent, and it must never run against a database
-that already holds live data without an explicit human decision. If a load has to
-disable constraints to succeed, it must verify afterwards that the constraints hold.
+It is not a deployment step. No deploy should run a seeder, because "it happened to
+be in the compose file" is not a decision anyone made. Production reference data is a
+deliberate, human-approved act. Keep the seeder out of the deploy path entirely and
+let a person invoke it against a fresh or demo database.
+
+#### The seeder is a filename-to-table loader, so it needs an allowlist
+
+When a seeder maps `data/<name>.csv` to a table called `<name>`, then a file dropped
+into that directory is a write to that table. Without an allowlist, one stray
+`orders.csv` is a bulk load into a live table. An explicit allowlist is the security
+boundary, not a convenience, and `--dry-run` should exist so the plan and its
+refusals can be read before anything is written.
+
+#### Never disable referential integrity to make a load work
+
+A seeder that switches off constraint checking will load clean and hide every
+violation it caused, and it will usually also report success unconditionally. Two
+things then have to be true afterwards: the constraints actually hold, and nobody
+found out otherwise.
+
+So: `session_replication_role = replica` is never the answer. Neither is deferring
+constraints to paper over an ordering problem — see the trap below. Instead:
+
+- load in an explicit parent-before-child order, inside a transaction, with
+  `ON_ERROR_STOP=1`, so a dangling reference aborts and rolls back;
+- **verify afterwards**, with a left-join orphan count per outgoing foreign key of
+  every loaded table, and fail the run on a non-zero count. Assume nothing, prove it.
+
+#### The cyclic-relationship trap
+
+Ordering cannot satisfy a self-referencing foreign key. A row that points at its
+own parent — a unit measured against its base unit, a category that is its own
+subcategory — can legitimately appear above its parent in the file, and no ordering
+of that file loads it.
+
+The obvious fix is `DEFERRABLE INITIALLY DEFERRED`. It works: children load before
+parents and commit cleanly. **Do not ship it from a data script.** PostgreSQL refuses
+to restore `NOT DEFERRABLE` while deferred trigger events are still pending, so the
+constraint is left permanently deferrable — a data script has silently changed the
+schema of record. This was tried, verified, and rejected for exactly this reason.
+
+Use a staging table instead: load into a `TEMP` table, which has no constraints, then
+insert in passes so a row only goes in once its parent exists. Rows that never
+resolve mean a dangling or circular reference, and the load fails. This reaches the
+same result with no DDL at all, and it keeps the property that matters: a bad
+reference is still a failure.
+
+#### Check that a "reference" table really is reference data
+
+A table with no model is not automatically a lookup table. Before treating one as
+seedable, check what its foreign keys point at. Line-item tables that reference
+business rows are not reference data even when they look like it, and loading them
+requires those business rows to exist first.
+
+The tell is in the constraints: a genuine lookup table has no foreign keys, or only
+self-references. If a table's FKs point at transactional records, it is part of the
+operational record, and loading it is a demo-data decision with a much higher blast
+radius. Classify the tables explicitly and make the destructive class opt-in.
+
+#### Check that the column type can hold the domain's values
+
+Seeding will surface type precision problems that nothing else has, and it will
+surface them silently. A `numeric(5,2)` conversion factor cannot represent `0.001`
+and truncates it to `0.00` without warning — a corrupt value that looks well-formed,
+in a column that is perfectly valid to the database. Verify that the target type can
+represent real values from the domain before trusting a load, and remember that
+`COPY` truncates while a direct write may raise an overflow error instead.
 
 ### Adapter table
 
-The doctrine is the same in every project; only the migration adapter changes.
+The doctrine above is tool-independent. These are the equivalents to reach for.
+Read the row you need, ignore the rest — nothing in this skill assumes which column
+your project is in.
 
-| | This project (Alembic) | Sibling project (Prisma) |
-|---|---|---|
-| Plane 2 command | `alembic upgrade head` | `prisma migrate deploy` |
-| Creates tables | yes | yes |
-| Creates the database | no | no |
-| Plane 1 | `createdb` as admin, once | `createdb` as admin, once |
-| Schema of record | the generated dump | `schema.prisma` + `migrations/` |
-| Dev bootstrap | `psql -f <dump>` | `migrate deploy` on a fresh database |
-| Run as | one-shot `migrate` job | one-shot `migrate` job |
-| Drift gate | `alembic check` in CI | `prisma migrate diff` in CI |
-| Extra artifact to maintain | one generated dump | **none** |
+| Concern | When the schema tool postdates the schema | When the schema tool came with the schema | When there is no schema tool |
+|---|---|---|---|
+| Apply pending migrations | your tool's non-interactive apply command, e.g. `alembic upgrade head` | the same, e.g. `prisma migrate deploy` | documented, reviewed DDL applied by hand |
+| Create tables | yes | yes | yes |
+| Create the database | no | no | no |
+| Plane 1 provisioning | `createdb` as admin, once | `createdb` as admin, once | same |
+| Schema of record | a generated dump of the actual live database, plus a baseline anchor | the tool's own schema file + history | a generated dump of the actual database, applied by hand |
+| Dev bootstrap | load the dump, then stamp the baseline | apply the history to a fresh database | load the dump |
+| Run as | a one-shot job, never a long-running service | same | same |
+| Drift gate | a no-diff check in CI, e.g. `alembic check` | a schema diff in CI, e.g. `prisma migrate diff` | compare a fresh build to the dump |
+| Extra artifact | one generated dump | **none** | one generated dump |
 
-The asymmetry in the last row is the point. Prisma was adopted together with the
-schema, so `migrate deploy` replays a complete history onto an empty database and
-there is nothing else to keep in step. Alembic was adopted after the schema existed, so
-this project owns a hand-built baseline. A project that already has Prisma should
-**not** add an inferred `init.sql`: it would be a fourth artifact describing the same
-schema, and it would drift.
+Two things about that table are worth keeping in mind whichever column you are in.
+
+**The "extra artifact" row is not a defect to fix by adding more tooling.** It exists
+when the migration tool was adopted *after* the schema already existed. In that case
+there is no honest history to replay, so a dump of the real schema plus a baseline
+anchor is the least-bad arrangement, and it is still one artifact fewer than the
+`init.sql` it replaced. A stack whose migration tool came with the schema needs no
+dump and should not have one added: it would become a second description of the same
+schema and would drift.
+
+**The stack of record is the one the project actually runs.** If a project says
+Prisma, it uses Prisma for the schema of record, even when a `psql` dump would be
+easier. And whatever the tool, the drift gate is the same check with a different
+command: compare the models against the live database, and fail the build if they
+disagree. Run it before generating anything.
+
+**Do not infer a schema file from the models when the models are known to be
+stale.** That is the failure this skill exists to prevent, and the row labelled
+"schema of record" is where it gets decided.
 
 For how this doctrine reaches a second repository, see `ai-specs/harness-ia.md` §6.
 

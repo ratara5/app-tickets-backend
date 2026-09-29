@@ -138,8 +138,13 @@ Other projects take a **vendored copy**, not a symlink and not a submodule:
 
 The doctrine's two planes — provisioning is an admin action on the shared estate,
 migrations are a one-shot job from the app's own source — are described in that
-skill. This project (`postgres-gci`, `deploy/schema.sql`, Alembic) and the sibling
-Prisma project share it; they differ only in the migration adapter.
+skill. Several independent applications in this estate share that skill; they use
+different stacks, schemas, and credentials, and they differ only in their migration
+adapter. A skill written for one of them must stay agnostic to all of the others:
+state the doctrine, then give the per-stack equivalents in a table, and never bake a
+concrete container name, database name, role name, or domain concept into the shared
+text. The per-project instances live in each project's own `deploy/` directory, where
+they can be concrete without becoming wrong elsewhere.
 
 ## 7. Known gaps
 
