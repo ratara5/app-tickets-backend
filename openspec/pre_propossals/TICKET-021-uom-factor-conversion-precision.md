@@ -118,3 +118,42 @@ Still open:
 - Applying this migration to live also requires repointing `alembic_version`,
   which still holds the deleted `0005_add_upload_replaces_photo_id_fix_parent_tab`
   in a `varchar(64)`. That is `TICKET-015` and its recorded undo procedure.
+
+## Rehearsal 2026-09-29 — is the widening reversible? Measured, not assumed
+
+`0002` has a `downgrade()` that narrows the column back, but it is lossy by
+design. Whether that matters was measured on a throwaway database built from
+`deploy/schema.sql`, loaded with live's own `uom` rows, before live was touched.
+
+**Round trip with live's 9 rows: reversible, and lossless.** `upgrade` ->
+`downgrade` -> `upgrade` leaves every value numerically identical. The only
+difference is textual: `numeric(5,2)` renders `40.00` where `numeric(20,10)`
+renders `40.0000000000`. The stored numbers are the same, and every row in live
+today satisfies `factor_conversion = round(factor_conversion, 2)`, so nothing is
+at risk. A snapshot diff shows the scale change and hides the fact that the
+values are equal, which is why the comparison was made on the number.
+
+**Round trip with a value that needs precision: irreversible, silently.** Adding
+`lb = 0.45359237` and running the same round trip:
+
+```
+before downgrade: lb=0.4535923700
+AFTER  downgrade: lb=0.45
+re-upgraded:      lb=0.4500000000
+```
+
+The downgrade does not fail and does not warn. It rounds, and re-upgrading cannot
+restore what was discarded. So the honest statement of reversibility is:
+
+- **Before** any precise factor is loaded, the migration can be undone exactly.
+- **After** one is loaded, undoing it silently corrupts that value, and the only
+  true reversal is restoring a dump taken beforehand.
+
+That boundary is the point of the ticket rather than a flaw in it. A precision
+fix that could be silently reverted would reintroduce the original defect without
+ever producing an error, which is the property that let this go unnoticed for as
+long as the schema has existed.
+
+The rehearsal also surfaced a defect unrelated to precision: live `uom` has two
+rows that violate `uom_ref_unit_fkey` while PostgreSQL reports the constraint as
+validated, and re-loading `uom` therefore fails. Recorded as TICKET-024.

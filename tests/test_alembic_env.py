@@ -128,6 +128,31 @@ def test_reserved_tables_are_exactly_the_unmodelled_tables_in_the_schema() -> No
     )
 
 
+class _FakeElement:
+    """One column reference inside a foreign key."""
+
+    def __init__(self, target_fullname: str) -> None:
+        self.target_fullname = target_fullname
+
+
+class _FakeForeignKey:
+    """The shape `include_object` receives for a reflected foreign key.
+
+    Alembic hands the hook the `ForeignKeyConstraint` itself, so a stub built to
+    the same contract tests the filter without needing a database. `include_object`
+    is documented against that contract, and `alembic check` against a real
+    database is the check that the contract held.
+    """
+
+    def __init__(self, *target_fullnames: str) -> None:
+        self.elements = [_FakeElement(target) for target in target_fullnames]
+
+
+def _fake_fk(referenced: tuple[str, str]) -> _FakeForeignKey:
+    """Build a foreign key referencing `referenced`, e.g. `("uom", "unit")`."""
+    return _FakeForeignKey(".".join(referenced))
+
+
 def test_include_object_hook_skips_the_reserved_tables_only() -> None:
     from app.models.reserved import RESERVED_TABLES_WITHOUT_MODELS, include_object
 
@@ -146,12 +171,81 @@ def test_include_object_hook_skips_the_reserved_tables_only() -> None:
         )
 
 
-def test_include_object_hook_only_filters_tables() -> None:
+def test_include_object_hook_skips_foreign_keys_into_reserved_tables() -> None:
+    """`spares.unit` really does reference `uom`, and the model cannot say so.
+
+    `uom` is reserved and unmodelled, so `Spare.unit` carries no
+    `ForeignKey("uom.unit")`: an unresolvable reference breaks
+    `Base.metadata.create_all`, which is how the test suite builds its schema.
+    Live has the constraint anyway, so without a second exclusion autogenerate
+    reports it as surplus and `alembic upgrade head` drops referential integrity
+    that the database deliberately has.
+    """
+    from app.models.reserved import include_object
+
+    assert include_object(_fake_fk(("uom", "unit")), "spares_unit_fkey",
+                          "foreign_key_constraint", True, None) is False
+
+    for referenced in ("markets", "equipments", "fsm_users", "tickets"):
+        assert include_object(_fake_fk((referenced, "id")), f"x_{referenced}_fkey",
+                              "foreign_key_constraint", True, None) is True, (
+            f"a foreign key to the modelled table {referenced!r} must stay in scope"
+        )
+
+
+def test_include_object_hook_matches_a_schema_qualified_reference() -> None:
+    """`public.uom.unit` must resolve to the same table as `uom.unit`.
+
+    Reflected names are schema-qualified when the reference is written that
+    way, so matching on the first dotted component would resolve the reference to
+    a table called `public`, find no such reserved table, and let the
+    constraint through.
+    """
+    from app.models.reserved import include_object
+
+    assert include_object(_fake_fk(("public.uom", "unit")), "spares_unit_fkey",
+                          "foreign_key_constraint", True, None) is False
+
+
+def test_include_object_hook_ignores_the_foreign_key_own_name() -> None:
+    """The filter keys on the referenced table, never on the constraint name.
+
+    Without this, a constraint that merely happens to be *named* after a reserved
+    table would be filtered, which is the over-filtering the column and index
+    cases already guard against.
+    """
+    from app.models.reserved import include_object
+
+    assert include_object(_fake_fk(("markets", "market_id")), "holidays_fkey",
+                          "foreign_key_constraint", True, None) is True
+
+
+def test_include_object_hook_tolerates_a_constraint_without_elements() -> None:
+    """A malformed or unexpected object must not raise out of the hook.
+
+    `include_object` runs inside autogenerate for every object of every type.
+    Raising here would abort the whole comparison rather than skip one
+    constraint, so anything without usable elements is simply kept in scope.
+    """
+    from app.models.reserved import include_object
+
+    assert include_object(object(), "some_fkey", "foreign_key_constraint",
+                          True, None) is True
+
+    class NoTargetFullname:
+        elements = ()
+
+    assert include_object(NoTargetFullname(), "x_fkey", "foreign_key_constraint",
+                          True, None) is True
+
+
+def test_include_object_hook_only_filters_tables_and_foreign_keys() -> None:
     """A column or index named like a reserved table must not be filtered."""
     from app.models.reserved import include_object
 
     assert include_object(object(), "holidays", "column", True, None) is True
     assert include_object(object(), "materials", "index", True, None) is True
+    assert include_object(object(), "spares", "table", True, None) is True
 
 
 def test_env_py_wires_the_hook_into_both_configure_calls() -> None:

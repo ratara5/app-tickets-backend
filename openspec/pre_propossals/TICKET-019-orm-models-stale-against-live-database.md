@@ -222,3 +222,36 @@ existing data and would need a backfill that cannot invent the missing user. So
 the models reproduce what live is, and the data-quality issue is recorded here
 instead of being hidden behind a constraint the database does not actually
 enforce.
+
+## The `spares.unit` foreign key, resolved without a model edit
+
+Of the 10 live-side items, 9 are database defects that need a migration. The tenth
+was different: `spares.unit` carries a real foreign key to `uom(unit)`, but `uom`
+is one of the five deliberately unmodelled tables, so the model cannot declare the
+reference at all. An unresolvable reference breaks `Base.metadata.create_all`,
+which is how the test suite builds its schema.
+
+Declaring it in the model was therefore not available, and dropping the constraint
+in live would have discarded referential integrity for no benefit, since nothing
+writes `spares` yet. The constraint is real and should stay. The fix belongs in the
+same place the original hazard was fixed: `app/models/reserved.py`, which already
+tells autogenerate to skip the unmodelled tables.
+
+`include_object` now also skips `type_ == "foreign_key_constraint"` when the
+constraint *points at* a reserved table. Alembic calls the hook for foreign keys as
+well as tables, and the reflected constraint exposes each reference as
+`element.target_fullname` (`'uom.unit'`, or `'public.uom.unit'` when
+schema-qualified), so the referenced table is the second-to-last dotted component.
+The filter keys on the referenced table and never on the constraint's own name, so
+an unrelated constraint merely called `holidays_fkey` stays in scope.
+
+`DB_NAME=atb_drift alembic check` now reports **9** items rather than 10. Six guards
+in `tests/test_alembic_env.py` cover the new branch, verified to bite against three
+mutations: removing the branch, taking the first dotted component instead of the
+second-to-last, and keying on the constraint name instead of its target.
+
+The 9 remaining items are unchanged and still need a live migration: 8 `NOT NULL`s
+on the two join tables and `pauses.maintenance_id`, and the duplicate
+`maintenances_ticket_id_key` on `maintenances`. Adding the two missing primary keys
+— which `alembic check` cannot see, because autogenerate never compares primary
+keys — would resolve 4 of the 8.
