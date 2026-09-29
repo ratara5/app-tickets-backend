@@ -293,11 +293,37 @@ the two cannot drift apart. Until that work lands, do not create an
 against an incomplete graph produces a green `alembic heads` and a database no
 migration can actually repair.
 
-### 2.3 Seed
+### 2.3 Reference and demo data
 
-Reference data only (units of measure, service catalogue). Never tenants, never
-credentials. Must be idempotent, and never run against a database with live data
-without an explicit human decision.
+**This is not a deployment step.** The loader (`etl/seed_db.sh`) never creates a
+database, never alters a schema, and is never invoked by a deploy. It exists for
+a fresh local database and for demos.
+
+The loader separates two classes, because they are not the same thing:
+
+- **Reference data** — `uom`, `holidays`. No dependency on business rows, so
+  these can be loaded anywhere. Production reference data is still a deliberate,
+  human decision, not a side effect of deploying.
+- **Business/demo data** — everything else, which requires `--allow-business-data`.
+  This includes `materials`, `services` and `preliquidated`, which look like
+  reference tables but are line items on a live record: `materials.maintenance_id`
+  and `services.maintenance_id` reference `maintenances`, and
+  `preliquidated.ticket_id` is `NOT NULL` and references `tickets`.
+
+Always preview with `--dry-run` first. A CSV's filename becomes its target table,
+so the allowlist is the boundary that stops a stray `tickets.csv` being copied
+into the live `tickets` table.
+
+```bash
+./etl/seed_db.sh --db-host <container> --db-user <role> --db-name <database> --dry-run
+./etl/seed_db.sh --db-host <container> --db-user <role> --db-name <database>
+```
+
+If a table is already non-empty it is left untouched, and the load is
+non-destructive by construction: every table loads inside a transaction with
+referential integrity enforced, so a bad reference fails the load instead of
+landing. See `TICKET-020` for why the previous trigger-bypass version was
+removed and `TICKET-021` for a precision defect found while rewriting it.
 
 ## 3. MinIO: user → bucket → policy → credentials → CORS
 
@@ -477,7 +503,7 @@ Tracked as pre-proposals; each blocks a clean, reproducible deployment.
 | `TICKET-017` | `init.sql` omits `token_blacklist`, which every authenticated request queries; now hand-patched as a stopgap | trusting `init.sql` for a new database |
 | `TICKET-018` | 5 tables for unbuilt features exist in the live database with no model; `uom` holds 9 rows and a broken reference. Owner ratara5, review 2026-12-27 | building against an unreviewed shape |
 | `TICKET-019` | the ORM models are stale against the live database (`alembic check`: 94 pending operations), so `init.sql` cannot be regenerated from them | retiring `init.sql`, which is the fix for `TICKET-017` |
-| `TICKET-020` | `etl/seed_db.sh` loads under `session_replication_role = 'replica'` and prints success unconditionally | trusting seeded data to satisfy its foreign keys |
+| `TICKET-021` | `uom.factor_conversion` is `numeric(5,2)`, which cannot hold real conversion factors and truncates silently | any feature that converts between units |
 
 ## Stop the bleeding
 

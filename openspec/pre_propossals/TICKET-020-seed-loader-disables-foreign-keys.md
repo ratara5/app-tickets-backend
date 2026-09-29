@@ -109,3 +109,61 @@ printf 'spare_id,spare_name,unit,price\n999,probe,no_such_unit,1.00\n' > /tmp/ba
   `TICKET-019` (the models do not even declare the `spares.unit` foreign key that
   exists in the live database, so a freshly built database would have no constraint
   to violate here at all).
+
+## Resolution
+
+**Resolved 2026-09-27 by removing the bypass entirely, not by ordering around it.**
+
+`session_replication_role = 'replica'` is gone. It was never a last resort that
+ordering made unnecessary; it was the mechanism, and it was the only reason a bad
+reference could reach the database unnoticed.
+
+What replaced it, and why each part was necessary:
+
+- **Ordered, transactional loads with constraints on.** Every COPY runs inside
+  `BEGIN`/`COMMIT` with `ON_ERROR_STOP=1`, in an explicit parent-before-child
+  order. A dangling reference now aborts and rolls back.
+- **A staging pass for the one genuine cycle.** `uom.ref_unit -> uom.unit` is a
+  unit pointing at its own base unit, so a derived unit can legitimately appear
+  above its base in the file and no ordering of that file satisfies the
+  constraint. `uom` loads into a TEMP table and is then inserted in passes, a row
+  going in only once its parent exists. Rows that remain unresolved mean a
+  dangling or circular reference, and the load fails.
+- **A post-condition that proves the result.** One left-join orphan count per
+  outgoing foreign key of every loaded table, failing the run on any non-zero
+  count. Nothing verified the outcome when triggers were disabled; now the
+  script has to demonstrate it.
+
+Two findings worth recording, because both are the kind that survive a rewrite:
+
+1. **`DEFERRABLE INITIALLY DEFERRED` was the wrong fix, and nearly shipped.**
+   Deferring `uom_ref_unit_fkey` for the load transaction is the textbook answer
+   and it worked: children before parents loaded fine. It was rejected because
+   PostgreSQL refuses to restore `NOT DEFERRABLE` while deferred trigger events
+   are still pending, so the constraint was left **permanently deferrable**. A
+   data script would have silently changed the schema of record. The staging
+   approach reaches the same result with no DDL at all.
+
+2. **The five "reference" tables are not all reference data.** `materials` and
+   `services` have `maintenance_id` foreign keys to `maintenances`, and
+   `preliquidated.ticket_id` is `NOT NULL` and references `tickets`. They are
+   line items on a live record, so loading them needs business rows to exist
+   first. The loader now splits the two classes and refuses business tables
+   without `--allow-business-data`.
+
+Scope, and one risk that was larger than the reported defect:
+
+- A CSV's filename becomes its table name, so dropping `tickets.csv` into the
+  data folder would `COPY` straight into the live `tickets` table, with
+  constraints disabled, against whatever `--db-name` it was handed. The load is
+  now behind an explicit allowlist, with `--dry-run` available to inspect the
+  plan first.
+- The existing `medio cilindro` / `medio cilidndro` violation is data, not code,
+  and is still open in `TICKET-018`.
+
+Verified on a disposable database built from `deploy/schema.sql`: a `uom` file
+with children above parents loads and passes the orphan check; a `uom` file with
+a `ref_unit` pointing outside the file is rejected with zero rows left behind;
+and `uom_ref_unit_fkey` is still `deferrable=false, deferred=false` afterwards.
+`tests/test_seed_loader.py` (14 static guards) prevents the bypass, the DDL, and
+the allowlist from being reintroduced.
