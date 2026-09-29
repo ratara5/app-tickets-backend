@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from pydantic import UUID7
 from types import SimpleNamespace
@@ -136,7 +136,7 @@ def generate_pdf(maintenance_id: UUID7, db: Session, current_user) -> tuple[Work
 
     if ws.closed:
         # Already generated: we return a fresh URL without regenerating
-        url = get_presigned_url(ws.pdf_path, 1)
+        url = get_presigned_url(ws.pdf_path, expires=timedelta(hours=settings.presigned_ttl_hours))
         return ws, url
     
     # Render
@@ -171,6 +171,6 @@ def generate_pdf(maintenance_id: UUID7, db: Session, current_user) -> tuple[Work
 
     ws = ws_repo.save_worksheet(db, ws, full_object_path, number)
 
-    url = get_presigned_url(ws.pdf_path, 1)
+    url = get_presigned_url(ws.pdf_path, expires=timedelta(hours=settings.presigned_ttl_hours))
 
     return ws, url

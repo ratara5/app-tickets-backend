@@ -12,6 +12,7 @@ from typing import Any, Iterator
 from urllib.parse import urlsplit
 
 import pytest
+from datetime import timedelta
 import urllib3.exceptions as urllib3_errors
 from fastapi.testclient import TestClient
 from minio import Minio
@@ -150,7 +151,7 @@ def test_presigned_url_is_signed_with_the_public_endpoint(
     )
     _record_http_calls(monkeypatch)
 
-    url = storage.get_presigned_url(OBJECT_NAME, expires_hours=1)
+    url = storage.get_presigned_url(OBJECT_NAME, expires=timedelta(hours=1))
 
     assert _effective_origin(url) == f"http://{PUBLIC_HOST}:9000"
 
@@ -161,7 +162,7 @@ def test_presigned_url_falls_back_to_the_internal_endpoint(
     _use_settings(monkeypatch, MINIO_ENDPOINT="minio-acme")
     _record_http_calls(monkeypatch)
 
-    url = storage.get_presigned_url(OBJECT_NAME, expires_hours=1)
+    url = storage.get_presigned_url(OBJECT_NAME, expires=timedelta(hours=1))
 
     assert _effective_origin(url) == "http://minio-acme:9000"
 
@@ -180,7 +181,7 @@ def test_presigned_url_uses_the_public_scheme_and_port(
     )
     _record_http_calls(monkeypatch)
 
-    url = storage.get_presigned_url(OBJECT_NAME, expires_hours=1)
+    url = storage.get_presigned_url(OBJECT_NAME, expires=timedelta(hours=1))
 
     assert urlsplit(url).scheme == "https"
     assert _effective_origin(url) == f"https://{PUBLIC_HOST}:443"
@@ -246,7 +247,7 @@ def test_presigning_issues_no_http_request(
     )
     calls = _record_http_calls(monkeypatch)
 
-    storage.get_presigned_url(OBJECT_NAME, expires_hours=1)
+    storage.get_presigned_url(OBJECT_NAME, expires=timedelta(hours=1))
 
     assert calls == []
 
@@ -259,7 +260,7 @@ def test_presigning_does_not_call_get_bucket_location(
     )
     calls = _record_http_calls(monkeypatch)
 
-    storage.get_presigned_url(OBJECT_NAME, expires_hours=1)
+    storage.get_presigned_url(OBJECT_NAME, expires=timedelta(hours=1))
 
     assert not [call for call in calls if "location" in call["query"]]
 
@@ -290,7 +291,7 @@ def test_presigned_url_carries_the_signature_for_the_public_host(
     )
     _record_http_calls(monkeypatch)
 
-    url = storage.get_presigned_url(OBJECT_NAME, expires_hours=1)
+    url = storage.get_presigned_url(OBJECT_NAME, expires=timedelta(hours=1))
 
     assert "X-Amz-Signature=" in url
     assert "X-Amz-Expires=3600" in url
@@ -306,7 +307,7 @@ def test_presigned_url_is_not_rewritten_to_the_internal_host(
     )
     _record_http_calls(monkeypatch)
 
-    url = storage.get_presigned_url(OBJECT_NAME, expires_hours=1)
+    url = storage.get_presigned_url(OBJECT_NAME, expires=timedelta(hours=1))
 
     assert "minio-acme" not in url
     assert "127.0.0.1" not in url

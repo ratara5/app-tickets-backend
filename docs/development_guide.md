@@ -81,7 +81,7 @@ MINIO_DEFAULT_BUCKET=company-uploads
 BASE_OBJECT_PATH="Maintenances/Correctivos"
 EXT_BY_TYPE={"image/jpeg":".jpg","image/png":".png","application/pdf":".pdf"}
 ALLOWED_TYPES=["image/jpeg","image/png","application/pdf"]
-PRESIGNED_TTL=1  # HOURS, not seconds (see TICKET-011)
+PRESIGNED_TTL_HOURS=1  # unit is in the name; PRESIGNED_TTL still accepted
 
 
 # JWT

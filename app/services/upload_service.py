@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from uuid6 import uuid7
@@ -199,7 +199,7 @@ async def complete_upload(db: Session, upload_id: UUID, current_user):
         except Exception as e:
             raise HTTPException(502, f"Error uploading to MinIO: {str(e)}")
     # - URL
-    url = get_presigned_url(full_object_path, 1)
+    url = get_presigned_url(full_object_path, expires=timedelta(hours=settings.presigned_ttl_hours))
 
     # 5. Persist metadata record 
     # - Define repo according to table or according to ext (same thing?)

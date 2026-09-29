@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import NamedTuple
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -84,7 +84,15 @@ class Settings(BaseSettings):
     base_object_path: str       = Field("Maintenances", alias="BASE_OBJECT_PATH")
     ext_by_type: dict[str, str] = Field(..., alias="EXT_BY_TYPE")
     allowed_types: list[str]    = Field(..., alias="ALLOWED_TYPES")
-    presigned_ttl: int          = Field(3600, alias="PRESIGNED_TTL")  # 1 hour
+    # The unit is in the name because it was not derivable from it: the old
+    # PRESIGNED_TTL was documented in seconds, shipped as 1, and consumed as
+    # hours, so the default (3600, annotated "1 hour") contradicted its own
+    # comment. PRESIGNED_TTL is still accepted so an existing .env is honoured
+    # rather than silently falling back to the default.
+    presigned_ttl_hours: int    = Field(
+        1,
+        validation_alias=AliasChoices("PRESIGNED_TTL_HOURS", "PRESIGNED_TTL"),
+    )
 
 
     # Worksheet

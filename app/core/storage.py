@@ -208,7 +208,13 @@ def object_exists_by_name(original_name: str) -> bool:
         log.error("minio_search_failed", original_name=original_name, error=str(e))
         raise
 
-def get_presigned_url(object_name: str, expires_hours: int = 1) -> str:
+def get_presigned_url(object_name: str, expires: timedelta) -> str:
+    """Sign a download URL for the public origin, expiring after `expires`.
+
+    The lifetime is a timedelta rather than a bare number because the number's
+    unit is exactly what was ambiguous: one variable was documented in seconds
+    and consumed as hours. A caller now has to say hours or minutes in the code.
+    """
     """Sign a download URL for the public origin.
 
     Purely local: the client carries an explicit region, so minio-py resolves the
@@ -217,9 +223,6 @@ def get_presigned_url(object_name: str, expires_hours: int = 1) -> str:
     client = get_presigned_client()
     bucket = settings.minio_default_bucket
     log.info("minio_presigned_url_generated",
-             object_name=object_name, expires_hours=expires_hours,
+             object_name=object_name, expires=str(expires),
              public_endpoint=settings.minio_public.origin)
-    return client.presigned_get_object(
-        bucket, object_name,
-        expires=timedelta(hours=expires_hours)
-    )
+    return client.presigned_get_object(bucket, object_name, expires=expires)

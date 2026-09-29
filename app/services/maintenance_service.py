@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from pydantic import UUID7
 import structlog
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets, asyncio, io
 
 from app.core.utils.dates import get_holidays
@@ -319,7 +319,7 @@ def _sign(path: str | None) -> str | None:
     if not path:
         return None
     return get_presigned_url(
-        path, expires_hours=settings.presigned_ttl
+        path, expires=timedelta(hours=settings.presigned_ttl_hours)
     )
 
 def _serialize_maintenance_item(maintenance: Maintenance) -> dict:

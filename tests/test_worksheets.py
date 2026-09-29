@@ -178,7 +178,7 @@ def test_generate_pdf_success(
     monkeypatch.setattr("app.services.worksheet_service.upload_file", fake_upload_file)
     monkeypatch.setattr(
         "app.services.worksheet_service.get_presigned_url",
-        lambda object_name, expires_hours=1: f"https://minio.local/{object_name}",
+        lambda object_name, expires=None: f"https://minio.local/{object_name}",
     )
 
     response = client.post(
@@ -243,7 +243,7 @@ def test_generate_pdf_renders_technician_rows(
     )
     monkeypatch.setattr(
         "app.services.worksheet_service.get_presigned_url",
-        lambda object_name, expires_hours=1: f"https://minio.local/{object_name}",
+        lambda object_name, expires=None: f"https://minio.local/{object_name}",
     )
 
     response = client.post(
@@ -295,7 +295,7 @@ def test_generate_pdf_closed_sheet_returns_fresh_url(
 
     monkeypatch.setattr(
         "app.services.worksheet_service.get_presigned_url",
-        lambda object_name, expires_hours=1: f"https://minio.local/{object_name}",
+        lambda object_name, expires=None: f"https://minio.local/{object_name}",
     )
     monkeypatch.setattr("app.services.worksheet_service.upload_file", lambda *a, **k: {})
 
@@ -380,7 +380,7 @@ def test_generate_pdf_is_one_page_with_visible_signature(
     monkeypatch.setattr("app.services.worksheet_service.upload_file", lambda *a, **k: {})
     monkeypatch.setattr(
         "app.services.worksheet_service.get_presigned_url",
-        lambda object_name, expires_hours=1: f"https://minio.local/{object_name}",
+        lambda object_name, expires=None: f"https://minio.local/{object_name}",
     )
 
     response = client.post(
