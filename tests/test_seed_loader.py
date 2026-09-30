@@ -223,6 +223,78 @@ def test_offers_a_dry_run(script: str) -> None:
     assert "DRY_RUN" in script
 
 
+# ── Numeric fidelity: reject, never round (TICKET-021) ─────────────────────
+
+
+def test_rejects_numeric_values_the_column_cannot_hold_exactly(code_only: str) -> None:
+    """A bounded numeric rounds silently, and a rounded quantity is just wrong.
+
+    PostgreSQL coerces on assignment, so 0.001 into numeric(5,2) stores 0.00 and
+    nothing is reported. The value looks well-formed afterwards, which is what
+    let a wrong conversion factor live unnoticed. The loader has to compare each
+    value against the column's own declared precision and scale and refuse, rather
+    than letting the database decide.
+    """
+    assert "round(" in code_only, "the loader must compare against round() to detect loss"
+    # Precision and scale are read from the schema of record rather than hardcoded,
+    # so widening a column by migration is enough to make the guard permit it.
+    assert "numeric_precision" in code_only
+    assert "numeric_scale" in code_only
+    # Both loss directions: too many decimal places, and too many integer digits.
+    assert "abs(" in code_only, "the guard must also detect values that overflow the precision"
+    assert "power(10" in code_only
+
+
+def test_stages_the_csv_as_text_before_checking_it(code_only: str) -> None:
+    """The check must see the raw text, not a value the database already coerced.
+
+    Staging with the real column types would round the value first, and then the
+    comparison would find nothing to complain about. Staging every column as text
+    and casting inside the comparison is what makes the guard able to see the
+    difference at all.
+    """
+    assert "' text'" in code_only, "fidelity staging columns must be text, not the real types"
+    assert re.search(r"_fidelity_\$\{table\}", code_only)
+    # It is a TEMP table: the schema of record stays untouched, as TICKET-020 requires.
+    assert "CREATE TEMP TABLE _fidelity_" in code_only
+
+
+def test_the_refusal_names_the_column_the_value_and_the_type(code_only: str) -> None:
+    """A refusal nobody can act on gets ignored, and then gets worked around.
+
+    The message has to name which column, which value, what it was being stored
+    as, and that the alternative would have been a silent round.
+    """
+    assert "refusing to load" in code_only
+    assert "cannot be stored in numeric(" in code_only
+    assert "round it silently" in code_only
+    # The guard must run inside the load transaction, so a refusal rolls back
+    # rather than half-loading. It is spliced in directly after BEGIN.
+    assert re.search(r'head -n 1 "\$sql_tmp"', code_only)
+
+
+def test_every_bounded_numeric_in_the_schema_is_covered() -> None:
+    """The guard is generic, so it covers all five bounded numerics, not one.
+
+    It reads the column list from information_schema rather than naming tables,
+    which means a column added by a later migration is covered without touching
+    the loader. This asserts the five that exist today are the ones the policy
+    was written against, so a schema change that adds a sixth is visible.
+    """
+    schema = SCHEMA_SQL.read_text(encoding="utf-8")
+    # Column definitions in the dump are indented 4 spaces and begin with the
+    # bare column name, which is what keeps this from matching table options or
+    # constraint lines that also contain the word "numeric".
+    bounded = sorted(set(re.findall(r"^ {4}(\w+) numeric\(\d+,\d+\)", schema, re.M)))
+    assert bounded == [
+        "factor_conversion",
+        "hourly_rate",
+        "price",
+        "qty",
+        "transport_cost",
+    ], f"the bounded numeric columns changed: {bounded}"
+
+
 # ── Post-condition: prove the load, do not assume it ───────────────────────
 
 

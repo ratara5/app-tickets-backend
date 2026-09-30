@@ -50,13 +50,14 @@ A conversion factor that does not fit is a data error, and rounding it produces
 a wrong quantity with no signal. So the policy is that a factor which cannot be
 represented exactly is refused at load time, not silently adjusted.
 
-That policy is NOT yet implemented. `etl/seed_db.sh` still inherits PostgreSQL's
-default of rounding on assignment, so the widened column will stop the silent
-corruption by having room for the value, but a factor that genuinely exceeds
-`numeric(20,10)` will still be rounded rather than refused. Implementing the
-rejection is a separate change to the loader covering all five bounded numeric
-columns, not just this one, and is tracked as the open follow-up in TICKET-021.
-See `tests/test_seed_loader.py` for the loader's current guarantees.
+That policy is implemented. `etl/seed_db.sh` stages the CSV as text and refuses
+any value a bounded numeric cannot hold exactly, naming the column, the value and
+the type it was being stored as. It reads precision and scale from the schema of
+record rather than naming tables, so it covers all five bounded numeric columns
+and a column added by a later migration is covered without touching the loader.
+This revision is what gives the policy room to work: before it, a factor needing
+more than two decimal places was rounded by the database with no error, which is
+how the wrong values got in. See `tests/test_seed_loader.py`.
 
 This is a modelling error, not model drift
 ------------------------------------------

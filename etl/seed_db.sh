@@ -253,6 +253,7 @@ docker cp "$DATA_FOLDER/." "$DB_HOST:$CONTAINER_DATA_DIR/"
 # ── 6. Load ────────────────────────────────────────────────────────────────
 loaded=()
 sql_tmp=$(mktemp /tmp/opencode/seed_load.XXXXXX.sql)
+fidelity_tmp=$(mktemp /tmp/opencode/seed_fidelity.XXXXXX.sql)
 
 for filepath in "${plan[@]}"; do
     filename="${filepath##*/}"
@@ -325,14 +326,84 @@ SQL
 BEGIN;
 SET LOCAL datestyle = 'DMY';
 COPY public."${table}" FROM '${container_path}' WITH (FORMAT csv, HEADER true, NULL '');
-COMMIT;
+        COMMIT;
 SQL
     fi
+
+    # ── Numeric fidelity: reject, never round ─────────────────────────────
+    # PostgreSQL rounds silently when a value does not fit a bounded numeric,
+    # and a rounded conversion factor is a wrong quantity with no signal:
+    # 0.001 into numeric(5,2) stores 0.00, and nothing reports an error. The
+    # policy is that a value the column cannot represent exactly is refused, so
+    # this runs before the load and aborts the transaction.
+    #
+    # The CSV is staged a second time as text. Staging it with the real column
+    # types would coerce the values before anything could compare them, which is
+    # precisely the rounding being rejected.
+    bounded_numerics=$(psql_db -tAF'|' -c "
+        SELECT column_name, numeric_precision, numeric_scale
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = '${table}'
+          AND data_type = 'numeric'
+          AND numeric_precision IS NOT NULL
+        ORDER BY ordinal_position;")
+
+    if [ -n "$bounded_numerics" ]; then
+        raw_text_columns=$(psql_db -tAc "
+            SELECT string_agg(quote_ident(column_name) || ' text', ', ' ORDER BY ordinal_position)
+            FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = '${table}';")
+
+        {
+            echo "CREATE TEMP TABLE _fidelity_${table} (${raw_text_columns});"
+            echo "COPY _fidelity_${table} FROM '${container_path}' WITH (FORMAT csv, HEADER true, NULL '');"
+
+            while IFS='|' read -r num_col num_prec num_scale; do
+                [ -z "$num_col" ] && continue
+                cat <<SQL
+DO \$fidelity\$
+DECLARE
+    offender text;
+    affected integer;
+BEGIN
+    SELECT r."${num_col}" INTO offender
+    FROM _fidelity_${table} r
+    WHERE r."${num_col}" IS NOT NULL
+      AND (
+          r."${num_col}"::numeric <> round(r."${num_col}"::numeric, ${num_scale})
+          OR abs(r."${num_col}"::numeric) >= power(10::numeric, ${num_prec} - ${num_scale})
+      )
+    LIMIT 1;
+
+    IF offender IS NOT NULL THEN
+        SELECT count(*) INTO affected FROM _fidelity_${table} r
+        WHERE r."${num_col}" IS NOT NULL
+          AND (
+              r."${num_col}"::numeric <> round(r."${num_col}"::numeric, ${num_scale})
+              OR abs(r."${num_col}"::numeric) >= power(10::numeric, ${num_prec} - ${num_scale})
+          );
+        RAISE EXCEPTION
+            'refusing to load ${table}.%: % cannot be stored in numeric(%,%) without loss, and % row(s) are affected. PostgreSQL would round it silently. Widen the column by migration, or correct the data.',
+            '${num_col}', offender, ${num_prec}, ${num_scale}, affected;
+    END IF;
+END
+\$fidelity\$;
+SQL
+            done <<< "$bounded_numerics"
+        } > "$fidelity_tmp"
+
+        # Splice the checks in after BEGIN so they share the load's transaction
+        # and a failure rolls the whole thing back rather than half-loading.
+        { head -n 1 "$sql_tmp"; cat "$fidelity_tmp"; tail -n +2 "$sql_tmp"; } > "${sql_tmp}.fidelity"
+        mv "${sql_tmp}.fidelity" "$sql_tmp"
+    fi
+
 
     # ON_ERROR_STOP makes a failed statement non-zero, so a rejected load aborts
     # the script instead of being reported as a success.
     docker exec -i "$DB_HOST" psql -U "$DB_USER" -d "$DB_NAME" -q -v ON_ERROR_STOP=1 < "$sql_tmp"
-    rm -f "$sql_tmp"
+    rm -f "$sql_tmp" "$fidelity_tmp"
 
     success "Loaded $filename → $table"
     loaded+=("$table")

@@ -202,3 +202,69 @@ Reversibility, restated with what is now known: the downgrade is lossless for
 every value live holds today, so this can still be undone exactly. It stops being
 undoable the moment a precise factor is loaded, at which point the downgrade
 rounds silently and the dump taken above is the only reversal.
+
+## Closed 2026-09-30 — reject, never round
+
+The policy the revision above describes was, until now, only stated. It is now
+implemented in `etl/seed_db.sh`, which refuses a value a bounded numeric cannot
+hold exactly instead of letting PostgreSQL round it.
+
+### How
+
+Before the load, the CSV is staged a **second time, with every column typed
+`text`**, and each bounded numeric is compared against its own declared precision
+and scale. Staging with the real column types would coerce the values first and
+the comparison would find nothing to complain about — the guard could not see the
+difference it exists to detect. Two loss directions are checked:
+
+| condition | meaning |
+|---|---|
+| `value <> round(value, scale)` | too many decimal places; would be rounded |
+| `abs(value) >= 10^(precision - scale)` | too many integer digits; would overflow |
+
+Precision and scale are read from `information_schema`, not hardcoded, so all
+five bounded numeric columns are covered — `labsdls.hourly_rate`,
+`maintenances_spares.qty`, `markets.transport_cost`, `spares.price`,
+`uom.factor_conversion` — and a column added by a later migration is covered
+without touching the loader.
+
+The checks run inside the load's own transaction, spliced in directly after
+`BEGIN`, so a refusal rolls back rather than half-loading. The staging table is
+`TEMP`, so the schema of record is untouched, as TICKET-020 requires.
+
+### Verified against a disposable database, one fresh database per case
+
+The loader skips any table that already holds rows, which made a first attempt
+at this testing invalid: two cases were silently skipped and read as passes.
+Each case below therefore runs against its own freshly built database.
+
+| input | column | result | stored |
+|---|---|---|---|
+| `12.34` | `numeric(8,2)` | accepted | `12.34` |
+| `12.345` | `numeric(8,2)` | **refused** | no row |
+| `999999.99` | `numeric(8,2)` | accepted | `999999.99` |
+| `1000000.00` | `numeric(8,2)` | **refused** | no row |
+| `0.001` | `numeric(8,2)` | **refused** | no row |
+| `42` | `numeric(8,2)` | accepted | `42.00` |
+
+`42` becoming `42.00` is accepted deliberately: that is a scale change, not a
+loss of value, and refusing it would be wrong.
+
+The refusal names the column, the value, the type and the row count, and says
+plainly that PostgreSQL would have rounded it silently:
+
+> refusing to load markets.transport_cost: 12.345 cannot be stored in
+> numeric(8,2) without loss, and 1 row(s) are affected. PostgreSQL would round
+> it silently. Widen the column by migration, or correct the data.
+
+A refusal that cannot be acted on gets ignored, and then gets worked around.
+
+### A property of the self-reference path worth recording
+
+The self-referencing resolver bootstraps only if a base unit arrives with an
+**empty** `ref_unit`. A base unit written self-referencing, as live's `kg → kg`
+is, cannot be loaded by this loader: nothing can be inserted first, the loop
+inserts zero rows, and the load fails with "unresolvable rows". Live predates
+the rewritten loader, so its data was never put through this path. Not changed
+here: it is a bootstrap convention the CSV author has to know, and the failure is
+loud rather than silent.
