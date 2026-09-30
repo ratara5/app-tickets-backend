@@ -32,3 +32,9 @@ query = query.filter(Ticket.ticket_id == ticket_id)
 response = client.get("/tickets/1", headers=auth_headers)
 # → 500 Internal Server Error (TypeError)
 ```
+
+## Resolution
+
+Fixed. `_get_query` takes `(db, current_user)` (`app/repositories/ticket_repo.py:82`)
+and both call sites pass exactly two arguments (`:46`, `:75`). The `ticket_id`
+filter is applied to the returned query, as the ticket proposed.

@@ -37,3 +37,18 @@ joinedload(Maintenance.ticket).joinedload(Ticket.cancellation),
 response = client.get("/maintenances", headers=auth_headers)
 # → 500 Internal Server Error (ArgumentError)
 ```
+
+## Resolution
+
+Fixed. Each relationship is now loaded from the same parent rather than chained
+onto the previous result (`app/repositories/maintenance_repo.py:53-55`):
+
+```python
+joinedload(Maintenance.ticket).joinedload(Ticket.market),
+joinedload(Maintenance.ticket).joinedload(Ticket.equipment),
+joinedload(Maintenance.ticket).joinedload(Ticket.cancellation),
+```
+
+The chaining error was real: `joinedload(Ticket.market)` returns a `Load` bound
+to `Market`, so the next `.joinedload(Ticket.equipment)` looked for `equipment` on
+`Market`. Restating the parent on each line is the fix.

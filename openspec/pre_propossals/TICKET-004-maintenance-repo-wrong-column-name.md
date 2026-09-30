@@ -32,3 +32,8 @@ query = query.filter(Maintenance.maintenance_id == maintenance_id)
 response = client.get("/maintenances/{uuid}", headers=auth_headers)
 # → 500 Internal Server Error
 ```
+
+## Resolution
+
+Fixed. `id_maintenance` appears nowhere in `app/`. Both halves of the ticket are
+resolved: the column is `maintenance_id`, and the filtered query is assigned.

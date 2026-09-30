@@ -137,7 +137,7 @@ is a trap.
 
 - [x] A decision is recorded for each of the five tables: **keep for future features** (ratara5, 2026-09-27). No drop, no model until the feature is built.
 - [x] Nothing is dropped, so no backup or drop approval is required. This also removes the `spares.unit` blocker: `uom` stays, so the foreign key stays valid.
-- [ ] The `medio cilindro` / `medio cilidndro` discrepancy is resolved: the spare row
+- [x] The `medio cilindro` / `medio cilidndro` discrepancy is resolved: the spare row
       pointing at a non-existent unit is corrected or the unit is created, and the
       typo'd row is confirmed as intended or dropped. Until then `uom` is known to be
       inconsistent. Keeping the table does not fix its contents, and this is tracked
@@ -164,3 +164,46 @@ is a trap.
 - Related: `TICKET-017` (the `token_blacklist` gap, the mirror image of this one: a
   modelled table missing from the script), `TICKET-019` (the models are stale
   against the live database, which is why regeneration is blocked).
+
+## Partially resolved 2026-09-30
+
+The decision this ticket records — keep the five tables, exclude them from
+Alembic's metadata — is implemented and holding. `app/models/reserved.py` names
+them, `alembic/env.py` routes both `context.configure` calls through
+`include_object`, and 52 metadata guards plus 6 FK-exclusion guards pin the
+behaviour.
+
+### Closed here
+
+**The `medio cilidndro` discrepancy.** Resolved in TICKET-024. The spare row was
+right and the `uom` key was wrong — the row's own `uom_description` already read
+`medios cilindros`, which makes the description the source of truth for the
+intended value. `UPDATE uom SET unit='medio cilindro'` fixed it, and adding the
+missing `lb` base unit repaired both foreign keys that the rows were violating.
+The typo existed only in live data; `etl/data/` holds just `.gitkeep`, so no
+source can reintroduce it.
+
+**Foreign keys into `uom` are excluded from autogenerate.** `spares.unit ->
+uom.unit` and `uom.ref_unit -> uom.unit` would otherwise make every autogenerate
+report changes it could not act on, because there is no `uom` model to compare
+them against. `include_object` now returns False for any foreign key whose target
+is a reserved table.
+
+### Still open, and why
+
+**One row per unit.** `uom.unit` is the primary key, so a unit can hold exactly
+one reference unit and one factor. That is enough for today's data — a base unit
+is a self-ratio, a derived unit points at its base — but it cannot express a unit
+with two relationships. The lb -> kg constant `0.45359237` that motivated
+TICKET-021's widening is exactly such a case: `lb` is already referenced by
+`cilindro` and `medio cilindro`, so it has a row, so there is nowhere to also
+record it against `kg`.
+
+This was found while repairing TICKET-024, and it is why the repair used a
+self-ratio of `1.00` rather than the more interesting constant. Expressing both
+needs a composite primary key on `(unit, ref_unit)`, which is a schema change
+that alters what a `uom` row means and is a decision for whoever builds the unit
+management feature — not a drift fix, and not taken unilaterally.
+
+**Per-table tickets and the `hollidays` rename.** Unchanged. Neither blocks
+anything today, and both belong with the features that will justify them.

@@ -39,3 +39,13 @@ grep -rn "presigned_ttl" app/ | grep -v settings.py
 - Media URLs are signed with this value, so a change invalidates nothing already delivered
   (each URL is signed with its own expiry) but must be consistent across the API and the
   mobile client expectations.
+
+## Resolution
+
+Fixed. The setting is now `presigned_ttl_hours` (`app/core/settings.py:149`), the
+environment variable is `PRESIGNED_TTL_HOURS` (`.env.example:95`), and the only
+consumer passes it to `timedelta(hours=...)`. The unit is in every name.
+
+The old `PRESIGNED_TTL` is still accepted through `AliasChoices`, so an existing
+`.env` keeps working instead of silently reverting to a default. That fallback
+value is `PRESIGNED_TTL_HOURS`'s, so the ambiguity cannot reappear through it.

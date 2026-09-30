@@ -30,3 +30,11 @@ response = client.post("/tickets", json={
 })
 # → 500 Internal Server Error (AttributeError)
 ```
+
+## Resolution
+
+Fixed. `TicketCreate` declares `market_id: int` and `equipment_id: int`
+(`app/schemas/ticket.py:15-16`), so the access in `ticket_repo.py` resolves.
+
+Verified by reading the current schema rather than by assuming the ticket's
+line numbers, which have since moved.

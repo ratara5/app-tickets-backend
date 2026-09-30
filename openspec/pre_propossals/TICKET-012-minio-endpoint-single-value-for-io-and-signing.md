@@ -39,3 +39,22 @@ grep -n "get_minio_client\|presigned_get_object\|put_object" app/core/storage.py
   only thing the phone sees, so the `Host`-binding rule is unaffected.
 - The `Host`-binding constraint must be preserved exactly: the signing host may never change to
   an internal name.
+
+## Resolution
+
+Fixed. The two purposes now have separate settings
+(`app/core/settings.py:124-136`):
+
+- `minio_endpoint` / `minio_port` / `minio_secure` — the internal endpoint, used
+  for the backend's own `put_object` and `stat_object`.
+- `minio_public_endpoint` / `_port` / `_secure` — the publicly resolvable origin
+  used for signing, exposed as `minio_public`.
+
+The public values default to the internal ones, so a single-endpoint deployment
+that was never wrong still works unchanged, and a deployment that had to route its
+own uploads out through the proxy can now stop.
+
+`minio_internal` also refuses a LAN address in its error message
+(`app/core/storage.py:49-54`), naming the setting that is wrong rather than
+leaking an internal socket address, and stating where the value should point in
+each of the three deployment shapes.

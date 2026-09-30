@@ -76,3 +76,17 @@ and `1` table present instead of 21.
   the script on **both** images.
 - Interim procedure: build the schema from the SQLAlchemy models instead; see
   `docs/deployment-guide.md` §2.2.
+
+## Resolution
+
+Resolved by TICKET-017, which retired `init.sql` in favour of
+`deploy/schema.sql`. The dependency is real and unchanged — stock `postgres:16`
+still does not ship `pg_uuidv7` — but it is no longer discovered by running a
+script and reading the error.
+
+It is now stated in the header of the schema of record itself, under `REQUIRES`,
+which is read before the file is used rather than after it fails:
+
+> The custom image `infrastructure-companies-postgres-gci`. This schema uses the
+> third-party extension `pg_uuidv7` (see CREATE EXTENSION below). Stock
+> `postgres:16` does not ship it, so the load fails on a standard server.

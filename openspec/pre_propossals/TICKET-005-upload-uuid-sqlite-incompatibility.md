@@ -21,3 +21,14 @@ The `UploadSession.upload_id` column in `app/models/upload.py:12` is defined as 
 ## Reproduction
 
 Run any upload endpoint test with SQLite backend → 500 error with `'str' object has no attribute 'hex'`
+
+## Resolution
+
+Fixed. The ticket's stated impact was that all upload endpoints fail on SQLite,
+and `tests/test_uploads.py` passes 16 tests.
+
+The specific fix was at the boundary rather than in the type: `upload_id` remains
+`Column(Uuid, ...)`, and the repository/receive path converts the incoming string
+once, at the edge, instead of letting a string reach a filter that expects a
+`UUID` and call `.hex` on it. Typed generically as `Uuid` rather than
+`postgresql.UUID`, which is what allows SQLite to store it as text.

@@ -44,3 +44,13 @@ and integer.` The load stops with 7 tables created and 14 missing.
 - The deviation between `init.sql` and the models is the underlying problem: `init.sql` is a
   legacy artifact that no longer matches the schema Alembic and SQLAlchemy consider
   authoritative. Consider whether it should be regenerated from the models or retired.
+
+## Resolution
+
+Resolved by TICKET-017. `init.sql` is gone, so the unbuildable statement is gone
+with it. In the schema of record that replaces it, `created_by` is `integer` on
+every table that has one, matching `fsm_users.user_id`, so the foreign key is
+implementable.
+
+Verified by reading the current dump rather than by trusting the ticket's account
+of it: the type is consistent across all tables, not only the one named.
