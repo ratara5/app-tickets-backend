@@ -255,3 +255,77 @@ on the two join tables and `pauses.maintenance_id`, and the duplicate
 `maintenances_ticket_id_key` on `maintenances`. Adding the two missing primary keys
 — which `alembic check` cannot see, because autogenerate never compares primary
 keys — would resolve 4 of the 8.
+
+## Closed 2026-09-30 — `alembic check` reports nothing
+
+The second half: the database was brought up to the models, in revision
+`0003_join_table_keys`. `alembic check` against live now prints
+"No new upgrade operations detected", and every table has a primary key.
+
+What the revision did:
+
+| change | detail |
+|---|---|
+| `maintenances_spares` primary key | `(maintenance_id, spare_id)` |
+| `maintenances_technicians` primary key | `(maintenance_id, technician_id)` |
+| 8 columns made NOT NULL | 3 on the spares join, 4 on the technicians join, `pauses.maintenance_id` |
+| 1 constraint dropped | `maintenances_ticket_id_key`, the auto-generated duplicate of `uq_maintenances_ticket_id` |
+
+Live went from 9 reported differences to 0, with all 23 table row counts
+identical across the change, 38 foreign keys unchanged, and every table now
+carrying a primary key.
+
+### What autogenerate could never see
+
+The two missing primary keys were invisible to `alembic check` throughout. It
+reported 9 items and none were these. Autogenerate detects constraints by name
+and never compares primary keys, so two join tables with no key looked identical
+to two join tables with one. They were found by querying `pg_constraint`.
+
+That gap stopped being academic on 2026-09-29, when a restore drill replayed a
+dump onto the running server and doubled both of those tables silently while the
+other 21 rejected the same rows loudly. See TICKET-024. This is the reason the
+missing keys were worth a migration rather than a note.
+
+### Rehearsal
+
+Run against a full replica of live, not against live:
+
+- **Upgrade** — clean, 9 differences to 0, all 23 tables identical.
+- **Downgrade** — reverses fully, and the reversal had to be reordered once:
+  PostgreSQL refuses to drop NOT NULL from a column that is still in a primary
+  key, so the keys have to go first.
+- **Guards** — both pre-flight checks were made to fire on injected bad data.
+  A duplicate row on the key refuses with the colliding values named, and a NULL
+  key column refuses with the row count. Neither can add a half-constrained
+  table.
+- **Constraint enforcement after the upgrade** — a duplicate insert raises
+  `unique_violation` and a NULL insert raises `not_null_violation`.
+
+Two bugs were caught by the rehearsal rather than by review: `tuple()` over an
+empty result is `()`, so a table with *no* primary key was being read as one with
+an empty key, and the downgrade ordering above. Both would have shipped.
+
+### A modelling question this revision does not settle
+
+The key on `maintenances_technicians` is `(maintenance_id, technician_id)`, as
+the model declares. That makes `start_hour` and `end_hour` non-key, which
+forecloses a split shift — one technician working two separated periods inside
+the same maintenance. Live data does not exercise this: all 5 rows are distinct
+on the key. If a split shift is a real requirement the key should become
+`(maintenance_id, technician_id, start_hour)` in both the model and the revision.
+
+This was aligned to the model rather than decided here, because it is a modelling
+question and this ticket is a drift fix. It is recorded in the revision's
+docstring so it is visible where the key is defined.
+
+### Verification after applying to live
+
+- `alembic check` — no new upgrade operations.
+- All 23 table row counts identical to immediately before.
+- 38 foreign keys, every table with a primary key.
+- A database built from the regenerated `deploy/schema.sql` matches live exactly:
+  38 foreign keys, 85 primary keys, no table without one. Before this revision
+  the schema of record was missing 2 foreign keys and 2 primary keys.
+- A restore from a fresh backup: 0 errors, 38 foreign keys, both join primary
+  keys, `uom` intact.

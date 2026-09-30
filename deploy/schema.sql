@@ -7,8 +7,8 @@
 --   Source   : live database "db_gestiket_acme" on the shared instance
 --   Image    : infrastructure-companies-postgres-gci
 --   Method   : pg_dump -U postgres --schema-only --no-owner --no-privileges
---   Repo sha : 68f835a2884f8f95ff4c18370563905556c18474
---   Dumped   : 2026-09-29
+--   Repo sha : 88b02a8f16eaa5bbaa0b9efdf23a911b604fc63a
+--   Dumped   : 2026-09-30
 --   Contains : 23 tables, 2 enum types, 1 extension (pg_uuidv7)
 --
 -- WHY THIS FILE EXISTS
@@ -39,39 +39,48 @@
 --
 --   * `hollidays`, `materials`, `preliquidated`, `services`, `uom` exist here but
 --     have no ORM model. They back features that were never built. Decision
---     pending: TICKET-018.
---   * The ORM models were stale against this schema in ~50 measured places and
---     have been reconciled (TICKET-019). Nine differences remain, and they are
---     the other way round: this schema is missing what the models declare.
---     `maintenances_spares` and `maintenances_technicians` have no primary key
---     at all, 8 join/pause columns are nullable where the models say NOT NULL,
---     and `maintenances` carries a duplicate unique constraint on `ticket_id`.
---     `alembic check` cannot see the two missing primary keys, because
---     autogenerate never compares primary keys.
---   * Loading this schema, then loading data, does not create two foreign keys
---     that live has: `spares_unit_fkey` and `uom_ref_unit_fkey`. Three live rows
---     violate them, and `psql` reports the failure and still exits 0, so a
---     restore silently produces a schema with less referential integrity than
---     the one it was taken from. See TICKET-024.
+--     pending: TICKET-018. `uom` in particular cannot express a unit's
+--     relationship to two different reference units, because `unit` is its
+--     primary key.
+--   * The schema and the ORM models agree. `alembic check` reports nothing
+--     against the database this file was taken from, which took two revisions:
+--     the models were reconciled in TICKET-019, then the database was brought up
+--     to the models in TICKET-019's second half. Every table has a primary key.
+--   * A restore of a backup taken from this schema reproduces every constraint,
+--     including all 38 foreign keys. That was not true until TICKET-024: three
+--     rows violated two of them, so `pg_dump` could not recreate those two and
+--     `psql` still exited 0.
 --
 -- REGENERATE
 --
 --   Do NOT redirect the dump over this file. `>` truncates the hand-written
---   header above, which is the part that explains what the file is. Dump to a
---   temporary file and re-concatenate the header:
+--   header above, which is the part that explains what the file is. The header
+--   also changes length whenever its wording changes, so its size must be
+--   derived rather than hardcoded -- a hardcoded line number silently truncates
+--   the header as soon as the header grows.
 --
+--   # 1. Dump the body.
 --   docker exec postgres-gci pg_dump -U postgres --schema-only \
 --       --no-owner --no-privileges -d db_gestiket_acme > /tmp/schema-body.sql
---   head -57 deploy/schema.sql > /tmp/schema.sql          # keep the header
---   sed -i 's/^--   Repo sha : .*/--   Repo sha : <sha>/' /tmp/schema.sql
+--
+--   # 2. Find the last rule of the header: everything before the pg_dump preamble.
+--   BODY=$(grep -n '^-- PostgreSQL database dump' deploy/schema.sql | head -1 | cut -d: -f1)
+--   HDR=$(grep -n '^-- =\{20,\}$' deploy/schema.sql | awk -F: -v b="$BODY" '$1<b {n=$1} END{print n}')
+--
+--   # 3. Rebuild: header, one blank line, then the new body.
+--   { sed -n "1,${HDR}p" deploy/schema.sql; echo; cat /tmp/schema-body.sql; } \
+--       > /tmp/schema.sql
+--   sed -i 's/^--   Repo sha : .*/--   Repo sha : <sha>/'  /tmp/schema.sql
 --   sed -i 's/^--   Dumped   : .*/--   Dumped   : <YYYY-MM-DD>/' /tmp/schema.sql
---   { echo; cat /tmp/schema-body.sql; } >> /tmp/schema.sql
---   diff <(git show HEAD:deploy/schema.sql) /tmp/schema.sql   # review every line
+--
+--   # 4. Review every changed line before committing.
+--   diff <(grep -v '^\\\(un\)\?restrict' deploy/schema.sql) \
+--        <(grep -v '^\\\(un\)\?restrict' /tmp/schema.sql)
 --   mv /tmp/schema.sql deploy/schema.sql
 --
---   Review that diff before committing. The body should change only where the
---   migration changed something; `pg_dump` also emits a fresh random
---   `\restrict` token on every run, which is expected.
+--   The body should change only where the migration changed something. `pg_dump`
+--   emits a fresh random `\restrict` token on every run, which is why step 4
+--   filters it out.
 --
 --   `tests/test_deploy_assets.py` asserts this header stays intact so the file
 --   is never mistaken for a hand-maintained one.
@@ -81,7 +90,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict xEuGHf4ejjJHRN4WdCLkYKm1rbzAMnfTI83pAsiRVJ89oZTHj3oxKHUrbEWXTc7
+\restrict Ggm737CnWDzVJlrTLLRzceeKZnYKnXJJyuVH8LO7PmXeVc7vdm4UMt7iPYj8RG1
 
 -- Dumped from database version 16.13 (Debian 16.13-1.pgdg13+1)
 -- Dumped by pg_dump version 16.13 (Debian 16.13-1.pgdg13+1)
@@ -293,9 +302,9 @@ CREATE TABLE public.maintenances (
 --
 
 CREATE TABLE public.maintenances_spares (
-    maintenance_id uuid,
-    spare_id integer,
-    qty numeric(6,2),
+    maintenance_id uuid NOT NULL,
+    spare_id integer NOT NULL,
+    qty numeric(6,2) NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     created_by integer,
     updated_at timestamp with time zone,
@@ -308,10 +317,10 @@ CREATE TABLE public.maintenances_spares (
 --
 
 CREATE TABLE public.maintenances_technicians (
-    maintenance_id uuid,
-    technician_id integer,
-    start_hour time without time zone,
-    end_hour time without time zone,
+    maintenance_id uuid NOT NULL,
+    technician_id integer NOT NULL,
+    start_hour time without time zone NOT NULL,
+    end_hour time without time zone NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     created_by integer,
     updated_at timestamp with time zone,
@@ -384,7 +393,7 @@ CREATE SEQUENCE public.pauses_pause_id_seq
 
 CREATE TABLE public.pauses (
     pause_id integer DEFAULT nextval('public.pauses_pause_id_seq'::regclass) NOT NULL,
-    maintenance_id uuid,
+    maintenance_id uuid NOT NULL,
     pause_reason text,
     created_at timestamp with time zone DEFAULT now(),
     created_by integer,
@@ -699,11 +708,19 @@ ALTER TABLE ONLY public.maintenances
 
 
 --
--- Name: maintenances maintenances_ticket_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: maintenances_spares maintenances_spares_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.maintenances
-    ADD CONSTRAINT maintenances_ticket_id_key UNIQUE (ticket_id);
+ALTER TABLE ONLY public.maintenances_spares
+    ADD CONSTRAINT maintenances_spares_pkey PRIMARY KEY (maintenance_id, spare_id);
+
+
+--
+-- Name: maintenances_technicians maintenances_technicians_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.maintenances_technicians
+    ADD CONSTRAINT maintenances_technicians_pkey PRIMARY KEY (maintenance_id, technician_id);
 
 
 --
@@ -1157,5 +1174,5 @@ ALTER TABLE ONLY public.worksheets
 -- PostgreSQL database dump complete
 --
 
-\unrestrict xEuGHf4ejjJHRN4WdCLkYKm1rbzAMnfTI83pAsiRVJ89oZTHj3oxKHUrbEWXTc7
+\unrestrict Ggm737CnWDzVJlrTLLRzceeKZnYKnXJJyuVH8LO7PmXeVc7vdm4UMt7iPYj8RG1
 
