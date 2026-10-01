@@ -38,25 +38,54 @@ services:
   # ------------------------------------------------------------
   # API — FastAPI on the shared network, addressed by container name
   # ------------------------------------------------------------
-  api:
+  api-acme:
     build:
       context: ../..
       dockerfile: Dockerfile
     image: app-tickets-backend:vps
-    container_name: api-app-tickets
+    container_name: api-acme
     restart: unless-stopped
-    # Loopback only: the phone must never reach the API without TLS.
+    # Container side must be 8000: that is what the image binds
+    # (Dockerfile CMD `gunicorn --bind 0.0.0.0:8000`, and EXPOSE 8000). It was
+    # mapped to 5000, so nothing was ever listening on the published port and the
+    # container was unreachable from the host despite starting normally.
     ports:
       - "127.0.0.1:8000:8000"
+    # Single source of truth for configuration. There is deliberately no
+    # `environment:` block for the database or MinIO: `environment:` outranks
+    # `env_file:`, so an unset `${POSTGRES_GCI_*}` there silently overrode the
+    # correct DB_HOST from .env with an empty string, and the API started with no
+    # database host at all.
     env_file:
       - ../../.env
     environment:
       # Container name resolution works only inside a docker network.
       # This is the same value the ETL uses with `docker exec`.
-      DB_HOST: postgres-gci
-      DB_PORT: "5432"
+      DB_HOST: postgres-gci # Overwrites the .env value
+      DB_PORT: "5432" # Overwrites the .env value
       TEMPLATES_DIR: /srv/app/templates/reports
       CHUNK_DIR: /tmp/upload_chunks
+      # ------------------------------------------------------------
+      # MinIO, pinned for THIS stack rather than inherited.
+      #
+      # `env_file: ../../.env` above is the host-run configuration file, where
+      # MINIO_ENDPOINT is 127.0.0.1 because there the API and MinIO share the
+      # host. Inside this container 127.0.0.1 is the container itself, so
+      # inheriting it points every upload and the startup bucket probe at
+      # nothing. The two run modes need opposite values from the same key, so
+      # the container values are stated here, where the network that resolves
+      # them is also declared.
+      #
+      # The public origin must be MEDIA_DOMAIN, not a LAN address: it is signed
+      # into every pre-signed URL, and Caddy is the only thing serving that host
+      # (see Caddyfile). Setting it to an address that answers nothing produces
+      # URLs that return 404 rather than an error at signing time.
+      MINIO_ENDPOINT: minio-acme
+      MINIO_PORT: "9000"
+      MINIO_SECURE: "false"
+      MINIO_PUBLIC_ENDPOINT: ${MEDIA_DOMAIN:?set MEDIA_DOMAIN in .env} # For infra MINIO_PUBLIC_ENDPOINT=minio-acme in .env / For local without containers MINIO_PUBLIC_ENDPOINT=127.0.0.1?
+      MINIO_PUBLIC_PORT: "443"
+      MINIO_PUBLIC_SECURE: "true"
     # Chunked uploads stage on local disk before reaching MinIO.
     # Without a volume a restart loses every in-flight upload while
     # its database rows survive.
@@ -65,10 +94,20 @@ services:
     depends_on:
       caddy:
         condition: service_started
+    # It's possible alternatively: each app has its own minio container; in this case: 
+    # 1. create minio service in this same compose file, 2. add minio service to the 
+    # same new internal network as api-acme, 3. set MINIO_ENDPOINT=minio in the environment of api-acme.
+    # Joins the same external network as caddy and migrate. This was
+    # `name: my-dopamine-network`, which contradicted the top-level declaration
+    # of infra-net and split the stack: the API would have reached Postgres and
+    # MinIO on one network while Caddy reached them on another. my-dopamine is
+    # also provider-frontend's bridge (docs/deployment-guide.md §2.1.1), so
+    # joining it would put this app's database traffic on another tenant's
+    # network.
     networks:
-      infra-net:
-        aliases:
-          - api
+      - infra-net
+      # aliases:
+        # - api
 
   # ------------------------------------------------------------
   # migrate — ONE-SHOT JOB, never a service
@@ -161,3 +200,20 @@ networks:
     # other tenants' containers. `docker compose` must not own it.
     external: true
     name: infra-net
+    # PREREQUISITE, enforced by nothing here: `minio-acme` and
+    # `postgres-gci` must ALREADY be attached to infra-net.
+    #
+    #   docker network inspect infra-net --format '{{range .Containers}}{{.Name}} {{end}}'
+    #
+    # Compose cannot attach a container it does not own. Moving minio-acme
+    # into its own compose project therefore did not move it onto infra-net:
+    # it came up on that project's own prefixed network instead
+    # (`assync_as-sync-acme-network`), and from here `minio-acme` does not
+    # resolve. Both media downloads and uploads then fail with a DNS error,
+    # while the API itself starts and looks healthy - the failure only appears
+    # on the first request that touches storage.
+    #
+    # Attach it once, from whichever project owns the container:
+    #   docker network connect infra-net minio-acme
+    # and record that step in the deployment procedure so it survives a
+    # recreate of the MinIO container.
