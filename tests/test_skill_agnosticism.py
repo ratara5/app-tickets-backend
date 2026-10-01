@@ -1,4 +1,5 @@
-"""Guards that the shared skills stay agnostic to stack, business, and namespaces.
+"""Guards that the shared skills and personas stay agnostic to stack, business, and
+namespaces.
 
 The cross-project skills are read by every application in the estate: different
 stacks, different schemas, different credentials. Anything concrete that leaks
@@ -6,15 +7,23 @@ into the shared text is wrong in at least one of them, and a container or databa
 name copied from one project into another is how two applications end up pointing
 at each other's data.
 
-These are static checks over the skills' own text. They do not run a deployment,
-they just keep the doctrine portable.
+These are static checks over the shared text. They do not run a deployment, they
+just keep the doctrine portable.
 
-Two groups of checks live here.
+Three groups of checks live here.
 
-**Shared doctrine** (`CROSS_PROJECT_SKILLS`) applies to every skill marked
-canonical and cross-project in `openspec/config.yaml`. It asks two questions of
-all of them: does a concrete identifier leak in, and does a rule prescribe one
-stack's tool?
+**Shared doctrine** (`CROSS_PROJECT_DOCTRINE`) applies to everything marked canonical
+and cross-project in `openspec/config.yaml`: the skills in `CROSS_PROJECT_SKILLS` and
+the personas in `CROSS_PROJECT_AGENTS`. It asks two questions of all of them: does a
+concrete identifier leak in, and does a rule prescribe one stack's tool? The personas
+were added to this list when the first estate-wide persona was written. Before that,
+the guarded subject list was skills only, which meant the next piece of cross-project
+text would have been the thing that landed in the unguarded folder.
+
+**Persona adoption** (the description guards) applies to the personas only. A persona
+is chosen by matching its description against the request, so a description that states
+what the persona does instead of when it applies makes the persona invisible, and two
+descriptions that overlap make the choice arbitrary.
 
 **Estate deployment doctrine** (the remaining tests) applies only to
 `deploying-backend-vps`, which is genuinely about one PostgreSQL and one MinIO
@@ -33,6 +42,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 AI_SPECS = REPO_ROOT / "ai-specs"
 SKILLS = AI_SPECS / "skills"
+AGENTS = AI_SPECS / "agents"
 HARNESS = AI_SPECS / "harness-ia.md"
 
 # Skills declared canonical and cross-project in `openspec/config.yaml`. Each is
@@ -47,6 +57,21 @@ CROSS_PROJECT_SKILLS = [
     "triaging-spec-debt",
     "verifying-a-deployment",
 ]
+
+# Personas declared canonical and cross-project in `openspec/config.yaml`. The
+# guards that apply to a skill apply to these for the same reason: a persona
+# adopted by an agent in another application is read by that application's
+# stack, not by the one it was written for. They were unguarded until an
+# estate-wide persona was added, which is precisely the moment the hole becomes
+# easy to fill.
+CROSS_PROJECT_AGENTS = [
+    "infrastructure-developer",
+]
+
+# Everything that carries estate-wide doctrine, guarded identically. A check that
+# covers skills and not personas is a check whose subject list silently decides
+# which files may leak.
+CROSS_PROJECT_DOCTRINE = CROSS_PROJECT_SKILLS + CROSS_PROJECT_AGENTS
 
 DEPLOYMENT_SKILL = "deploying-backend-vps"
 
@@ -130,28 +155,30 @@ STACK_BOUND_TOOLS = [
 NORMATIVE = r"\b(must|never|always|do not|should|require[sd]?|shall)\b"
 
 
-def read(skill: str) -> str:
-    """A skill's own text plus its references.
+def read(doctrine: str) -> str:
+    """A skill's own text plus its references, or a persona's single file.
 
     References are part of what the reader loads, so a leak in a reference is just
     as wrong as a leak in the body, and checking only the body would let it through
-    by relocation.
+    by relocation. A persona has no reference folder, so it is read directly.
     """
-    directory = SKILLS / skill
-    parts = [p.read_text(encoding="utf-8") for p in sorted(directory.rglob("*.md"))]
-    assert parts, f"{skill} has no markdown to check"
+    path = AGENTS / f"{doctrine}.md" if doctrine in CROSS_PROJECT_AGENTS else SKILLS / doctrine
+    if path.is_file():
+        return path.read_text(encoding="utf-8")
+    parts = [p.read_text(encoding="utf-8") for p in sorted(path.rglob("*.md"))]
+    assert parts, f"{doctrine} has no markdown to check"
     return "\n".join(parts)
 
 
-def prose_of(skill: str) -> str:
-    """The skill's narrative prose: no code blocks, no table rows.
+def prose_of(doctrine: str) -> str:
+    """The narrative prose: no code blocks, no table rows.
 
     Table rows are excluded for the same reason code blocks are. A row like
     "| Create the database | no | no | no |" is a lookup, not an instruction, and
     treating it as a sentence produces false positives that would push someone to
     reword a correct table.
     """
-    return TABLE_ROW.sub("", FENCED_BLOCK.sub("", read(skill)))
+    return TABLE_ROW.sub("", FENCED_BLOCK.sub("", read(doctrine)))
 
 
 def _sentence_offending_in(sentences: list[str], tool: str) -> str | None:
@@ -184,7 +211,7 @@ def _sentence_offending_in(sentences: list[str], tool: str) -> str | None:
 # ── Shared doctrine: identifiers must not leak ──────────────────────────────
 
 
-@pytest.mark.parametrize("skill", CROSS_PROJECT_SKILLS)
+@pytest.mark.parametrize("skill", CROSS_PROJECT_DOCTRINE)
 @pytest.mark.parametrize("name", NAMESPACES)
 def test_no_estate_namespace_leaks_into_a_shared_skill(skill: str, name: str) -> None:
     """A concrete container or database name is wrong in every other project.
@@ -204,7 +231,7 @@ def test_no_namespace_leak_in_the_harness_map(name: str) -> None:
     assert name not in text, f"'{name}' is deployment-specific and does not belong in the harness map"
 
 
-@pytest.mark.parametrize("skill", CROSS_PROJECT_SKILLS)
+@pytest.mark.parametrize("skill", CROSS_PROJECT_DOCTRINE)
 @pytest.mark.parametrize("word", BUSINESS_NOUNS)
 def test_no_domain_vocabulary_in_a_shared_skill(skill: str, word: str) -> None:
     """The estate serves unrelated businesses.
@@ -217,7 +244,7 @@ def test_no_domain_vocabulary_in_a_shared_skill(skill: str, word: str) -> None:
     assert not occurrences, f"domain noun '{word}' appears {len(occurrences)}x in {skill}"
 
 
-@pytest.mark.parametrize("skill", CROSS_PROJECT_SKILLS)
+@pytest.mark.parametrize("skill", CROSS_PROJECT_DOCTRINE)
 @pytest.mark.parametrize("port", ["5435", "9000", "9001", "8443"])
 def test_no_hardcoded_ports_in_prose(skill: str, port: str) -> None:
     """Ports differ per deployment, and a wrong one in a shared command is harmful.
@@ -231,7 +258,7 @@ def test_no_hardcoded_ports_in_prose(skill: str, port: str) -> None:
 # ── Shared doctrine: no rule may bind itself to one stack ──────────────────
 
 
-@pytest.mark.parametrize("skill", CROSS_PROJECT_SKILLS)
+@pytest.mark.parametrize("skill", CROSS_PROJECT_DOCTRINE)
 def test_no_shared_skill_prescribes_a_single_stack_tool(skill: str) -> None:
     """A normative sentence must not name one stack's tool as the mechanism.
 
@@ -246,7 +273,7 @@ def test_no_shared_skill_prescribes_a_single_stack_tool(skill: str) -> None:
         assert offending is None, f"{skill} names one stack's tool normatively: {offending[:160]!r}"
 
 
-@pytest.mark.parametrize("skill", CROSS_PROJECT_SKILLS)
+@pytest.mark.parametrize("skill", CROSS_PROJECT_DOCTRINE)
 def test_shared_skill_declares_its_own_portability(skill: str) -> None:
     """Each shared skill must say, in its own text, that it is stack-agnostic.
 
@@ -293,7 +320,7 @@ def test_release_skill_delegates_estate_provisioning_rather_than_inlining_it(ski
     )
 
 
-@pytest.mark.parametrize("skill", CROSS_PROJECT_SKILLS)
+@pytest.mark.parametrize("skill", CROSS_PROJECT_DOCTRINE)
 def test_estate_provisioning_facts_stay_in_the_estate_skill(skill: str) -> None:
     """Only the estate skill may hold the provisioning rules.
 
@@ -312,7 +339,7 @@ def test_estate_provisioning_facts_stay_in_the_estate_skill(skill: str) -> None:
     )
 
 
-@pytest.mark.parametrize("skill", CROSS_PROJECT_SKILLS)
+@pytest.mark.parametrize("skill", CROSS_PROJECT_DOCTRINE)
 def test_shared_skill_has_an_input_and_an_output(skill: str) -> None:
     """Each shared skill states what it is given and what it produces.
 
@@ -329,6 +356,54 @@ def test_shared_skill_has_an_input_and_an_output(skill: str) -> None:
     )
     assert says_input, f"{skill} does not state its input"
     assert says_output, f"{skill} does not state what it produces or how it is verified"
+
+
+# ── Persona adoption: a description that matches nothing is never loaded ─────
+
+
+@pytest.mark.parametrize("agent", CROSS_PROJECT_AGENTS)
+def test_persona_description_states_the_condition_it_applies_to(agent: str) -> None:
+    """A persona is chosen by its description, so the description must carry a trigger.
+
+    The same rule the skill guards apply to `writing-skills` CSO: state the conditions
+    under which this applies, not what it does. A persona described by its subject
+    matter matches nothing at selection time and is never adopted, while the persona
+    whose description happens to overlap it is adopted instead — so the failure is not
+    an omission but a silent substitution.
+    """
+    text = read(agent)
+    frontmatter = text.split("---", 2)[1]
+    match = re.search(r"^description:\s*(.*?)(?=^\w|\Z)", frontmatter, re.MULTILINE | re.DOTALL)
+    assert match, f"{agent} has no description in its frontmatter"
+    description = " ".join(match.group(1).split())
+    assert len(description) >= 200, (
+        f"{agent} description is {len(description)} characters. It states what the "
+        "persona does, not the conditions under which it applies, so selection has "
+        "nothing to match on."
+    )
+    for placeholder in ("tbd", "todo", "task-focused", "a skill"):
+        assert placeholder not in description.lower(), f"{agent} description contains {placeholder!r}"
+
+
+@pytest.mark.parametrize("agent", CROSS_PROJECT_AGENTS)
+def test_persona_names_what_it_delegates(agent: str) -> None:
+    """A persona with an unbounded scope absorbs work that belongs to someone else.
+
+    The hazard is concrete: a persona that both decides and implements overlaps the
+    implementation persona for its stack, and a harness that picks between them by
+    description match will choose at random. Naming the delegations is what keeps the
+    two adjacent rather than competing, and it is also what stops doctrine owned by a
+    skill from being restated here as a second copy.
+    """
+    text = read(agent).lower()
+    assert "delegat" in text, (
+        f"{agent} never names what it delegates. A persona with no stated boundary "
+        "competes with the persona that owns the neighbouring work."
+    )
+    assert re.search(r"\b(owns|own:)\b", text), (
+        f"{agent} does not state what it owns, so the boundary it delegates around is "
+        "not stated either"
+    )
 
 
 # ── Estate deployment doctrine: specific to the shared PG/MinIO instance ────

@@ -38,9 +38,9 @@ frontend sources here.
 | Standards | `docs/base-standards.md` | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `codex.md` | symlink |
 | Context | `openspec/config.yaml` | none (read directly) | single file |
 | Skills | `ai-specs/skills/<name>/SKILL.md` | `.opencode/skills/<name>/`, `.claude_example/skills/<name>/` | symlink |
-| Agents | `ai-specs/agents/<name>.md` | `.claude_example/agents/<name>.md` (gitignored, see §5) | symlink |
+| Agents | `ai-specs/agents/<name>.md` | `.opencode/agent/<name>.md` | symlink |
 | Specs | `openspec/changes/<name>/` in flight, `openspec/specs/` shipped | none (read directly) | real files |
-| Cross-project doctrine | `ai-specs/skills/<name>/SKILL.md`, marked cross-project in the declared tree | `.opencode/skills/<name>/` | symlink; guards in `tests/test_skill_agnosticism.py` |
+| Cross-project doctrine | `ai-specs/skills/<name>/SKILL.md` and `ai-specs/agents/<name>.md`, marked cross-project in the declared tree | `.opencode/skills/<name>/`, `.opencode/agent/<name>.md` | symlink; guards in `tests/test_skill_agnosticism.py` |
 | Deployment doctrine | `ai-specs/skills/deploying-backend-vps/SKILL.md` | vendored copy in the sibling project | see §6 |
 | Gates | `Makefile` targets | none (invoked directly) | real file; `gate` is what CI runs |
 | Workflow commands | `.opencode/commands/pipeline-preflight.md` | none (invoked directly) | real file, authored here |
@@ -76,13 +76,40 @@ also alters what an agent is instructed to do, and say so in the commit.
    `ai-specs/agents/<name>.md`). Never author it inside `.opencode/` or
    `.claude_example/`.
 2. Expose it to each agent with a **relative** symlink from the agent's folder:
-   `.opencode/skills/<name> -> ../../ai-specs/skills/<name>`.
+   `.opencode/skills/<name> -> ../../ai-specs/skills/<name>`, or
+   `.opencode/agent/<name>.md -> ../../ai-specs/agents/<name>.md`. The committed
+   surface is `.opencode/`; `.claude_example/` is gitignored and cannot be it.
 3. Add the entry to the `ai_specs_structure` block in `openspec/config.yaml`. That
    block is a declaration; if it drifts from the tree, the declaration is the bug.
-4. Use the `sync-agent-symlinks` skill to reconcile all agent folders at once, and
+4. Give a new persona a **trigger**, not a subject. A persona is selected by matching
+   its description against a request, so a description that says what the persona does
+   matches nothing, and a description that overlaps an existing persona's makes the
+   choice arbitrary. State the conditions under which this persona applies, and name
+   what it delegates to the persona or skill that owns the neighbouring work.
+5. If the skill or persona is estate-wide, add it to `CROSS_PROJECT_DOCTRINE` in
+   `tests/test_skill_agnosticism.py` before writing prose, not after. That list was
+   skills-only until the first estate-wide persona existed, and the persona guards then
+   came free — which is the argument for putting the new text in the guarded list
+   rather than the other way round.
+6. Use the `sync-agent-symlinks` skill to reconcile all agent folders at once, and
    `writing-skills` to check the skill before it is exposed.
-5. Verify nothing was copied: `find .opencode .claude_example -maxdepth 2 -type d
+7. Verify nothing was copied: `find .opencode .claude_example -maxdepth 2 -type d
    -name '*-*'` should list vendor directories only, never a skill you authored.
+
+### The personas, and what separates them
+
+| Persona | Triggered by | Produces |
+|---|---|---|
+| `infrastructure-developer` | a change to what a service depends on rather than what it computes: shared databases, object stores, networks, edges, containers, configuration keys, migrations, provisioning | ownership, numbered decisions, blast radius, rollback, verification, open questions |
+| `backend-developer` | application code, domain logic, persistence, layering within one service | an implementation plan |
+| `frontend-developer` | application code in the separate frontend project | an implementation plan |
+| `product-strategy-analyst` | a product idea before it is a ticket | value propositions and use cases |
+
+`infrastructure-developer` is estate-wide and tool-agnostic, so it names no container,
+database, port or domain noun, and it delegates rather than restates: the tenancy
+provisioning rules stay in `deploying-backend-vps`, and the local-environment rules stay
+in `dev-environment-parity`. The adjacency with `backend-developer` is deliberate and is
+the reason each states its boundary.
 
 ## 5. Vendor directories, and the two harness surfaces
 

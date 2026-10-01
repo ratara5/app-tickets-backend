@@ -86,6 +86,7 @@ ai_specs_structure: |
   ├── agents/
   │   ├── backend-developer.md      ← For backend (Python/FastAPI) work
   │   ├── frontend-developer.md     ← For frontend (React Native) work — separate project
+  │   ├── infrastructure-developer.md ← Shared-dependency and topology decisions (canonical, cross-project)
   │   └── product-strategy-analyst.md
   ├── skills/                        ← Workflow guidance and specialized knowledge
   │   ├── adversarial-review/
@@ -128,4 +129,5 @@ rules:
     - Before creating any artifact, read and apply docs/base-standards.md
     - For backend-related artifacts, read docs/backend-standards.md and adopt guidelines from ai-specs/agents/backend-developer.md
     - For frontend-related artifacts, read docs/frontend-standards.md and adopt guidelines from ai-specs/agents/frontend-developer.md
+    - For artifacts that change what a service depends on rather than what it computes — shared databases, object stores, networks, TLS edges, containers, configuration keys, migrations, provisioning — read and apply ai-specs/agents/infrastructure-developer.md before drafting
     - Use docs/api-spec.yml and docs/data-model.md for API and data consistency in specs and tasks
