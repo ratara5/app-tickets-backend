@@ -11,7 +11,6 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 ENV_PATH_CORE = ROOT_DIR / ".env"
-ENV_PATH_COMPANY = ROOT_DIR / "gtk-companies" / "gtk-acme" / ".env"
 
 
 class MinioOrigin(NamedTuple):
@@ -93,7 +92,15 @@ def _parse_string_list(raw):
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(ENV_PATH_CORE, ENV_PATH_COMPANY),
+        # `ENV_PATH_COMPANY` (gtk-companies/gtk-acme/.env) was removed on
+        # 2026-09-30 with the per-company stack. The company values it carried
+        # — TZ_COMPANY, COUNTRY, CONTRACTOR_NIT, CLIENT_COMPANY_NAME — all live
+        # in the core `.env`. Pydantic ignores a missing env_file without
+        # complaining, so leaving this pointed at a deleted directory would not
+        # have raised: the file was already a no-op and the second layer was
+        # already ignored. Dropping it states that rather than implying a
+        # fallback that never ran.
+        env_file=ENV_PATH_CORE,
         #env_file_encoding="utf-8",
         extra="ignore",
     )
