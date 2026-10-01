@@ -27,6 +27,7 @@ import pytest
 PROVISION_DIR = Path(__file__).resolve().parents[1] / "infra" / "provision"
 PROVISION_SQL = PROVISION_DIR / "001-create-application-roles.sql"
 PROVISION_README = PROVISION_DIR / "README.md"
+DEPLOYMENT_GUIDE = Path(__file__).resolve().parents[1] / "docs" / "deployment-guide.md"
 
 # Comments are stripped for the grant assertions: the file documents the
 # privileges it withholds as prominently as the ones it grants, so a substring
@@ -216,9 +217,44 @@ def test_no_role_receives_create_on_the_schema(sql: str) -> None:
 
 
 def test_the_role_gets_dml_but_not_ddl_on_tables(sql: str) -> None:
-    assert re.search(
-        rf"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {RUNTIME_ROLE};", sql
+    """The grant must name the modelled tables, not every table in the schema.
+
+    The database holds 23 tables and the application models 17. `ON ALL TABLES`
+    hands the running service write access to the other six — `alembic_version`
+    and the five reserved tables for unbuilt features (TICKET-018) — which the
+    application never reads or writes. A name list is checked here rather than a
+    wildcard so that widening it back is a visible, reviewable edit.
+    """
+    assert not re.search(
+        rf"GRANT .* ON ALL TABLES IN SCHEMA public TO {RUNTIME_ROLE};", sql
+    ), "the grant is back to ON ALL TABLES, which reaches the reserved tables"
+
+    grant = re.search(
+        rf"^GRANT SELECT, INSERT, UPDATE, DELETE ON\s*\n(.*?)^TO {RUNTIME_ROLE};",
+        sql,
+        re.S | re.MULTILINE,
     )
+    assert grant, "no table-level DML grant for the runtime role"
+    granted = set(re.findall(r"\b(\w+)\b", grant.group(1)))
+
+    from app.models.base import Base
+    from app.models.reserved import RESERVED_TABLES_WITHOUT_MODELS
+    import app.models.registry as registry
+
+    registry._autodiscover_models("app.models")
+    modelled = set(Base.metadata.tables)
+    assert granted == modelled, (
+        "the granted table list must be exactly the modelled tables. "
+        f"missing={sorted(modelled - granted)} unexpected={sorted(granted - modelled)}"
+    )
+    # The reserved tables must be named nowhere in the grant.
+    assert not (granted & RESERVED_TABLES_WITHOUT_MODELS), (
+        "a reserved table is in the DML grant; the app never touches these"
+    )
+    assert "alembic_version" not in granted, (
+        "alembic_version is Alembic's bookkeeping, not the running service's"
+    )
+
     # No TRUNCATE, no REFERENCES, no TRIGGER: each is a way to damage data or
     # schema while holding only table-level grants.
     for extra in ("TRUNCATE", "REFERENCES", "TRIGGER"):
@@ -229,9 +265,26 @@ def test_sequences_are_granted_to_the_role(sql: str) -> None:
     """Without USAGE on sequences, every serial insert fails at runtime.
 
     This was verified: a role with table-level DML but no sequence grant cannot
-    call nextval, so inserts against a serial column fail.
+    call nextval, so inserts against a serial column fail. The grant is a named
+    list for the same reason the table grant is: two sequences in the live
+    database belong to reserved tables, and `ON ALL SEQUENCES` reaches them.
     """
-    assert re.search(rf"GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO {RUNTIME_ROLE};", sql)
+    assert not re.search(
+        rf"GRANT .* ON ALL SEQUENCES IN SCHEMA public TO {RUNTIME_ROLE};", sql
+    ), "the sequence grant is back to ON ALL SEQUENCES"
+
+    grant = re.search(
+        rf"^GRANT USAGE, SELECT ON SEQUENCE\s*\n(.*?)^TO {RUNTIME_ROLE};",
+        sql,
+        re.S | re.MULTILINE,
+    )
+    assert grant, "no sequence grant for the runtime role"
+    granted = set(re.findall(r"\b(\w+_seq)\b", grant.group(1)))
+    assert granted, "the sequence list is empty, so every serial insert fails at runtime"
+    assert not any(
+        name.startswith(("materials_", "preliquidated_", "services_", "hollidays_", "uom_"))
+        for name in granted
+    ), f"a reserved table's sequence is in the grant: {sorted(granted)}"
 
 
 def test_default_privileges_name_the_owning_role_not_the_app_role(sql: str) -> None:
@@ -298,6 +351,145 @@ def test_pg_hba_step_tells_the_operator_to_reload_not_restart(script: str) -> No
     assert "pg_reload_conf" in script
     assert "restart" in script.lower()
     assert "Reload" in script or "reload" in script
+
+
+def test_no_document_tells_the_operator_to_append_the_pg_hba_rule() -> None:
+    """Appending is the one instruction that makes the isolation not work.
+
+    `pg_hba.conf` is first-match, and a shared instance ends with catch-alls that
+    would match before the deny line. A rule appended to the end of the file is
+    therefore **dead**: the role stays reachable from every address while the
+    documentation claims to have stopped it, and nothing in the running service
+    can tell you.
+
+    This was not hypothetical wording. All three documents said it. The SQL
+    file's prose said the lines "must be above any broader rule already in the
+    file" while the instruction two lines below said "Append to the container's
+    pg_hba.conf"; this README then forwarded the error with "append the rule".
+    The prose was right and the instruction was the part an operator follows, so
+    the error spread by being repeated.
+    """
+    documents = {
+        "provisioning script": PROVISION_SQL.read_text(encoding="utf-8"),
+        "provisioning README": PROVISION_README.read_text(encoding="utf-8"),
+        "deployment guide": DEPLOYMENT_GUIDE.read_text(encoding="utf-8"),
+    }
+    for label, text in documents.items():
+        for line in text.splitlines():
+            stripped = line.lstrip("-#* ").strip()
+            if not stripped or not stripped[0].isalpha():
+                continue
+            if stripped.split()[0].lower() == "append":
+                pytest.fail(
+                    f"the {label} instructs the operator to append the pg_hba "
+                    f"rule, which places it below every broader line: {stripped!r}"
+                )
+            if re.search(r"append the rule|append these lines|append it\b", stripped, re.I):
+                pytest.fail(
+                    f"the {label} refers to appending the rule, which is the "
+                    f"placement that makes it dead: {stripped!r}"
+                )
+
+
+def test_pg_hba_step_states_the_allow_line_address_is_undetermined(script: str) -> None:
+    """The address is a measurement, and a guessed one silently matches nothing.
+
+    Docker re-originates a host-initiated connection to the bridge gateway, so
+    the address the server sees is not the address the client used — on this
+    instance `127.0.0.1:5435` arrives as `172.19.0.1/32`. A `127.0.0.1/32` allow
+    line therefore never matches a host-initiated connection, and the symptom is
+    a rejection with a correct role and a correct password.
+
+    The inverse error is worse: hardcoding a plausible subnet that is already
+    allocated to another tenant. So the placeholder must survive, and the file
+    must say why it cannot be resolved at write time.
+    """
+    allow = re.search(r"host\s+<database>\s+<runtime>_app\s+(\S+)\s+scram-sha-256", script)
+    assert allow, "no allow line for the role on its own database"
+    assert allow.group(1) == "<app-cidr>", (
+        f"the allow line's address is {allow.group(1)!r}, not the <app-cidr> "
+        "placeholder. The subnet is a measurement of the deployment network, "
+        "and hardcoding a guess either matches nothing or collides with a tenant."
+    )
+
+
+def test_pg_hba_rule_is_shaped_identically_in_the_sql_file_and_the_guide() -> None:
+    """Two copies of an operator-typed firewall rule will drift.
+
+    The rule is the only part of provisioning the script cannot apply, so it is
+    typed by hand twice — once in the file the operator runs, once in the guide.
+    A difference between the two is a rule that is wrong in one of the places it
+    is read, and neither copy is checked against the running server.
+
+    Shape is compared, not literal text: the script is generic and keeps its
+    placeholders, while the guide names the real role and database, because the
+    operator should not be told to substitute a name that is already decided.
+    The lines are located by the app role, so the catch-all quoted as an example
+    of what to avoid is not mistaken for the rule itself.
+    """
+    script = PROVISION_SQL.read_text(encoding="utf-8")
+    guide = DEPLOYMENT_GUIDE.read_text(encoding="utf-8")
+
+    def shape(text: str, label: str) -> tuple[bool, str, str, str]:
+        allow = re.search(
+            r"host\s+(\S+)\s+(\S+_app)\s+(\S+)\s+(scram-sha-256|scram|md5|trust|peer)\b",
+            text,
+        )
+        deny = re.search(r"host\s+(\S+)\s+(\S+_app)\s+(\S+)\s+(reject)\b", text)
+        assert allow, f"no allow rule for the app role in the {label}"
+        assert deny, f"no reject rule for the app role in the {label}"
+        assert allow.start() < deny.start(), (
+            f"in the {label} the reject line precedes the allow line; "
+            "pg_hba.conf is first-match, so the reject becomes dead"
+        )
+        assert allow.group(4) == "scram-sha-256", (
+            f"the {label} allow rule authenticates with "
+            f"{allow.group(4)!r}, not scram-sha-256"
+        )
+        assert allow.group(1) != "all", (
+            f"the {label} allow rule is scoped to `all` databases, so the reject "
+            "line behind it can never be reached"
+        )
+        assert deny.group(1) == "all", (
+            f"the {label} reject rule is scoped to one database, so it does not "
+            "deny the other tenants the isolation claims to protect"
+        )
+        return (
+            allow.group(3),  # the allow address
+            deny.group(3),  # the reject address
+            deny.group(1),  # the deny's database scope
+            allow.group(4),  # the auth method
+        )
+
+    assert shape(script, "provisioning script") == shape(guide, "deployment guide"), (
+        "the pg_hba rule's shape differs between the provisioning script and the "
+        "deployment guide"
+    )
+
+    for text, label in ((script, "provisioning script"), (guide, "deployment guide")):
+        address = re.search(r"host\s+\S+\s+\S+_app\s+(\S+)\s+scram-sha-256", text)
+        assert address and address.group(1) == "<app-cidr>", (
+            f"the {label} must keep <app-cidr>; found {address and address.group(1)!r}"
+        )
+
+
+def test_the_guide_names_the_real_role_while_the_script_stays_generic() -> None:
+    """The two copies differ in exactly one way, and it is deliberate.
+
+    The guide is the operator's instruction for *this* deployment, so it names
+    the role and database that were actually chosen. The script is a reusable
+    artifact, so it keeps placeholders. Making either match the other would mean
+    either telling the operator to substitute a name already decided, or baking
+    this deployment's names into a file meant to be reused.
+    """
+    guide = DEPLOYMENT_GUIDE.read_text(encoding="utf-8")
+    assert re.search(
+        r"host\s+db_gestiket_acme\s+gestiket_app", guide
+    ), "the guide's allow rule no longer names the chosen role and database"
+    script = PROVISION_SQL.read_text(encoding="utf-8")
+    assert "<runtime>_app" in script and "db_gestiket_acme" not in script, (
+        "the provisioning script must stay generic; it has the real database name"
+    )
 
 
 def test_isolation_is_documented_as_per_database_not_server_wide(script: str) -> None:

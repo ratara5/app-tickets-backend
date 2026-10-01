@@ -16,7 +16,7 @@ separate acts, in this order:
 
 1. **Create the database, empty**, as an administrator. Not owned by the
    application role. No schema yet.
-2. **Load the schema of record** — `deploy/schema.sql`, a dump of the live
+2. **Load the schema of record** — `infra/schema.sql`, a dump of the live
    database. This creates every table, constraint, index, and extension.
 3. **Create the roles and grant privileges** — `001-create-application-roles.sql`.
 4. **Add the `pg_hba.conf` rule** for the role, and reload.
@@ -33,7 +33,7 @@ because a role with no privileges is harmless until it is reachable.
 
 | Role            | Holds                                | Used for            |
 |-----------------|--------------------------------------|---------------------|
-| `<runtime>_app` | DML on this database's tables        | the running service |
+| `<runtime>_app` | DML on the 17 modelled tables (below) | the running service |
 | — *(administrator)* | ownership of the schema        | migrations         |
 
 There is no migration role. That is a correction, not an omission, and it is
@@ -69,6 +69,30 @@ Neither capability attribute is granted: the role is `NOSUPERUSER`,
 explicitly rather than inherited from server defaults. The application role owns
 nothing — it is a grant recipient, never an owner.
 
+## Why the table list is named, not `ON ALL TABLES`
+
+The database holds 23 tables. The application models 17. The remaining six are
+`alembic_version` — Alembic's own bookkeeping, needed only by whoever runs a
+migration — and the five tables reserved for features that were never built:
+`hollidays`, `materials`, `preliquidated`, `services`, `uom` (TICKET-018).
+
+The grant names the 17, and the sequences it needs are named too, because two
+sequences in the live database (`materials_material_id_seq`,
+`services_service_id_seq`) belong to reserved tables. `ON ALL TABLES` and `ON
+ALL SEQUENCES` would have handed the running service full write access to all
+six, and the ability to advance two counters it has no use for.
+
+The alternative was considered and rejected: granting `SELECT` on all tables and
+restricting only writes. It is simpler, and it leaves the reserved tables
+readable by a credential that has no reason to read them.
+
+**No privilege on the reserved tables is not a bug that will be fixed when those
+features are built.** When one is built, the table gets a model, and the grant
+list grows by exactly that table, in the same commit as the model. The
+alternative — granting DML on tables the application does not model, in advance —
+is the "allow everything now, restrict later" shape that stays unrestricted,
+because nothing later ever re-audits it.
+
 ## Reachability is enforced by `pg_hba.conf`, not by REVOKE
 
 The application role must not be able to connect to another application's
@@ -98,10 +122,10 @@ The deny-all line must come *after* the allow line — `pg_hba.conf` is
 first-match — and both must sit above any broader rule already present. Reload
 rather than restart so in-flight connections survive.
 
-Step 4 of the SQL file gives the commands to locate the file, append the rule,
-and reload. Do not skip the verification: until a cross-database connection has
-actually been observed to be rejected, the isolation this directory is credited
-with does not exist yet.
+Step 4 of the SQL file gives the commands to locate the file, insert the rule
+above the existing broader lines, and reload. Do not skip the verification: until
+a cross-database connection has actually been observed to be rejected, the
+isolation this directory is credited with does not exist yet.
 
 ## Before running
 

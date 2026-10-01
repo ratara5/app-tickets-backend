@@ -116,11 +116,36 @@ GRANT CONNECT ON DATABASE <database> TO <runtime>_app;
 -- configuration, it applies to every database at once, and it is scoped to one
 -- role.
 --
--- Append to the container's pg_hba.conf, then reload (not restart) the server:
+-- Insert into the container's pg_hba.conf, ABOVE any broader rule already
+-- present, then reload (not restart) the server:
+--
+-- DO NOT APPEND. Placement is the whole rule. `pg_hba.conf` is first-match, and
+-- a shared instance ends with catch-alls such as
+--
+--     host    all    all    0.0.0.0/0    scram-sha-256
+--     host    all    all    ::/0         scram-sha-256
+--
+-- which match before anything appended beneath them. A rule at the bottom of the
+-- file is DEAD: the role stays reachable from every address while this file
+-- claims to have stopped it, and nothing in the running service can tell you.
+-- Check where you are inserting, and put the two lines above the first broader
+-- line. Corrected 2026-09-30; the instruction here previously said "Append",
+-- two lines below prose that said the opposite. The prose was right.
 --
 --   # TYPE     DATABASE     USER               ADDRESS        METHOD
 --   host      <database>   <runtime>_app      <app-cidr>     scram-sha-256
 --   host      all          <runtime>_app      0.0.0.0/0      reject
+--
+-- <app-cidr> is deliberately left as a placeholder and cannot be resolved by
+-- whoever writes this file. The address in the allow line is the one the SERVER
+-- sees, which is not always the one the client used: Docker re-originates a
+-- host-initiated connection to the bridge gateway, so on the measured instance
+-- `127.0.0.1:5435` arrives as `172.19.0.1/32`. An allow line written for
+-- `127.0.0.1/32` therefore never matches, and the symptom is a rejection with a
+-- correct role and a correct password. Read the real subnet from the deployment
+-- network after it is created. Do not hardcode a plausible-looking guess either:
+-- on a host with many bridges most subnets are already allocated to a tenant,
+-- and an overlapping one produces routing that depends on start order.
 --
 -- Check first, and reload rather than restart so in-flight connections survive:
 --
@@ -165,8 +190,61 @@ ALTER DEFAULT PRIVILEGES FOR ROLE <admin> IN SCHEMA public
 -- Existing objects are not covered by ALTER DEFAULT PRIVILEGES, so the grants
 -- have to be applied to what is already there. This is why the roles are
 -- provisioned AFTER the schema of record is loaded.
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO <runtime>_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO <runtime>_app;
+--
+-- The table list is NAMED, not `ON ALL TABLES`, and that is the whole point of
+-- this section. The database holds 23 tables and the application models 17.
+-- The other six are `alembic_version` (Alembic's own bookkeeping, needed only
+-- by whoever runs a migration) and the five tables reserved for features that
+-- were never built — hollidays, materials, preliquidated, services, uom
+-- (TICKET-018). The application reads and writes none of them, and a service
+-- credential that can INSERT, UPDATE or DELETE them is a credential that can
+-- corrupt them after a compromise.
+--
+-- `ON ALL TABLES` was measurably looser: it handed the running service full
+-- write access to all six. It was replaced on 2026-09-30 after reading the
+-- code — `get_holidays` resolves dates from the `holidays` *Python package*,
+-- not the `hollidays` table, and no module under app/ names uom, materials,
+-- preliquidated or services at all.
+--
+-- Withholding SELECT on `uom` does NOT weaken `spares.unit` referential
+-- integrity, which was the obvious risk and the reason to check rather than
+-- assume. PostgreSQL's referential-integrity triggers run as the constraint
+-- owner, not as the inserting role, so the application role needs no privilege
+-- on the referenced table. Verified on a scratch database built from
+-- infra/schema.sql with exactly these grants: INSERT into spares with a valid
+-- unit succeeds, and INSERT with a non-existent unit still fails with
+-- `violates foreign key constraint "spares_unit_fkey"`.
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+    adticketswkd,
+    cancellations,
+    equipments,
+    fsm_users,
+    labsdls,
+    maintenances,
+    maintenances_spares,
+    maintenances_technicians,
+    markets,
+    pauses,
+    photos,
+    spares,
+    technicians,
+    tickets,
+    token_blacklist,
+    uploads_sessions,
+    worksheets
+TO <runtime>_app;
+
+-- Sequences are named for the same reason. Two sequences in the live database
+-- belong to reserved tables (materials_material_id_seq,
+-- services_service_id_seq) and `ON ALL SEQUENCES` would have let the service
+-- advance them. Without USAGE on the three that matter, every serial insert
+-- fails at runtime — verified, not assumed: this is what a role with table DML
+-- and no sequence grant does.
+GRANT USAGE, SELECT ON SEQUENCE
+    fsm_users_user_id_seq,
+    labsdls_labsdl_id_seq,
+    spares_spare_id_seq
+TO <runtime>_app;
 
 -- TRUNCATE, REFERENCES and TRIGGER are each a way to damage data or schema
 -- while holding only table-level grants, and are deliberately absent.
@@ -192,6 +270,17 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO <runtime>_app;
 --   DROP TABLE IF EXISTS public.<any-existing-table>;
 --   ALTER TABLE public.<any-existing-table> ADD COLUMN should_fail int;
 --   CREATE INDEX should_fail ON public.<any-existing-table> (unit);
+--
+--   -- These must all fail too. The role was never granted them, and a service
+--   -- credential that can write the reserved tables can corrupt the data that
+--   -- a future feature will be built on.
+--   SELECT * FROM public.uom;              -- referenced by spares.unit, no SELECT needed
+--   SELECT * FROM public.hollidays;         -- the app uses the `holidays` package, not this
+--   SELECT * FROM public.materials;
+--   SELECT * FROM public.preliquidated;
+--   SELECT * FROM public.services;
+--   SELECT * FROM public.alembic_version;   -- Alembic's bookkeeping, not the app's
+--   SELECT nextval('materials_material_id_seq');
 --
 --   -- The next two must succeed.
 --   SELECT count(*) FROM public.<any-existing-table>;
