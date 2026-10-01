@@ -51,18 +51,21 @@ services:
     # container was unreachable from the host despite starting normally.
     ports:
       - "127.0.0.1:8000:8000"
-    # Single source of truth for configuration. There is deliberately no
-    # `environment:` block for the database or MinIO: `environment:` outranks
-    # `env_file:`, so an unset `${POSTGRES_GCI_*}` there silently overrode the
-    # correct DB_HOST from .env with an empty string, and the API started with no
-    # database host at all.
+    # Single source of truth for configuration: `env_file` supplies everything,
+    # and `environment:` below states only the values that MUST differ inside a
+    # container. `environment:` outranks `env_file:`, so an unset
+    # `${POSTGRES_GCI_*}` here once overrode the correct DB_HOST from .env with
+    # an empty string and the API started with no database host at all. Each key
+    # below is therefore a literal, never an unexpanded variable.
     env_file:
       - ../../.env
     environment:
       # Container name resolution works only inside a docker network.
       # This is the same value the ETL uses with `docker exec`.
-      DB_HOST: postgres-gci # Overwrites the .env value
-      DB_PORT: "5432" # Overwrites the .env value
+      # These two override .env on purpose: inside a container, the container
+      # name is resolvable and 127.0.0.1 is the container itself.
+      DB_HOST: postgres-gci
+      DB_PORT: "5432"
       TEMPLATES_DIR: /srv/app/templates/reports
       CHUNK_DIR: /tmp/upload_chunks
       # ------------------------------------------------------------
@@ -83,7 +86,11 @@ services:
       MINIO_ENDPOINT: minio-acme
       MINIO_PORT: "9000"
       MINIO_SECURE: "false"
-      MINIO_PUBLIC_ENDPOINT: ${MEDIA_DOMAIN:?set MEDIA_DOMAIN in .env} # For infra MINIO_PUBLIC_ENDPOINT=minio-acme in .env / For local without containers MINIO_PUBLIC_ENDPOINT=127.0.0.1?
+      # MEDIA_DOMAIN, never a container name or a LAN address: this value is signed
+      # into every presigned URL, and Caddy is the only public listener for that
+      # host. It is `:?`-guarded so a missing value fails at compose time with a
+      # readable message instead of producing URLs that 404 at request time.
+      MINIO_PUBLIC_ENDPOINT: ${MEDIA_DOMAIN:?set MEDIA_DOMAIN in .env}
       MINIO_PUBLIC_PORT: "443"
       MINIO_PUBLIC_SECURE: "true"
     # Chunked uploads stage on local disk before reaching MinIO.
