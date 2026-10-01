@@ -116,7 +116,7 @@ not equivalent:
   `MINIO_DEFAULT_BUCKET=acme-uploads-own-api`
 - **the new empty bucket is wanted** — nothing to migrate, but every photo
   referenced by an existing `photos` row is then a dead link that needs clearing
-  or re-uploading <<<==== THIS OPTION WAS SELECTED!! 
+  or re-uploading. **This option was selected on 2026-09-30.**
 
 Check with `mc ls local/<bucket> --recursive | wc -l`, never with a bucket
 existence test: an empty bucket satisfies every check the API makes.
