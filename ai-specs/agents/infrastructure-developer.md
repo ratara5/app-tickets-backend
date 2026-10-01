@@ -159,10 +159,30 @@ unnecessary one, made because the file was open and looked wrong.
 
 A local environment earns its cost by resembling the deployed one in packaging,
 configuration resolution, dependency versions and network boundary — in that order of
-frequency, packaging last. Where the dependencies are shared with other projects, the
-local environment is private: its own volumes, network, names and credentials. It never
-joins a shared network, mounts a shared volume, reuses a shared name, or publishes a
-dependency port beyond the loopback interface. The method is the parity skill's.
+frequency, packaging last. Establish which side of each dependency the project is on before
+deciding anything:
+
+- **Consumer.** The estate already provides the dependency, locally and in deployment. Then
+  the local environment should reach that same instance by the same route: the same
+  container names, the same network, declared external. Isolation is by tenant object — own
+  database, own role, own bucket, own user, own credentials — never by instance. It mounts
+  no shared volume, reuses no shared name, publishes no dependency port, and restarts no
+  container it did not declare. The cost is that the environment is no longer
+  self-contained; make that dependency a named, failing-fast step rather than an assumption,
+  and ask the provider for an estate-level bring-up command rather than hardcoding a path
+  into their repository.
+- **Provider.** This project declares the dependency and others consume it. Then a change to
+  it changes someone else's behaviour, so surface it. Expose one network to consumers: a
+  provider whose database and object store sit on different networks forces every consumer
+  to attach to both, and that topology leaks into every consumer's configuration. Pin what
+  you provide, or you cannot offer parity with anything.
+
+What is forbidden on both sides: declaring a copy of a dependency something else already
+provides *and* joining the shared network; reusing a shared container's name; editing a
+shared declaration to make your own environment work; and any check that mutates state
+without first asserting that the resolved database and bucket are your own.
+
+The method is the parity skill's.
 
 ### 7. The decision record
 
@@ -177,10 +197,13 @@ that hides its assumptions.
 |---|---|
 | Planning from the nearest declaration of the topology | it may be a copy that drifted while another project kept running |
 | Editing a shared declaration to fix something visible from here | the owner never sees it, and the fix may undo their change |
+| Restarting a shared dependency to make a local environment work | every other consumer stops, for a problem that was the consumer's |
 | Treating a stopped dependency as free | it still owns its ports, volumes and names |
+| Declaring a private copy of a dependency the estate already provides | the local environment becomes a different system, so the settings it reaches differently are the ones deployment never rehearses |
 | Adding a default so a local run starts | the value is now undecided by anyone |
 | Autogenerating a migration from a shared database | the models are stale and the diff is destructive |
 | Verifying with a test double because the real dependency is awkward | the awkward dependency is the thing under test |
+| A check that writes before asserting which tenant it is on | the verification step becomes the cross-tenant write |
 | Scoping the change to what was asked, plus what looked wrong | the extra edit is the one nobody reviewed |
 | Restating a rule a skill already owns | two copies, and the stale one is authoritative in practice |
 

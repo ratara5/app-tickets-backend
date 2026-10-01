@@ -215,6 +215,36 @@ search the engine, believe the engine, and record what was searched so that a
 confirmed absence is distinguishable from an unfinished search. Project documents
 record their own findings; the doctrine stays in the skill.
 
+### Consumer and provider are different sides, not different kinds of project
+
+The first version of the shared-dependency doctrine said a local environment must
+never join a shared network, and every consumer followed it into a private stack
+of its own. That was wrong in the direction that matters most: it produced a
+*second topology*, so the local run exercised settings that deployment never would.
+The doctrine now distinguishes the two sides of a dependency and states the rules for
+each.
+
+- A **consumer** — the estate already provides the dependency, locally and in
+  deployment — reaches that same instance locally, by the same names on the same
+  network, declared external. Isolation is by tenant object: own database, own role,
+  own bucket, own credentials. It never declares a competing copy, never reuses a
+  shared name or volume, never restarts a container it did not declare, and never
+  edits a shared declaration to make its own work.
+- A **provider** changes something other projects depend on, so it surfaces the
+  change, pins what it provides, and offers an estate-level bring-up rather than
+  making every consumer hardcode a path into its repository.
+
+The ambiguity that is genuinely forbidden is declaring a copy *and* joining the shared
+network: two things answering to one name, resolved by whichever network wins the
+lookup. That is what the original rule was reaching for, and stating it that way keeps
+the protection without forbidding the consumer's legitimate join.
+
+Two lessons for the harness. A rule that reads as a prohibition needs its scope stated
+before its strength, because a prohibition with no scope gets applied to the case it
+was not written for. And the harness's own estate — this project, and the skills that
+project consumes — is subject to the doctrine it writes; a skill that names a rule no
+project in the estate would be able to follow is describing a wish, not a practice.
+
 ## 7. Quality gates, and the one command that matters
 
 `Makefile` is the executable form of `ai-specs/skills/defining-project-quality-gates`.
