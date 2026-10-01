@@ -11,6 +11,7 @@
 - **Review date**: **2026-12-27** (90 days from filing). If no decision is recorded by then, this escalates rather than lapsing.
 - **Decision options**: build the feature, redesign the table, or drop it after backup and approval
 - **Decision**: **Keep all five for future features** (ratara5, 2026-09-27). None is to be dropped, and none is to be modelled until its feature is actually built. The consequence is that Alembic must be told to skip them, which is now implemented — see "What was done instead" below.
+- **Second decision, 2026-09-30**: of the three ways to close the last open acceptance criterion, **file one ticket per table** (criterion 3) rather than redesigning `uom`'s primary key or renaming `hollidays`. The latter two are schema changes belonging to the features that will justify them; `TICKET-029` and `TICKET-025` record them with their costs enumerated so the choice is available later without re-deriving it. **This ticket is closed.**
 
 ## Description
 
@@ -142,18 +143,30 @@ is a trap.
       typo'd row is confirmed as intended or dropped. Until then `uom` is known to be
       inconsistent. Keeping the table does not fix its contents, and this is tracked
       with the loader defect in `TICKET-020`.
-- [ ] Each of the five gets a ticket of its own for the feature it is reserved for,
-      and this ticket then closes. Not yet filed.
+- [x] Each of the five gets a ticket of its own for the feature it is reserved for.
+      Filed 2026-09-30: `TICKET-025` (`hollidays`), `TICKET-026` (`materials`),
+      `TICKET-027` (`preliquidated`), `TICKET-028` (`services`), `TICKET-029`
+      (`uom`). Filenames and findings only — no model, no migration, no change to
+      the live database, and no `DROP`.
 - [x] The exclusion is enforced where it matters, not only recorded. `app/models/reserved.py`
       declares the five by name and supplies Alembic's `include_object` hook, wired
       into both the offline and the online path in `alembic/env.py`. Verified against
       a disposable database built from `deploy/schema.sql`: 5 `remove_table` before
       the hook, 0 after. `tests/test_alembic_env.py` guards the list against the dump
       and the imports against `app/models/`.
-- [ ] If `hollidays` is renamed, the misspelling is fixed in the live database, in
+- [~] If `hollidays` is renamed, the misspelling is fixed in the live database, in
       a migration, in `deploy/schema.sql` (by regeneration), in this ticket and in
       `app/models/reserved.py`, in one change. Until then the exclusion list must
       keep the double L, or autogenerate would stop protecting the real table.
+
+      **Not chosen on 2026-09-30, deferred rather than closed.** The second
+      sentence is the requirement in force today and it holds:
+      `app/models/reserved.py` keeps the double L, and
+      `tests/test_alembic_env.py` guards the list against the dump, so a
+      misspelling introduced there would fail a test rather than silently stop
+      protecting the table. The rename is tracked in `TICKET-025` with the
+      feature that would justify it — which is also the feature most likely to
+      decide the table is dropped instead, which would make the rename moot.
 
 ## Notes
 
@@ -165,7 +178,7 @@ is a trap.
   modelled table missing from the script), `TICKET-019` (the models are stale
   against the live database, which is why regeneration is blocked).
 
-## Partially resolved 2026-09-30
+## Resolved and closed 2026-09-30
 
 The decision this ticket records — keep the five tables, exclude them from
 Alembic's metadata — is implemented and holding. `app/models/reserved.py` names
@@ -189,7 +202,7 @@ report changes it could not act on, because there is no `uom` model to compare
 them against. `include_object` now returns False for any foreign key whose target
 is a reserved table.
 
-### Still open, and why
+### Deferred, not fixed, and now carried by TICKET-029
 
 **One row per unit.** `uom.unit` is the primary key, so a unit can hold exactly
 one reference unit and one factor. That is enough for today's data — a base unit
@@ -203,7 +216,50 @@ This was found while repairing TICKET-024, and it is why the repair used a
 self-ratio of `1.00` rather than the more interesting constant. Expressing both
 needs a composite primary key on `(unit, ref_unit)`, which is a schema change
 that alters what a `uom` row means and is a decision for whoever builds the unit
-management feature — not a drift fix, and not taken unilaterally.
+  management feature — not a drift fix, and not taken unilaterally.
 
-**Per-table tickets and the `hollidays` rename.** Unchanged. Neither blocks
-anything today, and both belong with the features that will justify them.
+Still true, and deliberately not acted on: the `uom` redesign was one of the
+three options weighed on 2026-09-30 and was not chosen. It is now `TICKET-029`.
+That ticket verified the obvious answer on a disposable database and found it
+does not work: a composite primary key on `(unit, ref_unit)` **breaks**
+`spares_unit_fkey`, because a foreign key must target a `UNIQUE` or `PRIMARY KEY`
+column set and a composite key does not make `unit` unique. The shape that does
+work is a split into `uom_units` + `uom_conversions`, also verified, which leaves
+`spares` untouched and needs no data migration for its 575 rows. Both results are
+recorded there so the feature does not have to re-derive them.
+
+
+### Closed here: the per-table tickets
+
+**Per-table tickets and the `hollidays` rename.** The five tickets are now filed,
+so this ticket's remaining acceptance criteria are met and it closes. What each
+one records, briefly, because the findings were worth more than the filing:
+
+- `TICKET-025` (`hollidays`): the application **already has** holiday support and
+  does not use this table — `get_holidays` in `app/core/utils/dates.py` resolves
+  from the `holidays` Python package, which handles per-country and movable
+  holidays that a single `title` column keyed by `date` cannot. The honest
+  expectation when the feature is written is that the table is dropped, not
+  modelled.
+- `TICKET-026` (`materials`) and `TICKET-028` (`services`): column for column
+  these are one unfinished design. Both carry a `ticket_id` with **no foreign
+  key** while `maintenance_id` is properly constrained, and both declare `qty`
+  and `price` as bare nullable `numeric` — the same money-scale trap as
+  `TICKET-021`. The one-ticket-per-table split is a filing convenience, not a
+  description of the work.
+- `TICKET-027` (`preliquidated`): a marker table whose only problem is that
+  "pre-liquidated" is defined nowhere. Structurally the soundest of the five —
+  its primary key is a real enforced foreign key into a modelled table.
+- `TICKET-029` (`uom`): the single-relationship limitation, with the concrete
+  blocked case recorded — `lb → kg` cannot be expressed because `lb`'s row is
+  consumed by the self-ratio that `cilindro` and `medio cilindro` require. It
+  also records a correction worth having made before the feature is written: the
+  obvious fix, a composite primary key on `(unit, ref_unit)`, **breaks**
+  `spares_unit_fkey`, verified on a disposable database. The split into
+  `uom_units` + `uom_conversions` is the shape that works, and it leaves `spares`
+  alone.
+
+**The `hollidays` rename was not chosen.** It remains open, tracked as
+criterion 6 above, and still belongs with the feature that would justify it —
+renaming a table for a spelling, while no feature uses it, changes the exclusion
+list that is currently the only thing protecting it.
