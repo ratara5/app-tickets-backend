@@ -1,0 +1,43 @@
+# OpenSpec workflows this repository depends on.
+#
+# WHY THIS FILE EXISTS
+#
+# The OpenSpec CLI decides which commands and skills to write from a
+# *machine-global* config file, not from anything in this repository:
+#
+#   ~/.config/openspec/config.json  ->  "workflows": [...]
+#
+# The tool's default profile lists five workflows (propose, explore, apply, sync,
+# archive). docs/base-standards.md §6 instructs agents to run `opsx:continue` and
+# `opsx:ff` when a change needs artifact regeneration, and the
+# `adversarial-review` workflow depends on `opsx-verify` existing before
+# archiving. None of those three were emitted, so the standards named commands
+# that did not exist on the committed surface.
+#
+# The failure is invisible in review: the documents are well-formed and the
+# command folder looks normal. It only surfaces when an agent follows the
+# standards and finds no such command.
+#
+# REPRODUCING THE COMMAND SURFACE ON A NEW MACHINE
+#
+#   1. Add the workflow names below to `workflows` in
+#      ~/.config/openspec/config.json (and set "profile": "custom").
+#   2. Run:  openspec update --force
+#   3. Verify:  ls .opencode/commands/  and  ls .opencode/skills/
+#
+# Step 1 is not optional. Running `openspec update --force` without it does not
+# fail; it silently rewrites .opencode/ to the five default workflows and deletes
+# the rest, leaving the standards pointing at commands that no longer exist.
+#
+# tests/test_harness_integrity.py asserts that every command referenced in the
+# standards is both installed and recorded here, so drift fails the build instead
+# of an agent session.
+
+propose
+explore
+apply
+sync
+archive
+continue
+ff
+verify
