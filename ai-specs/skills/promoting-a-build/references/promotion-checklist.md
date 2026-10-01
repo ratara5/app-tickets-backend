@@ -1,0 +1,118 @@
+# Promotion Checklist — a release, stage by stage
+
+One page per release. Every line is either answered with a value or explicitly
+marked not applicable. A blank is a question, not a pass.
+
+## Before anything is built
+
+- [ ] The working tree is clean, and the revision to release is committed.
+- [ ] The revision under review is the revision being built. Not a branch tip that
+      moved after review, not a merge that landed afterwards.
+- [ ] The change has an OpenSpec change that is ready to apply, and the tasks being
+      implemented are the ones in it. (A code-only fix during the apply→archive
+      window breaks `docs/base-standards.md` §6.)
+
+## Build
+
+- [ ] The artifact is built once, from the committed revision.
+- [ ] Dependencies are pinned, not resolved at build time. An unpinned build is a
+      different artifact tomorrow.
+- [ ] The base image is pinned by digest, or by an immutable tag. A moving base tag
+      makes the build non-reproducible for reasons that have nothing to do with this
+      repository.
+- [ ] The image is tagged with the commit SHA. Not `latest`, not a branch name.
+- [ ] The image is pushed, and the digest is recorded here.
+
+**Digest:** `sha256:________________________________`
+**Commit:** `________________________________________`
+
+## Adapter table — identifying and pinning an artifact
+
+The doctrine above is tool-independent. Read the row you need.
+
+| Concern | OCI registry (any runtime) | Compose on a single host | Kubernetes | PaaS / managed platform |
+|---|---|---|---|---|
+| Build once | `docker buildx build --push` | same; the build is not the deploy's job | CI builds and pushes | platform builds from the repo |
+| Immutable identity | registry digest (`sha256:…`) | registry digest | image digest in the manifest | deployment revision + image digest |
+| Tag with the source revision | `service:<sha>` | same | same | platform's own tagging |
+| Deploy that exact artifact | `image: repo@sha256:…` | `image: repo@sha256:…` | pin the digest in the manifest | deploy the digest, not the tag |
+| What is running now | `docker inspect` / `crictl inspect` | `docker inspect` | `kubectl get pod -o jsonpath` | platform dashboard |
+| Rollback | redeploy the previous digest | redeploy the previous digest | redeploy the previous digest | redeploy the previous revision |
+| Schema change | one-shot job before the new code starts | one-shot job in the same compose file | a Job, or a pre-upgrade hook | release phase / migration step |
+
+**The row that decides everything else** is "Deploy that exact artifact". A deploy
+layer that re-resolves a tag is not promoting an artifact, and every other row
+becomes advisory.
+
+## Pre-prod check (production settings, not production)
+
+- [ ] The **exact image** is run locally with production settings. Not a rebuild.
+- [ ] It starts as the intended non-root user, with no development tooling present.
+- [ ] Health and readiness endpoints both pass — and they are *different* checks
+      (see `verifying-a-deployment`).
+- [ ] A functional check passes: a real request that touches the real dependencies.
+      A health endpoint that returns 200 while the database is unreachable proves
+      the process is alive, not that it works.
+- [ ] Migrations apply cleanly to a **copy of the previous schema**, and applying
+      them twice is a no-op.
+- [ ] The previous artifact's version of the application can still run against the
+      migrated schema. This is the expand/contract check, and it is the one that
+      makes rollback possible.
+- [ ] Structured logs are emitted on stdout, and the fields needed to correlate a
+      request are present.
+
+## Staging
+
+- [ ] Staging runs the **same digest** as pre-prod. Verify it, do not assume it.
+- [ ] Data is an anonymized snapshot or structurally identical generated data. No
+      real personal data, and no production credentials that can reach production.
+- [ ] The end-to-end suite passes against staging.
+- [ ] A rollback rehearsal was performed: the previous digest was redeployed and the
+      gates re-run.
+- [ ] A human approved the promotion. This gate is not automatable on purpose.
+
+## Production
+
+- [ ] The deploy references the digest recorded above, not a tag.
+- [ ] After the deploy, the digest actually running was read back and compared.
+- [ ] Health and readiness are green from inside the deployment and from the public
+      entry point.
+- [ ] Monitoring is clean: error rate, latency, and saturation are at or better
+      than before the release.
+- [ ] The previous digest is still present in the registry and still deployable.
+- [ ] A functional check passed against the production deployment — the one that
+      exercises the real dependencies, not just liveness.
+
+## Schema changes
+
+- [ ] Every change is additive, or the release is not reversible.
+- [ ] New columns are nullable or defaulted before anything requires them.
+- [ ] Backfill runs as its own step, and is restartable.
+- [ ] Nothing was dropped or narrowed in the same release that stopped using it.
+- [ ] Migrations ran as a one-shot job built from the same source as the
+      application, before the new code served traffic.
+
+## After the release
+
+- [ ] The release notes record: commit, digest, gates run, gate output, and who
+      approved.
+- [ ] Anything surprising is written down while it is still accurate — in the
+      project's learned-lessons or post-mortem file, not in a chat that scrolls
+      away.
+- [ ] The rollback command is written down, tested to be correct, and reachable
+      without reconstructing it under pressure.
+
+## Stop conditions
+
+Stop and roll back rather than continuing, when any of these is true:
+
+- Health or readiness fails after the deploy, and does not recover on its own
+  within the restart budget.
+- The error rate or latency exceeds the threshold you set *before* the release.
+- A functional check fails, even though the service is up.
+- The running digest is not the digest you intended to promote. This one is
+  especially worth stopping for: it means the deploy promoted something else, and
+  the thing running is unverified.
+- A migration failed or applied partially.
+
+A release that is failing is cheaper to roll back than to diagnose in production.

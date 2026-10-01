@@ -1,0 +1,117 @@
+# Artifact Identity — proving what is actually running
+
+The discipline in the main skill rests on one claim: *a digest cannot change under
+you, a tag can.* This file states what that means in practice, how to prove it, and
+where the assumption breaks.
+
+## Tag versus digest
+
+| | Tag | Digest |
+|---|---|---|
+| Is | a mutable label pointing at a manifest | the content hash of the manifest |
+| Can be re-pointed | yes, by anyone with push access | no |
+| Stays valid after a re-push | no | yes |
+| Usable for rollback | no | yes |
+| Human-readable | yes | no |
+
+A deploy that pins a tag has made a promise it cannot keep. The tag resolved
+correctly at deploy time; it may resolve differently tomorrow, and a rollback
+pointed at it will silently get the newer artifact.
+
+## Reading a digest back
+
+```bash
+# What digest does this tag currently resolve to
+docker inspect --format='{{index .RepoDigests 0}}' <registry>/<service>:<tag>
+# <registry>/<service>@sha256:...
+
+# What is a running container actually executing
+docker inspect --format='{{.Image}}' <running-container>
+docker inspect --format='{{.Config.Image}}' <running-container>
+```
+
+Two different values, and the difference matters:
+
+- `.Config.Image` is **what was requested** — the tag or digest in the deploy file.
+- `.Image` is the **local image id** on that host. It is content-addressed, but it
+  is *this host's* id for the content, not the registry's manifest digest.
+
+So `.Image` answers "is the running container the image I think it is, on this
+host?" and the registry digest answers "is that content what I pushed
+everywhere?". The promotion check needs the second one, because a rollback and a
+second environment are both compared against the registry.
+
+Comparing local image ids across two hosts is a mistake: the same content can have
+different local ids, so two hosts can be running identical content and an
+id-to-id comparison will report a difference that is not one.
+
+## Pinning by digest, per deploy layer
+
+```yaml
+# Compose
+services:
+  api:
+    image: <registry>/<service>@sha256:<digest>   # not :<tag>
+```
+
+A digest-pinned `image:` is the whole mechanism. A `build:` section next to it means
+the host rebuilds and the pin is decorative — see "Rebuilding on the target host"
+in the main skill.
+
+In Kubernetes, the pin goes in the image reference in the manifest or the Helm
+values; GitOps controllers that resolve `:latest` are silently non-deterministic
+unless told otherwise.
+
+## Signing, optionally
+
+Image signing exists so a consumer can verify *who produced* an artifact, not
+whether it is the artifact you expected. It is a second, independent claim and it
+is worth adding when the registry is shared with other teams and a compromised
+push credential is a real concern.
+
+It is not a substitute for pinning. A signed `:latest` is still a moving target.
+Pin the digest first; sign second, if the threat model justifies it.
+
+## Retention: the setting that destroys rollback
+
+A registry that keeps only the last few images removes the artifacts that rollback
+needs. This is usually configured as a cost optimisation, and it is discovered
+during an incident.
+
+| Policy | Rollback reach | Note |
+|---|---|---|
+| Keep last 1 | none | this is not a rollback policy |
+| Keep last 5 | one bad release | often enough, sometimes not |
+| Keep 7–14 days | a release cycle | a reasonable floor |
+| Keep by tag, never prune | everything | grows without bound |
+
+**Whatever the policy, verify that the digest you would roll back to is still
+pullable** — before you need it, not during. A rollback that fails because the
+image was pruned is an outage extended by the time it takes to rebuild, and
+rebuilding under pressure is exactly when the reproducibility problems in the main
+skill surface.
+
+An untagged artifact is still pullable by digest as long as the registry has not
+garbage-collected it, which is why "delete the tag" is not the same as "make it
+unavailable" — and also why a pruned tag can be harmless.
+
+## Adapter table — reading identity per deploy layer
+
+| Concern | Docker / Compose | Kubernetes | GitOps (Argo CD, Flux) | PaaS |
+|---|---|---|---|---|
+| Deployed digest | `docker inspect` on the container | `kubectl get pod -o jsonpath='{.status.containerStatuses[*].imageID}'` | the synced revision's manifest | platform dashboard / release metadata |
+| Pinned in | `image: repo@sha256:…` | image reference in the manifest | the Git commit holding that reference | the release's image digest |
+| Rollback | redeploy previous digest | redeploy previous manifest | `git revert` the manifest change | redeploy previous release |
+| Drift detection | compare digests manually | the controller reports drift | the controller reconciles and reports it | platform-dependent |
+| Trap | a `build:` section defeats the pin | an image with a moving tag defeats the pin | a controller that re-resolves tags | a "latest release" deploy defeats the pin |
+
+Every row in the last column is the same failure wearing different clothes: the
+deploy resolved a name instead of a digest.
+
+## The question to ask at any deploy
+
+> Which artifact is this, and can I prove it?
+
+If the answer names a tag, it is not an answer. If the answer is a digest that was
+recorded before the deploy and compared after, the release is promotable and
+reversible. Anything else is a rebuild wearing a tag.
