@@ -1,6 +1,6 @@
 ---
 name: code-auditing
-description: Task-focused project skill.
+description: Use when a codebase or a subsystem needs a systematic quality, security or maintainability review, when dead code or duplicated logic must be identified across many files, when a dependency or custom implementation is suspected of being replaceable, or when a pre-release review must cover more than the files in the current diff. States triggering conditions; the audit phases are in the body.
 version: 1.0.0
 ---
 # Code Auditing Skill
