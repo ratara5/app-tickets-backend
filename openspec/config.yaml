@@ -91,15 +91,23 @@ ai_specs_structure: |
   │   ├── adversarial-review/
   │   ├── code-auditing/
   │   ├── commit/
+  │   ├── defining-project-quality-gates/   ← Local and CI gate tiers (canonical, cross-project)
   │   ├── deploying-backend-vps/     ← Shared VPS deployment doctrine (canonical, cross-project)
+  │   ├── dev-environment-parity/    ← Local vs deployed parity (canonical, cross-project)
   │   ├── enrich-us/
   │   ├── explain/
   │   ├── meta-prompt/
+  │   ├── observability-and-slo/     ← Logging, health, metrics, SLO, alerts (canonical, cross-project)
+  │   ├── promoting-a-build/         ← Build once, promote the same artifact (canonical, cross-project)
   │   ├── show-spec-working/
   │   ├── sync-agent-symlinks/
+  │   ├── triaging-spec-debt/        ← Backlog disposition and WIP ceiling (canonical, cross-project)
   │   ├── update-docs/
   │   ├── using-git-worktrees/
+  │   ├── verifying-a-deployment/    ← Layered release gates (canonical, cross-project)
   │   └── writing-skills/
+  ├── scripts/                       ← Executable helpers invoked by skills and agents
+  │   └── code_review.sh
   ├── harness-ia.md                  ← The harness map: canonical vs pointer, read order
   └── specboot-instructions.md       ← Symlink to ../README.md, deliberately: the README is the entry point
 
