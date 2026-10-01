@@ -2,7 +2,7 @@
 -- GENERATED FILE - DO NOT EDIT BY HAND
 -- ============================================================================
 --
---   Artifact : deploy/schema.sql
+--   Artifact : infra/schema.sql
 --   Kind     : schema-only, no data. This is a *derived* artifact.
 --   Source   : live database "db_gestiket_acme" on the shared instance
 --   Image    : infrastructure-companies-postgres-gci
@@ -64,19 +64,19 @@
 --       --no-owner --no-privileges -d db_gestiket_acme > /tmp/schema-body.sql
 --
 --   # 2. Find the last rule of the header: everything before the pg_dump preamble.
---   BODY=$(grep -n '^-- PostgreSQL database dump' deploy/schema.sql | head -1 | cut -d: -f1)
---   HDR=$(grep -n '^-- =\{20,\}$' deploy/schema.sql | awk -F: -v b="$BODY" '$1<b {n=$1} END{print n}')
+--   BODY=$(grep -n '^-- PostgreSQL database dump' infra/schema.sql | head -1 | cut -d: -f1)
+--   HDR=$(grep -n '^-- =\{20,\}$' infra/schema.sql | awk -F: -v b="$BODY" '$1<b {n=$1} END{print n}')
 --
 --   # 3. Rebuild: header, one blank line, then the new body.
---   { sed -n "1,${HDR}p" deploy/schema.sql; echo; cat /tmp/schema-body.sql; } \
+--   { sed -n "1,${HDR}p" infra/schema.sql; echo; cat /tmp/schema-body.sql; } \
 --       > /tmp/schema.sql
 --   sed -i 's/^--   Repo sha : .*/--   Repo sha : <sha>/'  /tmp/schema.sql
 --   sed -i 's/^--   Dumped   : .*/--   Dumped   : <YYYY-MM-DD>/' /tmp/schema.sql
 --
 --   # 4. Review every changed line before committing.
---   diff <(grep -v '^\\\(un\)\?restrict' deploy/schema.sql) \
+--   diff <(grep -v '^\\\(un\)\?restrict' infra/schema.sql) \
 --        <(grep -v '^\\\(un\)\?restrict' /tmp/schema.sql)
---   mv /tmp/schema.sql deploy/schema.sql
+--   mv /tmp/schema.sql infra/schema.sql
 --
 --   The body should change only where the migration changed something. `pg_dump`
 --   emits a fresh random `\restrict` token on every run, which is why step 4

@@ -4,7 +4,7 @@
 disagree with the database: `conftest.py` builds the test schema with
 `Base.metadata.create_all`, so the tests agree with the models by construction.
 TICKET-019 measured that disagreement with `alembic check` against a database
-built from `deploy/schema.sql` and found roughly sixty operations, of which the
+built from `infra/schema.sql` and found roughly sixty operations, of which the
 largest groups were audit columns that the model typed as naive `DateTime` and
 declared `NOT NULL` while live stores `timestamptz` and allows NULL.
 

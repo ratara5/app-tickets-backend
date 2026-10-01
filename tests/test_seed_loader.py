@@ -3,7 +3,7 @@
 These are static checks. They do not need a database, so they run in CI. The
 behavioural proof (a self-referencing table loads in any row order, a dangling
 reference is rejected, the schema of record is left untouched) was established
-against a disposable database built from deploy/schema.sql; what is asserted
+against a disposable database built from infra/schema.sql; what is asserted
 here is that the properties which made that proof possible cannot be removed
 without a test failing.
 """
@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 SEED_SCRIPT = Path(__file__).resolve().parents[1] / "etl" / "seed_db.sh"
-SCHEMA_SQL = Path(__file__).resolve().parents[1] / "deploy" / "schema.sql"
+SCHEMA_SQL = Path(__file__).resolve().parents[1] / "infra" / "schema.sql"
 
 # Only line-leading comments are stripped. Inline '#' cannot be removed safely:
 # the script uses ${#array[@]} and ${var#prefix} inside quoted strings.

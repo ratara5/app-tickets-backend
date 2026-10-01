@@ -7,7 +7,7 @@
 #   ./bootstrap.sh \
 #     --project-root ~/Documents/python_scripts/app-tickets-backend \
 #     --compose-file docker-compose.yml \
-#     --init-file deploy/schema.sql \
+#     --init-file infra/schema.sql \
 # ========================================
 set -euo pipefail
 
@@ -21,7 +21,7 @@ usage() {
     echo ""
     echo "  --project-root  Project root path (mandatory)"
     echo "  --compose-file  Compose file name (default: docker-compose.yml)"
-    echo "  --init-file     Schema script (default: deploy/schema.sql)"
+    echo "  --init-file     Schema script (default: infra/schema.sql)"
     exit 1
 }
 
@@ -38,7 +38,7 @@ done
 
 # ── Derivated variables ───────────────────────────────────────
 COMPOSE_FILE="${PROJECT_ROOT}/${COMPOSE_FILE_ARG:-docker-compose.yml}"
-INIT_SQL="${PROJECT_ROOT}/${INIT_FILE_ARG:-deploy/schema.sql}" # /templates/gci/
+INIT_SQL="${PROJECT_ROOT}/${INIT_FILE_ARG:-infra/schema.sql}" # /templates/gci/
 ETL_PATH="$PROJECT_ROOT/etl" # BASE_PATH=.../gci-companies/gci-base/bq-sync-base
 
 # ── Variables loaded via env ─────────────────────

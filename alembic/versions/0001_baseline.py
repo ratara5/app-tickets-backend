@@ -12,20 +12,20 @@ schema got here were a record of a path nobody walked, and they could not be run
 two heads, and ids too long to store in the table meant to store them.
 
 So the history is not repaired and not replayed. It is replaced. The live schema
-is the ground truth, it is captured in `deploy/schema.sql`, and this revision
+is the ground truth, it is captured in `infra/schema.sql`, and this revision
 declares that state as the starting point.
 
 How the schema is actually built
 --------------------------------
 New and disposable databases are built from the dump, not from this migration:
 
-    psql -v ON_ERROR_STOP=1 -d <db> < deploy/schema.sql
+    psql -v ON_ERROR_STOP=1 -d <db> < infra/schema.sql
 
 Then bring the database under Alembic's bookkeeping:
 
     alembic stamp head
 
-`deploy/schema.sql` is a `pg_dump --schema-only` of the live database and is
+`infra/schema.sql` is a `pg_dump --schema-only` of the live database and is
 verified to build a working schema on a stock PostgreSQL 16 with only the
 pg_uuidv7 extension added. It is the schema of record, and this revision exists
 only so that later migrations have something to be a descendant of.

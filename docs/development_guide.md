@@ -20,10 +20,10 @@ cd app-tickets-backend
 # 2. Start PostgreSQL (Docker)
 docker compose up -d postgres
 
-# 3. Create the schema from deploy/schema.sql (see docs/deployment-guide.md §2.2)
+# 3. Create the schema from infra/schema.sql (see docs/deployment-guide.md §2.2)
 #    The DATABASE must already exist; this creates the TABLES.
 docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -U postgres \
-    -d db_gestiket_acme < deploy/schema.sql
+    -d db_gestiket_acme < infra/schema.sql
 # Expected: 23 tables. Do NOT build the schema from the models -- they are stale
 # against the live database: alembic check reports 94 pending operations (37 type changes, 52 nullability changes, 2 sequence changes, 3 removals) (TICKET-019).
 
@@ -114,7 +114,7 @@ docker compose ps
 
 ### 3. Initialize Database
 
-Create the schema from [`deploy/schema.sql`](../deploy/schema.sql), a
+Create the schema from [`infra/schema.sql`](../infra/schema.sql), a
 `pg_dump --schema-only` snapshot of the live database. It gives you 23 tables, the
 two enum types, the `pg_uuidv7` extension, and the 5 reserved tables for unbuilt
 features.
@@ -127,7 +127,7 @@ also needed `pg_uuidv7`, absent from stock `postgres:16` (`TICKET-007`), and omi
 
 ```bash
 docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -U postgres \
-    -d db_gestiket_acme < deploy/schema.sql
+    -d db_gestiket_acme < infra/schema.sql
 ```
 
 `-v ON_ERROR_STOP=1` is mandatory. Without it `psql` reports errors, continues, and
@@ -333,7 +333,7 @@ curl http://localhost:8000/openapi.json -o docs/api-spec.json
 # 4. Create app/services/<name>_service.py
 # 5. Create app/api/routes/<name>.py
 # 6. Register router in app/api/routes/__init__.py
-# 7. Do NOT hand-edit any schema file. deploy/schema.sql is GENERATED: regenerate it
+# 7. Do NOT hand-edit any schema file. infra/schema.sql is GENERATED: regenerate it
 #    from the live database with the command in its own header, after the migration
 #    has been applied. A hand edit is invisible until someone regenerates it.
 #    If the table is a placeholder for a feature you are not building, do not write a

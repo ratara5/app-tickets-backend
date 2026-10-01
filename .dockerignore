@@ -27,7 +27,7 @@ ai-specs
 .opencode
 .claude_example
 openspec_example
-deploy
+infra
 etl
 scripts
 prompts

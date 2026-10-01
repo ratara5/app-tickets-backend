@@ -18,7 +18,7 @@
 # `GRANT CREATE ON SCHEMA` permits creating new objects but not altering existing
 # ones, so such a role could create an empty table and could not alter a real one.
 # Making it able to would require giving it ownership, which removes the boundary
-# this job is supposed to sit outside of. See deploy/provision/README.md.
+# this job is supposed to sit outside of. See infra/provision/README.md.
 #
 # The practical consequence: DB_USER/DB_PASSWORD passed to this job must be
 # elevated, and must therefore never be the values the running service uses. The

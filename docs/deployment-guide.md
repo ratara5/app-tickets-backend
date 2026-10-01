@@ -76,9 +76,9 @@ docker exec postgres-gci psql -U gestiket_app -d db_gestiket_acme -tAc \
 
 Only `db_gestiket_acme` and `postgres` (revoked) should be visible.
 
-### 2.2 Schema — `deploy/schema.sql`, the dump of the live database
+### 2.2 Schema — `infra/schema.sql`, the dump of the live database
 
-The schema comes from [`deploy/schema.sql`](../deploy/schema.sql). It is a
+The schema comes from [`infra/schema.sql`](../infra/schema.sql). It is a
 `pg_dump --schema-only` snapshot of the live database: 23 tables, 2 enum types, and
 the `pg_uuidv7` extension. Its header records the source, the exact command, and the
 commit it was generated from, and `tests/test_deploy_assets.py` fails if that header
@@ -87,7 +87,7 @@ is removed or if the file stops declaring itself generated.
 ```bash
 # Plane 2: the TABLES. The database must already exist.
 docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -U "$DB_USER" \
-    -d "$DB_NAME" < deploy/schema.sql
+    -d "$DB_NAME" < infra/schema.sql
 ```
 
 `init.sql` is **retired and deleted**. It failed in three measured ways: a
@@ -96,7 +96,7 @@ docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -U "$DB_USER" \
 (`TICKET-008`); a dependency on `pg_uuidv7`, which stock `postgres:16` does not ship
 (`TICKET-007`); and no `token_blacklist`, which every authenticated request queries
 (`TICKET-017`). `bootstrap.sh` also ran `psql` without `-v ON_ERROR_STOP=1` and
-printed `✓ init.sql executed` regardless. It now defaults to `deploy/schema.sql`,
+printed `✓ init.sql executed` regardless. It now defaults to `infra/schema.sql`,
 passes `ON_ERROR_STOP=1`, and verifies afterwards that `token_blacklist` exists.
 
 `ON_ERROR_STOP=1` is not optional on any `psql` call. Without it `psql` reports each
@@ -120,7 +120,7 @@ spells it — plus `materials`, `preliquidated`, `services`, `uom`) exist in pro
 and are carried through deliberately. Decision pending, owned by `ratara5`, review
 2026-12-27. See `TICKET-018`.
 
-`deploy/schema.sql` is a **dev bootstrap and the source for the Alembic baseline**,
+`infra/schema.sql` is a **dev bootstrap and the source for the Alembic baseline**,
 not a production path. Production runs `alembic upgrade head`, which cannot work yet:
 the graph has two heads (`TICKET-009`), no revision creates the base tables
 (`TICKET-014`), and two revision ids are 35 and 48 characters long, longer than
@@ -130,11 +130,11 @@ database with the command in its own header, never by hand-editing it.
 ### 2.2.1 The migration job is wired, but is not yet the path
 
 The `migrate` stage of the `Dockerfile` and the `migrate` service in
-`deploy/vps/docker-compose.yml` exist so that migrations run from the **same build**
+`infra/vps/docker-compose.yml` exist so that migrations run from the **same build**
 as the application:
 
 ```bash
-docker compose -f deploy/vps/docker-compose.yml run --rm migrate alembic heads
+docker compose -f infra/vps/docker-compose.yml run --rm migrate alembic heads
 ```
 
 `run --rm` is what makes it a job. The service carries `restart: "no"` and must never
@@ -162,7 +162,7 @@ healthcheck while `alembic upgrade head` failed on missing config.
 **Autogenerate is destructive until the models are trusted.** Until 2026-09-27
 `alembic/env.py` exposed only 2 tables in `target_metadata`, so
 `revision --autogenerate` reported **20 of the 23 live tables** as `drop_table`
-(measured against a database built from `deploy/schema.sql`; Alembic excludes its
+(measured against a database built from `infra/schema.sql`; Alembic excludes its
 own `alembic_version`). Both defects are now fixed — the imports and a named
 exclusion for the 5 tables that have no models — and the result is 0
 `remove_table`, verified against a disposable database.
@@ -198,7 +198,7 @@ was no correct history to repair, only an accurate one to write.
 dump, never from the migration:
 
 ```bash
-psql -v ON_ERROR_STOP=1 -d <db> < deploy/schema.sql   # build the schema
+psql -v ON_ERROR_STOP=1 -d <db> < infra/schema.sql   # build the schema
 alembic stamp head                                   # record where it now stands
 alembic upgrade head                                 # no-op, by design
 ```
@@ -216,11 +216,11 @@ you commit to anything.
 |---|---|
 | You need to **replay the old migrations** to build a schema from empty, step by step | `git revert` the squash commit. The seven revisions and their chain come back, and with them the two heads. |
 | The live schema turns out **not** to be the truth for some environment (a second deployment whose schema differs) | Do **not** un-squash. Two schemas means one dump and one baseline are wrong; reconcile the environments first, then re-dump and re-baseline. |
-| You discover a **column missing from the dump** | Fix the live database, regenerate `deploy/schema.sql` from it, then `alembic stamp head`. The baseline does not need to change: it is an anchor, not a copy. |
+| You discover a **column missing from the dump** | Fix the live database, regenerate `infra/schema.sql` from it, then `alembic stamp head`. The baseline does not need to change: it is an anchor, not a copy. |
 | A real migration is needed **now** | Write a revision with `down_revision = "0001_baseline"`. That is the normal path and needs no undo. |
 
 What you give up by squashing: the ability to walk 0001→0005 incrementally. What
-you keep: `deploy/schema.sql` as the single description of the schema, and a
+you keep: `infra/schema.sql` as the single description of the schema, and a
 bookkeeping table that fits its own column. `git` holds the deleted revisions, so
 the undo is a revert, not an archaeology exercise.
 
@@ -256,7 +256,7 @@ table holds one `varchar` row, and the dump above does not preserve it.
 (two heads), if the baseline gains a `down_revision`, or if any revision id
 exceeds 32 characters. `alembic heads` must print exactly one line.
 
-A stale detail worth knowing: `deploy/schema.sql` carries
+A stale detail worth knowing: `infra/schema.sql` carries
 `alembic_version.version_num` as `varchar(64)`, inherited from the hand-widened
 live column. Harmless with a 14-character id, but the dump is the schema of
 record, so that widening is now inherited by every new environment built from it.
@@ -287,7 +287,7 @@ side is the dump, because the dump is what you just loaded:
 
 ```bash
 # expected: the tables the dump declares
-grep -oE '^CREATE TABLE (public\.)?\w+' deploy/schema.sql | awk '{print $NF}' \
+grep -oE '^CREATE TABLE (public\.)?\w+' infra/schema.sql | awk '{print $NF}' \
   | sort > /tmp/expected-tables.txt
 
 # actual: what the database really has
@@ -460,10 +460,10 @@ Rules that follow from the split:
 ### 4.2 Start
 
 ```bash
-docker compose -f deploy/vps/docker-compose.yml config >/dev/null
-docker compose -f deploy/vps/docker-compose.yml up -d --build
-docker compose -f deploy/vps/docker-compose.yml ps
-docker compose -f deploy/vps/docker-compose.yml logs --tail=50 api
+docker compose -f infra/vps/docker-compose.yml config >/dev/null
+docker compose -f infra/vps/docker-compose.yml up -d --build
+docker compose -f infra/vps/docker-compose.yml ps
+docker compose -f infra/vps/docker-compose.yml logs --tail=50 api
 ```
 
 Certificates are obtained on first proxy start. `ACME_EMAIL` must be set beforehand.
@@ -553,7 +553,7 @@ Tracked as pre-proposals; each blocks a clean, reproducible deployment.
 ## Stop the bleeding
 
 ```bash
-docker compose -f deploy/vps/docker-compose.yml stop        # this app only
+docker compose -f infra/vps/docker-compose.yml stop        # this app only
 docker start postgres-gci && docker start minio-acme        # shared, if actually down
 docker ps -a --format '{{.Names}}\t{{.Status}}'             # restart times
 ```

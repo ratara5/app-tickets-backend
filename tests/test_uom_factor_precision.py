@@ -7,7 +7,7 @@ ones, because the stored value is still a plausible number.
 
 These are static checks plus a review of the migration's own logic. They need no
 database: the behavioural proof was run against a disposable instance built from
-deploy/schema.sql, and what is asserted here is that the widening, its
+infra/schema.sql, and what is asserted here is that the widening, its
 idempotence, and the schema of record cannot be undone silently.
 """
 
@@ -20,7 +20,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 REVISION = ROOT / "alembic" / "versions" / "0002_widen_uom_factor_conversion.py"
-SCHEMA_SQL = ROOT / "deploy" / "schema.sql"
+SCHEMA_SQL = ROOT / "infra" / "schema.sql"
 
 REQUIRED_PRECISION = 20
 REQUIRED_SCALE = 10

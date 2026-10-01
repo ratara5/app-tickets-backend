@@ -57,7 +57,7 @@
 - run `docker compose exec api alembic …` to migrate — it requires the app to already
   be running, so it migrates after the code needing the new column is serving
   traffic. Use the one-shot `run --rm migrate` job instead
-- hand-edit `deploy/schema.sql` — it is generated from the live database and is
+- hand-edit `infra/schema.sql` — it is generated from the live database and is
   regenerated, never edited
 - source `.env` in a shell (`set -a; . .env` corrupts the JSON in `ALLOWED_TYPES`)
 - continue past a failed gate, or "try a variation" of a runbook command on a shared box

@@ -17,7 +17,7 @@ from app.models.reserved import include_object
 #
 # Until 2026-09-27 this file imported only `fsm_user` and `token_blacklist`, so
 # `target_metadata` described a two-table database. Measured against a database
-# built from deploy/schema.sql, autogenerate then emitted `remove_table` for 20 of
+# built from infra/schema.sql, autogenerate then emitted `remove_table` for 20 of
 # the 23 live tables: everything except the two it knew about and alembic_version.
 # See TICKET-019.
 #

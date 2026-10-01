@@ -83,4 +83,4 @@
 
 - [ ] 10.1 Replace `MINIO_PUBLIC_ENDPOINT=192.168.10.30` with a DHCP reservation or an internal domain (`media.<domain>`) so a lease rotation can never take photo loading down again
 - [ ] 10.2 Remove the archived pre-proposal `openspec/pre_propossals/TICKET-012-*.md` once archived
-- [ ] 10.3 Re-check the preflight script in `deploy/` for the new variables
+- [ ] 10.3 Re-check the preflight script in `infra/` for the new variables

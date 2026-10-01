@@ -11,7 +11,7 @@ Seven hand-patched revisions described a path nobody walked, and they could not
 be executed: two heads, and revision ids too long to store in the table that is
 supposed to store them.
 
-They were replaced by a baseline derived from `deploy/schema.sql`. These tests
+They were replaced by a baseline derived from `infra/schema.sql`. These tests
 hold that arrangement in place. The failure they prevent is not subtle: an
 unconnected revision reintroduces a second head, and a long id reintroduces the
 column that had to be hand-widened in the first place.
@@ -30,7 +30,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 VERSIONS_DIR = REPO_ROOT / "alembic" / "versions"
-SCHEMA_SQL = REPO_ROOT / "deploy" / "schema.sql"
+SCHEMA_SQL = REPO_ROOT / "infra" / "schema.sql"
 ALEMBIC_INI = REPO_ROOT / "alembic.ini"
 
 # Alembic creates alembic_version.version_num as varchar(32), and the live
@@ -136,16 +136,16 @@ def test_the_baseline_says_it_creates_nothing_and_how_to_stamp() -> None:
 
     A reader who finds only `upgrade()` / `downgrade()` with empty bodies will
     assume the migration is broken. The file has to say what it is for and what
-    to do instead, because the schema comes from deploy/schema.sql.
+    to do instead, because the schema comes from infra/schema.sql.
     """
     baseline = VERSIONS_DIR / "0001_baseline.py"
     assert baseline.exists(), f"the baseline is missing from {VERSIONS_DIR}"
     text = baseline.read_text(encoding="utf-8")
-    for phrase in ("deploy/schema.sql", "stamp", "baseline"):
+    for phrase in ("infra/schema.sql", "stamp", "baseline"):
         assert phrase in text, (
             f"alembic/versions/{only.name} never mentions {phrase!r}. The baseline "
             f"creates no tables, so the file must state that the schema comes from "
-            f"deploy/schema.sql and that an existing database is brought in with "
+            f"infra/schema.sql and that an existing database is brought in with "
             f"`alembic stamp`, or the next reader will think the migration is empty "
             f"by mistake."
         )

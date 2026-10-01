@@ -29,7 +29,7 @@ FENCED_BLOCK = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
 TABLE_ROW = re.compile(r"^\|.*$", re.MULTILINE)
 
 # Names belonging to one deployment of this estate. A shared skill must not name
-# them; the per-project instance under deploy/ is where they belong.
+# them; the per-project instance under infra/ is where they belong.
 NAMESPACES = [
     "postgres-gci",
     "minio-acme",
@@ -92,7 +92,7 @@ def test_no_deployment_namespace_leaks_into_the_skill(skill_text: str, name: str
     foreign name, it would target the wrong server, and on a shared estate that
     is a cross-tenant mistake rather than a typo.
     """
-    assert name not in skill_text, f"'{name}' is a deployment-specific name and must stay in deploy/"
+    assert name not in skill_text, f"'{name}' is a deployment-specific name and must stay in infra/"
 
 
 @pytest.mark.parametrize("name", NAMESPACES)
@@ -109,7 +109,7 @@ def test_no_hardcoded_ports_in_prose(prose: str, port: str) -> None:
     Command examples legitimately show a port; the surrounding prose must not
     instruct anyone to use one.
     """
-    assert port not in prose, f"port {port} is deployment-specific and belongs in deploy/"
+    assert port not in prose, f"port {port} is deployment-specific and belongs in infra/"
 
 
 # ── Business vocabulary: the skill serves several domains ──────────────────

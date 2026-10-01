@@ -1,7 +1,7 @@
 # TK MGM API BACKEND
 ## SETUP: ONLY FIRST TIME
 
-> **The schema comes from [`deploy/schema.sql`](deploy/schema.sql), not from `init.sql`
+> **The schema comes from [`infra/schema.sql`](infra/schema.sql), not from `init.sql`
 > and not from the models.**
 >
 > `init.sql` is retired. It declares a foreign key PostgreSQL refuses (`TICKET-008`),
@@ -10,7 +10,7 @@
 > `bootstrap.sh` ran `psql` without `-v ON_ERROR_STOP=1`, so it printed
 > `✓ init.sql executed` even when the load failed.
 >
-> `deploy/schema.sql` is a `pg_dump --schema-only` snapshot of the live database:
+> `infra/schema.sql` is a `pg_dump --schema-only` snapshot of the live database:
 > 23 tables, labelled generated, carrying its provenance. It is the dev bootstrap
 > and the source for the Alembic baseline revision, so the two cannot disagree.
 >
@@ -28,7 +28,7 @@ export ROOT_PATH=/path/to/your/python/projects/api-tickets-backend
 #
 # Then build the schema, as the app role. This creates the TABLES.
 #   docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -U postgres \
-#       -d db_gestiket_acme < deploy/schema.sql
+#       -d db_gestiket_acme < infra/schema.sql
 #
 # Two separate steps on purpose. Neither one creates both.
 # Full procedure: docs/deployment-guide.md §2.

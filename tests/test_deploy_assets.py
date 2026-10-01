@@ -17,7 +17,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCKERFILE = REPO_ROOT / "Dockerfile"
-COMPOSE_FILE = REPO_ROOT / "deploy" / "vps" / "docker-compose.yml"
+COMPOSE_FILE = REPO_ROOT / "infra" / "vps" / "docker-compose.yml"
 RUNBOOK = REPO_ROOT / "docs" / "deployment-guide.md"
 
 STAGE_PATTERN = re.compile(r"^FROM\s+\S+(?:\s+AS\s+(?P<name>\S+))?", re.MULTILINE | re.IGNORECASE)
@@ -73,7 +73,7 @@ def _migrate_stage() -> str:
 def _migrate_service() -> dict:
     services = _compose()["services"]
     assert "migrate" in services, (
-        "deploy/vps/docker-compose.yml has no `migrate` service. Services found: "
+        "infra/vps/docker-compose.yml has no `migrate` service. Services found: "
         f"{sorted(services)}"
     )
     return services["migrate"]
@@ -195,7 +195,7 @@ def test_runbook_does_not_document_the_exec_antipattern() -> None:
 
 
 # ---------------------------------------------------------------------------
-# deploy/schema.sql - the generated schema snapshot
+# infra/schema.sql - the generated schema snapshot
 # ---------------------------------------------------------------------------
 #
 # `init.sql` was hand-maintained and drifted in both directions until it could not
@@ -208,7 +208,7 @@ def test_runbook_does_not_document_the_exec_antipattern() -> None:
 # live database. What they CAN do is keep the contract honest - that the file says
 # what it is, carries its provenance, and cannot quietly turn into something else.
 
-SCHEMA_SQL = REPO_ROOT / "deploy" / "schema.sql"
+SCHEMA_SQL = REPO_ROOT / "infra" / "schema.sql"
 
 RESERVED_TABLES = ("hollidays", "materials", "preliquidated", "services", "uom")
 
@@ -240,7 +240,7 @@ def test_schema_sql_declares_itself_generated_with_provenance() -> None:
     text = _schema_sql()
     header = text[: text.find("CREATE EXTENSION") if "CREATE EXTENSION" in text else 2000]
     assert "GENERATED FILE" in header, (
-        "deploy/schema.sql must declare itself GENERATED in its first block of comments. "
+        "infra/schema.sql must declare itself GENERATED in its first block of comments. "
         "An unlabelled generated file is read as hand-maintained and will be edited."
     )
     assert "DO NOT EDIT BY HAND" in header, "the header must forbid hand-editing explicitly"
@@ -260,7 +260,7 @@ def test_schema_sql_does_not_claim_to_be_hand_maintained() -> None:
     header = _schema_sql()[:2000]
     for claim in ("hand-maintained", "hand maintained", "handwritten", "hand-written"):
         assert claim not in header.lower(), (
-            f"deploy/schema.sql header must not describe itself as {claim!r}. It is "
+            f"infra/schema.sql header must not describe itself as {claim!r}. It is "
             "generated from the live database; edits belong in a migration."
         )
 
@@ -279,12 +279,12 @@ def test_schema_sql_is_schema_only_and_role_portable() -> None:
     text = _schema_sql()
     data_statements = re.findall(r"^(?:COPY|INSERT INTO)\s", text, re.MULTILINE)
     assert not data_statements, (
-        f"deploy/schema.sql contains {len(data_statements)} data statement(s). It must "
+        f"infra/schema.sql contains {len(data_statements)} data statement(s). It must "
         "be schema-only; regenerate without dropping --schema-only."
     )
     owners = re.findall(r"^ALTER .* OWNER TO .*$", text, re.MULTILINE)
     assert not owners, (
-        f"deploy/schema.sql contains {len(owners)} OWNER TO statement(s), e.g. "
+        f"infra/schema.sql contains {len(owners)} OWNER TO statement(s), e.g. "
         f"{owners[0]!r}. The dump was made without --no-owner, so it now requires a "
         "role that may not exist on the target server."
     )
@@ -306,16 +306,16 @@ def test_schema_sql_covers_every_table_the_models_require() -> None:
     model_tables = set(Base.metadata.tables)
     missing = sorted(model_tables - declared)
     assert not missing, (
-        f"deploy/schema.sql is missing model tables {missing}. A database built from "
+        f"infra/schema.sql is missing model tables {missing}. A database built from "
         "it would fail on the routes that use them."
     )
     assert len(declared) == 23, (
-        f"deploy/schema.sql declares {len(declared)} tables, expected 23. A changed "
+        f"infra/schema.sql declares {len(declared)} tables, expected 23. A changed "
         "count means the snapshot is stale or was hand-edited; regenerate it."
     )
     for reserved in RESERVED_TABLES:
         assert reserved in declared, (
-            f"reserved table {reserved!r} vanished from deploy/schema.sql. It exists in "
+            f"reserved table {reserved!r} vanished from infra/schema.sql. It exists in "
             "the live database, so dropping it from the dump would make dev diverge "
             "from production. See TICKET-018."
         )
@@ -331,7 +331,7 @@ def test_schema_sql_contains_token_blacklist_with_the_live_column_types() -> Non
     """
     declared = _schema_tables()
     assert "token_blacklist" in declared, (
-        "deploy/schema.sql must declare token_blacklist; every authenticated request "
+        "infra/schema.sql must declare token_blacklist; every authenticated request "
         "queries it (TICKET-017)"
     )
     body = re.search(
@@ -384,7 +384,7 @@ def test_schema_sql_is_documented_as_a_bootstrap_not_a_production_path() -> None
 # bootstrap.sh - the reachable path to the schema
 # ---------------------------------------------------------------------------
 #
-# `deploy/schema.sql` being correct does not help if the script people actually run
+# `infra/schema.sql` being correct does not help if the script people actually run
 # still points somewhere else. These guard the two defects that kept TICKET-007,
 # TICKET-008 and TICKET-017 invisible for months: a default pointing at a broken
 # file, and a `psql` invocation that cannot report failure.
@@ -406,7 +406,7 @@ def test_bootstrap_does_not_default_to_the_retired_init_sql() -> None:
         f"bootstrap.sh still defaults --init-file to {default.group(1)!r}, which is the "
         "retired file: it declares an impossible foreign key (TICKET-008), needs an "
         "unavailable extension (TICKET-007), and omits token_blacklist (TICKET-017). "
-        "The default must be deploy/schema.sql."
+        "The default must be infra/schema.sql."
     )
 
 
@@ -448,10 +448,10 @@ def test_readme_does_not_recommend_generating_the_schema_from_the_models() -> No
     assert not wrong, (
         f"README.md recommends building the schema from the ORM models: {wrong}. That "
         "produces the wrong schema cleanly (TICKET-019). The documented source is "
-        "deploy/schema.sql, a dump of the live database."
+        "infra/schema.sql, a dump of the live database."
     )
-    assert "deploy/schema.sql" in readme, (
-        "README.md must point at deploy/schema.sql as the schema source, so the "
+    assert "infra/schema.sql" in readme, (
+        "README.md must point at infra/schema.sql as the schema source, so the "
         "documented procedure and the file bootstrap.sh actually loads are the same"
     )
 

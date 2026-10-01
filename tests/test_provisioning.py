@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-PROVISION_DIR = Path(__file__).resolve().parents[1] / "deploy" / "provision"
+PROVISION_DIR = Path(__file__).resolve().parents[1] / "infra" / "provision"
 PROVISION_SQL = PROVISION_DIR / "001-create-application-roles.sql"
 PROVISION_README = PROVISION_DIR / "README.md"
 

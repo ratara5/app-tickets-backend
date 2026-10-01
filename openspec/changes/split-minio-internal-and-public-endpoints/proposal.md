@@ -69,7 +69,7 @@ Two amplifiers turn one wrong IP into an outage instead of a failed request:
 
 - **Code**: `app/core/settings.py`, `app/core/storage.py`, `app/server.py` (startup probe).
 - **Config**: `.env` and `gtk-companies/gtk-acme/.env` (untracked, this host only);
-  `.env.example`; `deploy/vps/*` documentation.
+  `.env.example`; `infra/vps/*` documentation.
 - **Tests**: new `tests/test_minio_endpoints.py`; `tests/test_uploads.py` and
   `tests/test_worksheets.py` if the startup probe changes their fixtures.
 - **Docs**: `.env.example`, `docs/development_guide.md`, `docs/deployment-guide.md`,

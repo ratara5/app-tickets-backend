@@ -13,7 +13,7 @@ all five, and applying that revision deletes them.
 
     The exclusion is therefore declared here, once, in a name a reviewer can read,
     rather than being implied by the absence of a model. `tests/test_alembic_env.py`
-    checks that this list is exactly the set of tables in `deploy/schema.sql` that no
+    checks that this list is exactly the set of tables in `infra/schema.sql` that no
     model describes, so a sixth unmodelled table fails the test rather than reaching
     production as a pending `drop_table`.
 

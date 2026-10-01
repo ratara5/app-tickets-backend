@@ -4,7 +4,7 @@ The regression these prevent is the most destructive one in this repository's
 history. `alembic/env.py` imported only `fsm_user` and `token_blacklist`, so
 `target_metadata` described a two-table database. Autogenerate compares
 `target_metadata` against the database it is connected to and emits the
-difference: measured against a database built from `deploy/schema.sql`, the old
+difference: measured against a database built from `infra/schema.sql`, the old
 two-table metadata made it emit `remove_table` for 20 of the 23 live tables.
 `alembic upgrade head` would then have deleted most of the database on a server
 shared with other applications.
@@ -30,7 +30,7 @@ from app.models.base import Base
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ENV_PY = REPO_ROOT / "alembic" / "env.py"
-SCHEMA_SQL = REPO_ROOT / "deploy" / "schema.sql"
+SCHEMA_SQL = REPO_ROOT / "infra" / "schema.sql"
 
 # Alembic's own bookkeeping table. It is in the dump because pg_dump emitted it,
 # and it is in the live database, but it is not a table this project models.
@@ -121,7 +121,7 @@ def test_reserved_tables_are_exactly_the_unmodelled_tables_in_the_schema() -> No
     unmodelled = _dump_tables() - set(Base.metadata.tables) - set(ALEMBIC_OWN_TABLES)
 
     assert sorted(unmodelled) == sorted(RESERVED_TABLES_WITHOUT_MODELS), (
-        f"the tables in deploy/schema.sql that no model describes are {sorted(unmodelled)}, "
+        f"the tables in infra/schema.sql that no model describes are {sorted(unmodelled)}, "
         f"but the exclusion list is {sorted(RESERVED_TABLES_WITHOUT_MODELS)}. They must be "
         f"the same set. These tables are kept for unbuilt features (TICKET-018), so a table "
         f"missing from the list is a table autogenerate will propose to drop."
