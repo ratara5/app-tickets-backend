@@ -206,43 +206,99 @@ process.
 
 ## When the dependencies are shared with other projects
 
-A shared dependency changes what a local environment is allowed to do. Where the
-project owns its dependencies outright, the only question is how closely to copy
-them. Where several projects, applications or sites share one instance, there is a
-second question that outranks fidelity: **a local environment must not be able to
-reach shared state, and must not be able to be mistaken for it.**
+A shared dependency changes what a local environment is allowed to do — but the rule
+depends on which side of the dependency this project is on, and conflating the two sides is
+how a project ends up either isolated from what it will really run against, or far more
+isolated than it needs to be.
 
-The hazards are all reachable by accident, because each is a reasonable shortcut:
+First establish the side:
+
+- **Provider.** This project declares the dependency — the container, the image, the
+  network, the volumes. Other projects and environments consume it.
+- **Consumer.** The dependency is declared elsewhere and this project connects to it. The
+  estate already provides it, on the developer machine and in deployment.
+
+Where a project provides its dependencies, the question is how closely local copies them.
+Where it consumes them, the question is different and the answer is usually the opposite of
+what instinct suggests: **a consumer should reach the shared instance locally, the same way
+it reaches it in deployment.**
+
+Reasoning from the failure rather than from the rule: the purpose of a local environment is
+to be a rehearsal. A private instance is a *different* system, so every setting it reaches
+by a different route is a setting that will not be exercised until deployment. Meanwhile
+the hazards of sharing are not caused by sharing — they are caused by *not being specific
+about which tenant you are*. They are all reachable by accident, because each is a
+reasonable shortcut:
 
 | Shortcut | What actually happens |
 |---|---|
 | reuse the shared database to save provisioning time | the developer's work is one dropped table away from another project's data |
 | reuse the shared object store | a bucket delete during debugging removes another application's objects |
-| attach the local stack to the shared network for convenience | local containers resolve shared names, so "the database" stops being unambiguous |
+| join a shared network *and* declare your own copy of the dependency | two things answer to the same name, and which one resolves depends on the network |
 | publish a local port on all interfaces | a convenience for phone testing becomes a shared instance reachable from the network |
 | reuse the shared container's name | which container a name resolves to depends on the network, so the answer changes without anything being restarted |
 | take the shared container's data volume | starting the "local" database is starting the shared one, on someone else's data |
+| restart a shared container to make your own environment work | every other consumer of that instance stops, for a problem that was yours |
 
-The rules that follow:
+The rules, by side:
 
-- **A local environment is a private one.** Its own volume, its own network, its own
-  names, and its own credentials. Provisioning is cheap; shared data is not recoverable
-  by the person who lost it.
-- **Never attach to a shared network.** Create a network for the local stack and join
-  only that. Name resolution on a shared network is how "the database" silently becomes
-  the shared database.
+**For a consumer:**
+
+- **Prefer the deployed topology.** If deployment reaches a shared core, local reaches the
+  same one, by the same names and the same network. Deviating buys isolation that was not
+  needed and spends the fidelity that was the point.
+- **Isolate by tenant object, not by instance.** Its own database, its own least-privilege
+  role, its own bucket, its own user, its own credentials. The database is never shared.
+  That is the whole of the isolation, and it is the same isolation the deployed environment
+  uses.
+- **Join the shared network, declared external.** That is how a consumer resolves the
+  provider's names. Declare it `external` so your file creates and changes nothing, and
+  never create, rename or remove a network you did not declare.
+- **Write nothing outside your own objects.** Provisioning creates what you need; it does
+  not edit a shared configuration file to make its own work easier, and it does not restart
+  a container it does not own. A missing capability is reported to the provider, not
+  configured around locally.
+- **Any check that mutates state asserts its own tenant first.** Before a test, a gate or a
+  smoke script writes anything, confirm the resolved database and bucket are yours. It
+  should abort without writing, naming what it resolved and what it expected.
+- **Know what you may destroy.** Your database, role and bucket are yours to drop and
+  recreate. The instance, its volumes and every other tenant's objects are not.
+
+**For a provider:**
+
+- **You are a dependency of other projects.** A change to your shared configuration changes
+  someone else's behaviour, so surface it rather than making it quietly.
+- **Offer an estate-level bring-up, not a per-project path.** Every consumer that hardcodes
+  a path into your repository is a coupling that breaks when you move. One command, invoked
+  by consumers through a configured reference, is what makes the shared instance usable by
+  more than one project.
+- **Expose one network to consumers.** If your database and your object store are on
+  different networks, every consumer must attach to both to reach you. That is your
+  topology leaking into every consumer's configuration, and consumers will work around it.
+- **Pin the versions you provide.** A provider whose version is recorded nowhere cannot
+  offer parity with anything, including itself.
+
+**Both sides:**
+
 - **Bind published ports to the loopback interface explicitly.** Never let the runtime
   choose, and never bind all interfaces for a dependency that other projects reach.
 - **Never reuse a shared container's name or volume.** `down` and `rm` act by name and by
   label, so a reused name turns a routine local cleanup into an outage for another
   project.
-- **A shared dependency is not a parity target locally.** Local runs on a private instance
-  with a matching version. Parity is being pursued for packaging, configuration and the
-  network boundary — never for reaching the shared instance itself.
 - **Do not edit a shared declaration from a consuming project.** If the shared
   configuration looks wrong, it is owned elsewhere. Fixing it here either does nothing
   or changes a file another project still depends on, and either way the edit is invisible
   to the owner. Report it.
+- **A copied value carries its provenance.** A host, port or network name read from the
+  provider's declaration should say which declaration it came from. A copy without that
+  note outlives the thing it was copied from, and becomes the second place a value drifts.
+- **A dependency not found in the tree is located, not assumed absent.** See
+  §"Establish what is actually live".
+
+The honest cost of consuming locally: the environment is no longer self-contained. Accept
+it explicitly, make the dependency a named step rather than folklore, and fail with a
+message naming what is missing and who owns it — not with a connection error from the
+application. The durable fix is a provider-owned bring-up command, not a private copy.
 
 When a dependency is genuinely shared, the tenancy rules — who may connect, who owns
 which bucket, how isolation is enforced — belong to the deployment doctrine for that
@@ -341,8 +397,12 @@ undocumented step is invisible to the person who wrote it down.
   proof that nothing else exists.
 - Never assume a stopped dependency is free. It still owns its ports, volumes and
   network names, and someone else can start it mid-task.
-- Never let a local environment reuse shared state: not a shared database, bucket,
-  container name, volume or network. Provision privately instead.
-- Never attach a local stack to a network shared with other projects.
+- Never let a local environment reuse another tenant's state: not their database,
+  bucket, role, user, container name or volume. Provision your own objects instead.
+- Never declare a copy of a dependency that something else already provides, and never
+  join a shared network *and* declare your own copy — two things answering to one name is
+  what makes resolution ambiguous.
+- Never create, rename or remove a shared network, or restart a shared container, to make
+  your own environment work.
 - Never publish a dependency port on all interfaces.
 - Never edit a shared dependency's declaration from a project that consumes it.

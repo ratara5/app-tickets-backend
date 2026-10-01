@@ -32,14 +32,22 @@ Every dependency the service needs locally, and nothing it does not:
 database is not testing parity; they are testing a different system, and the
 defects they find are usually not the ones that occur in production.
 
-### When the project already shares those dependencies
+### When the estate already provides those dependencies
 
-If another project, application or site already runs the database or the object
-store on this machine, the local environment still gets its own. Sharing is not
-frugality here — it is the failure being designed out.
+If another project, application or site already provides the database or the object
+store — locally and in deployment — then this project is a **consumer**, and a
+consumer's local environment should reach the same instance by the same route.
 
-Check before choosing ports, because the shared containers exist whether or not they
-are running:
+The rule is the purpose of the whole exercise. A local environment exists so the
+deployed arrangement can be rehearsed. A private instance is a different system,
+so every setting it reaches by a different route is a setting that will not be
+exercised until deployment. Sharing's hazards come not from sharing but from not
+being specific about which tenant you are, and tenant identity is cheap: a
+database, a role, a bucket, a user, credentials. The database is the one thing
+never shared.
+
+Before choosing anything, establish which side you are on, because the shared
+containers exist whether or not they are running:
 
 ```bash
 # stopped containers still own their ports and volumes: include them
@@ -49,24 +57,36 @@ docker inspect <container> --format \
   '{{index .Config.Labels "com.docker.compose.project.working_dir"}}'
 ```
 
-Then, for every shared dependency:
+Then decide, per shared dependency, which side this project is on. If the estate already
+provides the dependency — locally and in deployment — the local environment should consume
+it too, and the isolation below is by tenant object rather than by instance.
 
-| Decision | Local environment | Never |
+| Decision | When this project consumes the dependency | Never |
 |---|---|---|
-| database | own volume, own credentials, own database and role | connect to the shared database to save provisioning time |
-| object store | own bucket under a local instance, own credentials | reuse the shared bucket or instance |
-| network | its own network, joined only by local services | join the shared network for name resolution |
-| published ports | bound to the loopback address, chosen to collide with nothing already held | bind all interfaces; pick a conventional port without checking |
-| names | distinct from the shared containers' | reuse a shared container name |
-| volume | its own named volume | mount the shared container's data volume |
+| database | the shared core's own database and role, named for this project | connect to another project's database to save provisioning time |
+| object store | the shared core's own bucket, user and credentials | reuse another project's bucket, or share one bucket between projects |
+| network | the provider's network, declared `external`, joined so names resolve | create or rename the shared network; join it *and* declare your own copy of the dependency |
+| published ports | none — use the provider's; publish only your own API, on loopback | publish a dependency port yourself; bind all interfaces |
+| in-container addressing | the provider's container names and in-container ports, matching deployment | invent service names that differ from the deployed ones |
+| names | your own compose project; no reused container names | reuse a shared container name |
+| volume | none — you declare no data, so there is nothing to mount | mount the provider's data volume |
+| lifecycle | leave a running provider alone; start a stopped one through its documented command | `restart` or `stop` a container you did not declare |
 
-Two of these deserve emphasis. Attaching to the shared network is the one that looks
-like a shortcut — it "just works" for reaching the database — and it makes the word
-"the database" ambiguous from that point on. Mounting a shared volume is worse: the
-local service is then the shared service, started on someone else's data, and the
+Two of these deserve emphasis. Joining the provider's network is *required* for a consumer,
+not a shortcut — it is how the names resolve, and using the same names it uses in deployment
+is what makes the local run a rehearsal. What is ambiguous is joining that network *and*
+declaring your own copy of the dependency: two things answering to one name, resolved by
+whichever network wins the lookup. Mounting the provider's volume is worse under either
+side: the service is then the provider's service, started on someone else's data, and the
 first `docker compose down` takes it away.
 
+When the provider is a project outside this repository, record how it is started as a
+configured reference with its provenance, rather than hardcoding a path. If the key is
+absent, fail with a message naming the dependency and the project that owns it.
+
 ## Bringing it up
+
+For a dependency this project declares:
 
 ```bash
 # start the dependencies, wait until they are actually ready
@@ -80,6 +100,12 @@ docker compose -f compose.yaml -f compose.dev.yaml logs <api-service> | head -20
 `--wait` is the difference between a working one-liner and a flaky one. Without it
 the command returns while the database is still initialising, and the first run
 fails on a connection error that disappears on the second.
+
+For a dependency this project consumes, `--wait` has nothing to wait on — the
+dependencies are not in your compose file. Wait for them from outside instead, by
+polling a real query until it answers. A container that is running is not a database
+that accepts connections, and the recorded failure mode is an application that starts
+cleanly and then fails on first use.
 
 ## Configuration
 
