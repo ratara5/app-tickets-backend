@@ -55,26 +55,229 @@ published ports are untouched, so the other applications are unaffected.
 
 ### 2.1 Dedicated role and database
 
-Never reuse the instance's superuser. A compromised API must not reach other apps'
-data.
+**The role is created by [`infra/provision/`](../infra/provision/README.md), not
+here.** That directory is the single place role creation lives, and
+`tests/test_provisioning.py` pins the privilege boundaries it establishes. This
+section states the order; the commands live there.
+
+> **Superseded 2026-09-30.** This section previously contained its own
+> `CREATE ROLE`/`CREATE DATABASE` block, and it was wrong in three ways.
+>
+> 1. **`CREATE DATABASE db_gestiket_acme OWNER gestiket_app` made the running
+>    service the owner of its own database.** `infra/provision/README.md`
+>    requires the opposite — the database is created empty by an administrator
+>    and is *not* owned by the application role — because an owner can alter the
+>    database's ACL, rename it and drop it, and "the runtime role owns nothing"
+>    is the load-bearing rule of that design.
+> 2. **`REVOKE ALL ON DATABASE postgres FROM gestiket_app` was a no-op that
+>    reported success.** It revoked from the *role*, which held no explicit
+>    grants, instead of from `PUBLIC`, which is where `CONNECT` actually comes
+>    from. Measured on 2026-09-30 against a scratch role on this instance: with
+>    no privilege granted on `db_gci_acme` at all, that role still connected to
+>    it over TCP and ran `SELECT 1`. This is the isolation that
+>    `infra/provision/001-create-application-roles.sql` step 3 exists to
+>    document, and it is why reachability is enforced with `pg_hba.conf` rather
+>    than with a `REVOKE`.
+> 3. **It duplicated role creation in two files**, so the two drifted. They had
+>    already drifted: the guide's version had no `pg_hba.conf` step at all.
+
+The order, which matters (see `infra/provision/README.md` for why):
 
 ```bash
-docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -U postgres -d postgres <<'SQL'
-\l
-CREATE ROLE gestiket_app WITH LOGIN PASSWORD '<generated>';
-CREATE DATABASE db_gestiket_acme OWNER gestiket_app;
-REVOKE ALL ON DATABASE postgres FROM gestiket_app;
-SQL
+# 1. The database, empty, owned by the administrator. CREATE DATABASE cannot run
+#    inside a transaction, so it is its own statement.
+docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  -c 'CREATE DATABASE db_gestiket_acme;'
+
+# 2. The schema of record (§2.2). Grants come after this, because they apply to
+#    existing objects and ALTER DEFAULT PRIVILEGES only covers future ones.
+
+# 3. The role and its grants, from the provisioning script. Substitute every
+#    <placeholder> first.
+docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -U postgres -d postgres \
+  < infra/provision/001-create-application-roles.sql
+
+# 4. The pg_hba.conf rule, then reload (§2.1.1).
 ```
 
-Then confirm isolation, as the app's own role:
+What the role holds, verified on a disposable database built from
+`infra/schema.sql` with exactly these grants:
+
+| Object | Privilege | Why |
+|---|---|---|
+| the 17 modelled tables | `SELECT, INSERT, UPDATE, DELETE` | all the application does |
+| `fsm_users_user_id_seq`, `labsdls_labsdl_id_seq`, `spares_spare_id_seq` | `USAGE, SELECT` | without these every serial insert fails at runtime |
+| `hollidays`, `materials`, `preliquidated`, `services`, `uom` | **none** | reserved for unbuilt features (`TICKET-018`); the app reads and writes none of them |
+| `alembic_version` | **none** | Alembic's bookkeeping, not the service's |
+| every sequence and table owned by the role | **none** | it owns nothing |
+| `CREATE`, `ALTER`, `DROP`, `TRUNCATE`, `CREATE INDEX` | **denied** | migrations are run by a human, as the schema's owner |
+
+That `hollidays` needs nothing is not an oversight to correct: `get_holidays` in
+`app/core/utils/dates.py` resolves dates from the **`holidays` Python package**,
+not from the table, and no module under `app/` names `uom`, `materials`,
+`preliquidated` or `services` at all.
+
+Withholding `SELECT` on `uom` does **not** weaken `spares.unit` referential
+integrity, which was the obvious risk and the reason to check rather than assume.
+PostgreSQL's referential-integrity triggers run as the constraint owner, not as
+the inserting role, so the application needs no privilege on the referenced table.
+Verified on the disposable database: `INSERT` into `spares` with a valid unit
+succeeds, and `INSERT` with a non-existent unit still fails with `violates
+foreign key constraint "spares_unit_fkey"`. `TICKET-020`'s guarantee survives the
+tightening.
+
+**One consequence to plan for:** the seed loader (`etl/seed_db.sh`, §2.3) can no
+longer load the reserved reference tables with this credential, because it holds
+no privilege on them. Loading `uom` and `hollidays` is an administrator action
+with an elevated `--db-user`. That is consistent with §2.3, which already states
+that production reference data is "a deliberate, human decision, not a side
+effect of deploying", and that the loader is "not a deployment step".
+
+#### Confirming isolation, and what actually enforces it
+
+Reachability across the shared instance is **not** enforced by the grants above.
+Measured: the least-privilege role, holding no privilege on `db_gci_acme`,
+connected to it anyway. Object privileges control *what a role may do once
+connected*; nothing in a `GRANT` controls *which database it may reach*. That is
+the `pg_hba.conf` rule's job, in §2.1.1.
+
+### 2.1.1 `pg_hba.conf`: the rule that actually isolates
+
+The rule is scoped to one role, so it cannot affect another tenant. Order is
+load-bearing: `pg_hba.conf` is first-match, so the deny line must come **after**
+the allow line, and both must sit **above** the instance's existing broad rules.
+
+```
+# TYPE     DATABASE          USER             ADDRESS        METHOD
+host      db_gestiket_acme  gestiket_app     <app-cidr>     scram-sha-256
+host      all               gestiket_app     0.0.0.0/0      reject
+```
+
+This instance's current `pg_hba.conf` ends with two catch-alls that would
+otherwise match first and make the deny line dead:
+
+```
+host    all       all   0.0.0.0/0                  scram-sha-256
+host    all       all   ::/0                       scram-sha-256
+```
+
+So the two lines must be inserted **above** those, not appended. Check, insert,
+reload — reload, never restart, so in-flight connections survive:
 
 ```bash
-docker exec postgres-gci psql -U gestiket_app -d db_gestiket_acme -tAc \
-  "SELECT datname FROM pg_database WHERE datistemplate = false"
+docker exec postgres-gci psql -U postgres -tAc "SHOW hba_file"
+docker exec postgres-gci sh -c 'grep -vE "^\s*#|^\s*$" /var/lib/postgresql/data/pg_hba.conf'
+docker exec postgres-gci psql -U postgres -tAc "SELECT pg_reload_conf()"
 ```
 
-Only `db_gestiket_acme` and `postgres` (revoked) should be visible.
+#### `<app-cidr>` must be measured, not guessed
+
+The address in the allow line is the one the **server sees**, which is not always
+the address the client used. Measured on this instance:
+
+| How the API connects | What the server sees |
+|---|---|
+| from the host, via the published `127.0.0.1:5435` | **`172.19.0.1/32`** — the docker bridge gateway of `infrastructure-companies_gci-db-network` |
+| from a container on the network it shares with postgres-gci | that container's address on that network, so the rule needs the **network's subnet** |
+
+Two consequences, both of which will otherwise be diagnosed as a credentials
+problem:
+
+- **A `127.0.0.1/32` allow line never matches a host-initiated connection.**
+  Docker's proxy re-originates it to the bridge gateway, so the app would be
+  denied with a correct password and a correct role.
+- **The container subnet is not knowable in advance.** `infra-net` does not exist
+  on this instance yet (see §1), so its subnet does not exist either. Create the
+  network first, then read the subnet, then write the rule:
+
+  ```bash
+  docker network create infra-net
+  docker network inspect infra-net --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}'
+  docker network connect infra-net postgres-gci
+  ```
+
+  Do not hardcode a guessed `/16`. Every `/16` from `172.17` to `172.27` is
+  already taken on this host, so there is no "next free one" to guess at — the
+  allocation has to come from the real inventory:
+
+  ```bash
+  docker network ls --format '{{.Name}}' | while read -r n; do
+    printf '%-45s %s\n' "$n" \
+      "$(docker network inspect "$n" --format '{{range .IPAM.Config}}{{.Subnet}} {{end}}')"
+  done
+  ```
+
+  Measured on this host 2026-09-30, and worth pasting rather than re-deriving
+  after a collision:
+
+  | Subnet | Network | Member |
+  |---|---|---|
+  | `172.17.0.0/16` | `bridge` | — |
+  | `172.18.0.0/16` | `infrastructure-companies-v2_as-sync-acme-network` | — |
+  | `172.19.0.0/16` | **`infrastructure-companies_gci-db-network`** | **`postgres-gci`** |
+  | `172.20.0.0/16` | `scraping_airflow_network` | — |
+  | `172.21.0.0/16` | `airflow_airflow_internal_network` | — |
+  | `172.22.0.0/16` | `core_gci-db-network` | — |
+  | `172.23.0.0/16` | `infrastructure-companies_gm-sync-tecfrio-network` | — |
+  | `172.24.0.0/16` | `infrastructure-companies_as-sync-tecfrio-network` | — |
+  | `172.25.0.0/16` | `infrastructure-companies_bq-sync-tecfrio-network` | — |
+  | `172.26.0.0/16` | `my-dopamine-network` | `provider-frontend` |
+  | `172.27.0.0/16` | `assync_as-sync-acme-network` | **`minio-acme`** |
+
+  Eight of these have no members, so Docker will hand out their addresses to
+  `docker network create` without noticing the subnet is allocated. That is the
+  failure mode: the network is created, the subnet overlaps, and routing between
+  two bridges becomes intermittent and dependent on start order. `172.20` through
+  `172.25` are the ones most likely to be handed out, because they look free.
+
+#### Which network the API must be on
+
+`postgres-gci` is currently on **`infrastructure-companies_gci-db-network` only**
+(`172.19.0.2`). Two consequences, both measured:
+
+- **`minio-acme` is not on that network.** It is on
+  `assync_as-sync-acme-network` (`172.27.0.2`), a different bridge. So
+  `postgres-gci` and `minio-acme` do **not** share a network, and
+  `my-dopamine-network` holds only `provider-frontend` — neither of them is on it.
+  If the deployment intends the API to reach PostgreSQL over a network that
+  already exists, that network has to be one `postgres-gci` is actually attached
+  to, or `docker network connect` has to add it. An allow line written for a
+  network the server is not on will never match, and the symptom is a
+  `no pg_hba.conf entry` rejection with a correct role and password.
+- Only one network on this host currently has a member that matters to this
+  project, which is why `infra-net` is created rather than reused. Reusing
+  `my-dopamine-network` would work too, if `postgres-gci` is connected to it —
+  but that network belongs to `provider-frontend`, so joining it would put this
+  app's database traffic on another tenant's bridge.
+
+#### Verify the deny line actually bites
+
+Until a cross-database connection has been **observed to be rejected**, the
+isolation does not exist yet. A permission error rather than a connection
+rejection means the grants are doing the work and `pg_hba.conf` is not:
+
+```bash
+PGPASSWORD='<gestiket_app password>' psql -h 127.0.0.1 -p 5435 \
+  -U gestiket_app -d db_gci_acme -c 'SELECT 1;'   # must be rejected
+```
+
+#### What this rule cannot protect against
+
+Measured, and worth stating because the rule is easy to over-trust: this
+instance's `pg_hba.conf` opens its local socket with `local all all trust`. A
+connection over that socket **authenticates no password at all** — verified by
+connecting as a role with a deliberately wrong password and being admitted. So
+the CIDR rules govern network-originated connections only. Anything that can
+`docker exec` into `postgres-gci` reaches any database as any role regardless of
+this rule, and of `pg_hba.conf` generally. Tightening `local` is an
+instance-wide change affecting other tenants, so it is not this project's to
+make unilaterally; it is recorded here as a known boundary of the isolation this
+section claims.
+
+Note the same trap applies to running the provisioning checks: `psql` inside the
+container with no `-h` uses that trust socket, so a privilege check run that way
+proves the *grants* but proves nothing about *authentication*. Pass `-h 127.0.0.1`
+to test the password path.
 
 ### 2.2 Schema — `infra/schema.sql`, the dump of the live database
 
