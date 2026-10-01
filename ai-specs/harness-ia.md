@@ -157,6 +157,37 @@ concrete container name, database name, role name, or domain concept into the sh
 text. The per-project instances live in each project's own `infra/` directory, where
 they can be concrete without becoming wrong elsewhere.
 
+### One core, several consumers
+
+Two consequences of sharing the estate apply to the harness itself, and both were
+learned from an inventory that read the wrong source.
+
+**The project that owns the core infrastructure is also a consumer of it.** The core
+project declares and runs the shared database, object store and TLS edge for the
+other applications; it is not a special case that sits outside the tenancy rules. It
+gets its own role, its own bucket and its own network membership like everyone else,
+and it is subject to the same rule that a consumer must not edit a declaration it does
+not own. A skill written for one side of the core is therefore also read by the other
+side, which is why these skills never name the core's containers.
+
+**A shared dependency must be inventoried from the running engine, not from the
+files.** A consuming project holds a copy of a core declaration, because it once
+needed one, and the copy drifts while the core keeps running. The engine is the record
+of fact: each container carries the compose project, working directory and config
+files that created it, which answers *which file on this host is live* directly. Two
+facts make this non-optional:
+
+- A shared declaration is usually edited in one place and consumed in several. The
+  copy in a consuming repository is evidence of intent, never of behaviour.
+- A stopped container still holds its ports, volumes and network names, so a local
+  environment that chose conventional ports without asking the engine can collide
+  with another project's stack that someone starts later.
+
+`dev-environment-parity` states the procedure generically: search the files, then
+search the engine, believe the engine, and record what was searched so that a
+confirmed absence is distinguishable from an unfinished search. Project documents
+record their own findings; the doctrine stays in the skill.
+
 ## 7. Quality gates, and the one command that matters
 
 `Makefile` is the executable form of `ai-specs/skills/defining-project-quality-gates`.

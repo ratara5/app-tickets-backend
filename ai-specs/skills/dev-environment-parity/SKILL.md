@@ -25,6 +25,8 @@ not.
 - A change works for one person and not another on the same revision.
 - The local environment is missing something the deployed one has — a dependency
   service, an extension, a file the image includes.
+- Before designing a local arrangement: to find out which declaration of the topology
+  is actually live, and whether the one in the repository is it.
 
 ## The four axes, which are independent
 
@@ -124,6 +126,66 @@ actual version drift apart, and the local environment stops representing the ima
 Whichever is chosen, the same command that resolves dependencies must be the one
 used to build the image.
 
+## Establish what is actually live, before designing for it
+
+Parity is specified against a topology, and a topology read from the wrong place is a
+topology that was never true. **Two places must be searched, and the second one is the
+one that decides: the files, and the running engine.** A design derived from files alone
+is a guess that happens to be well-formatted.
+
+### Search the files
+
+- Every file in this repository that declares the topology. One file is not evidence
+  that the rest do not exist.
+- Each dependency's name across the tree, and across sibling projects when the
+  environment is shared. Absence from the tree is not absence from the estate.
+
+### Search the engine
+
+The running engine is the record of fact. Files drift; the engine does not, and it
+carries provenance a file cannot:
+
+- **Containers**: what exists, under which image, on which network, with which mounts
+  and published ports.
+- **The declaration that created each one.** Every container carries the project name,
+  the working directory, and the config files that produced it. This is the single most
+  valuable query available, because it answers *which file on disk is live* directly
+  instead of by inference. A container created from a path outside this repository is
+  proof that this repository's copy of that file is not the one running.
+- **Whether anything is running at all.** A stopped container still exists and still
+  owns its ports and volumes. Planning against a stopped estate is planning against
+  something that may be started by someone else mid-task.
+- **Images as actually built**, which differ from the tag a file names.
+- **Volumes and networks**, including which container mounts which volume. The volume
+  name carries the project that created it, so a mount reveals an owner the
+  configuration file hides.
+
+Three traps, all silent, all producing a plan that looks well-researched:
+
+1. **A file here that is not the one running.** Edited locally, never merged back, it
+   becomes a description of a past state. It reads as authoritative because it sits in
+   the right directory.
+2. **A component declared only elsewhere.** Present in another project's declaration
+   while this project's files refer to it.
+3. **An undeclared-but-required detail.** An image extension, a container name, a port
+   that must differ, a credential supplied as a mounted file rather than a value. Nothing
+   errors; the first run simply fails in a way that looks like a code defect.
+
+Where the files and the engine disagree, **the engine is the truth and the file is
+drift.** Record both readings and say which one was believed.
+
+Record what was searched and what was not, so the next reader can tell a confirmed
+absence from an unfinished search. An inventory that lists only what it found reads as
+proof that nothing else exists.
+
+A useful discipline: write the finding as an ownership statement — *this component is
+declared in that file, created by that project, and not owned here* — rather than as a
+list of paths. A list is checked by looking for the paths; an ownership statement is
+checked by asking who owns it.
+
+Search cost is minutes. A parity design built on a stale declaration costs the whole
+task, and the error surfaces as a broken setup rather than as a wrong document.
+
 ## Configuration parity
 
 The most productive part of parity, and the cheapest. Three rules:
@@ -141,6 +203,51 @@ The most productive part of parity, and the cheapest. Three rules:
 Log the resolved configuration at startup. It is the fastest way to answer "which
 value is it actually using", which is otherwise unanswerable from outside the
 process.
+
+## When the dependencies are shared with other projects
+
+A shared dependency changes what a local environment is allowed to do. Where the
+project owns its dependencies outright, the only question is how closely to copy
+them. Where several projects, applications or sites share one instance, there is a
+second question that outranks fidelity: **a local environment must not be able to
+reach shared state, and must not be able to be mistaken for it.**
+
+The hazards are all reachable by accident, because each is a reasonable shortcut:
+
+| Shortcut | What actually happens |
+|---|---|
+| reuse the shared database to save provisioning time | the developer's work is one dropped table away from another project's data |
+| reuse the shared object store | a bucket delete during debugging removes another application's objects |
+| attach the local stack to the shared network for convenience | local containers resolve shared names, so "the database" stops being unambiguous |
+| publish a local port on all interfaces | a convenience for phone testing becomes a shared instance reachable from the network |
+| reuse the shared container's name | which container a name resolves to depends on the network, so the answer changes without anything being restarted |
+| take the shared container's data volume | starting the "local" database is starting the shared one, on someone else's data |
+
+The rules that follow:
+
+- **A local environment is a private one.** Its own volume, its own network, its own
+  names, and its own credentials. Provisioning is cheap; shared data is not recoverable
+  by the person who lost it.
+- **Never attach to a shared network.** Create a network for the local stack and join
+  only that. Name resolution on a shared network is how "the database" silently becomes
+  the shared database.
+- **Bind published ports to the loopback interface explicitly.** Never let the runtime
+  choose, and never bind all interfaces for a dependency that other projects reach.
+- **Never reuse a shared container's name or volume.** `down` and `rm` act by name and by
+  label, so a reused name turns a routine local cleanup into an outage for another
+  project.
+- **A shared dependency is not a parity target locally.** Local runs on a private instance
+  with a matching version. Parity is being pursued for packaging, configuration and the
+  network boundary — never for reaching the shared instance itself.
+- **Do not edit a shared declaration from a consuming project.** If the shared
+  configuration looks wrong, it is owned elsewhere. Fixing it here either does nothing
+  or changes a file another project still depends on, and either way the edit is invisible
+  to the owner. Report it.
+
+When a dependency is genuinely shared, the tenancy rules — who may connect, who owns
+which bucket, how isolation is enforced — belong to the deployment doctrine for that
+shared instance, not to this skill and not to a local setup document. Write them once,
+where the instance is deployed.
 
 ## Seeding, and the data rule
 
@@ -226,3 +333,16 @@ undocumented step is invisible to the person who wrote it down.
 - Never scope a file watcher to a directory that contains dependencies or build
   output.
 - Never call an onboarding path complete without executing it from a clean checkout.
+- Never design parity against a topology declaration that has not been compared with
+  the running one. Never treat a dependency's absence from the repository as its
+  absence from the environment.
+- Never describe the local environment without searching the container engine, or with
+  no record of what that search covered. An inventory that lists what it found reads as
+  proof that nothing else exists.
+- Never assume a stopped dependency is free. It still owns its ports, volumes and
+  network names, and someone else can start it mid-task.
+- Never let a local environment reuse shared state: not a shared database, bucket,
+  container name, volume or network. Provision privately instead.
+- Never attach a local stack to a network shared with other projects.
+- Never publish a dependency port on all interfaces.
+- Never edit a shared dependency's declaration from a project that consumes it.

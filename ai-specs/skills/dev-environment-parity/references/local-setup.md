@@ -32,6 +32,40 @@ Every dependency the service needs locally, and nothing it does not:
 database is not testing parity; they are testing a different system, and the
 defects they find are usually not the ones that occur in production.
 
+### When the project already shares those dependencies
+
+If another project, application or site already runs the database or the object
+store on this machine, the local environment still gets its own. Sharing is not
+frugality here — it is the failure being designed out.
+
+Check before choosing ports, because the shared containers exist whether or not they
+are running:
+
+```bash
+# stopped containers still own their ports and volumes: include them
+docker ps -a
+# which declaration created a given container, and where that file lives
+docker inspect <container> --format \
+  '{{index .Config.Labels "com.docker.compose.project.working_dir"}}'
+```
+
+Then, for every shared dependency:
+
+| Decision | Local environment | Never |
+|---|---|---|
+| database | own volume, own credentials, own database and role | connect to the shared database to save provisioning time |
+| object store | own bucket under a local instance, own credentials | reuse the shared bucket or instance |
+| network | its own network, joined only by local services | join the shared network for name resolution |
+| published ports | bound to the loopback address, chosen to collide with nothing already held | bind all interfaces; pick a conventional port without checking |
+| names | distinct from the shared containers' | reuse a shared container name |
+| volume | its own named volume | mount the shared container's data volume |
+
+Two of these deserve emphasis. Attaching to the shared network is the one that looks
+like a shortcut — it "just works" for reaching the database — and it makes the word
+"the database" ambiguous from that point on. Mounting a shared volume is worse: the
+local service is then the shared service, started on someone else's data, and the
+first `docker compose down` takes it away.
+
 ## Bringing it up
 
 ```bash
@@ -106,6 +140,10 @@ they cannot be run against a natively-started process.
 | Watches fail at startup, after a dependency install | the file watcher is following the dependency directory | scope the watcher to the source directory |
 | Fails only on one machine | version mismatch, or an undocumented local setting | compare the resolved versions and the resolved configuration |
 | Cannot reach a dependency by name from the service | name resolution differs outside a network | resolve the name from inside the container |
+| Local setup omits a service the deployment runs, or starts one it does not | the topology was read from a declaration that is not the live one | search every file that declares the topology, including sibling projects, and diff against the running environment |
+| The same file exists here and in a sibling project, and they disagree | the sibling's copy is the one an existing container was created from | ask the engine which declaration created the container, not which file looks current |
+| A local port or volume is already in use | a stopped container still owns it | list containers including stopped ones before choosing published ports |
+| A first-run failure is attributed to the code and is not | a detail was never declared anywhere read: an image extension, a container name, a port | confirm each dependency's declaration before changing any code |
 | Reaches the wrong thing on loopback | loopback is the container, not the host | use the container name or the host's address as appropriate |
 | Seed fails on a foreign key | seed ordering, or a self-referencing row | load in dependency order; use a staging table for cycles |
 | Tests pass alone, fail together | shared state between tests | each test arranges and disposes its own state |
