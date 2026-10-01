@@ -75,6 +75,28 @@ CROSS_PROJECT_DOCTRINE = CROSS_PROJECT_SKILLS + CROSS_PROJECT_AGENTS
 
 DEPLOYMENT_SKILL = "deploying-backend-vps"
 
+# The files that carry the rule for a dependency this project does not own. Guarded
+# separately from CROSS_PROJECT_DOCTRINE because the failure being guarded here is a
+# *reasoning* failure rather than a leak: a prohibition stated without its scope, which
+# a reader then applies to the case it was not written for.
+SHARED_DEPENDENCY_DOCTRINE = [
+    "dev-environment-parity",
+    "infrastructure-developer",
+]
+
+# Sentences that were in the first version of the shared-dependency doctrine and were
+# wrong without a scope. They are listed verbatim rather than described, because the
+# defect was that they read as universal rules — a paraphrase would reintroduce the
+# same claim in a form this guard cannot see.
+UNSCOPED_PROHIBITIONS = [
+    "never attach to a shared network",
+    "never attach a local stack to a network shared",
+    "a local environment is a private one",
+    "its own network, joined only by local services",
+    "join the shared network for name resolution",
+    "must not be able to reach shared state",
+]
+
 # Fenced code blocks are excluded from the prose checks below: a command example
 # may legitimately mention a tool, and that is the point of an example.
 FENCED_BLOCK = re.compile(r"^```.*?^```", re.MULTILINE | re.DOTALL)
@@ -336,6 +358,67 @@ def test_estate_provisioning_facts_stay_in_the_estate_skill(skill: str) -> None:
     assert not found, (
         f"{skill} restates estate provisioning facts ({', '.join(found)}); they belong "
         f"in the {DEPLOYMENT_SKILL} skill, which is their single source"
+    )
+
+
+@pytest.mark.parametrize("doctrine", SHARED_DEPENDENCY_DOCTRINE)
+def test_shared_dependency_doctrine_distinguishes_consumer_from_provider(doctrine: str) -> None:
+    """A rule for a dependency you do not own must be scoped by which side you are on.
+
+    The first version of this doctrine read "a local environment must not reach shared
+    state" and "never attach to a shared network", with no condition attached. Every
+    consumer of a shared core applied it to the core it was meant to consume, and
+    produced a private instance — which is a *different* system, so the local run
+    exercised settings the deployment never would. The protection was real; the scope
+    was missing.
+
+    So the doctrine must name both sides. If it stops distinguishing them, the
+    prohibition reappears as a universal rule, and the guard fails at the edit that
+    drops the distinction rather than at the project that suffers from it.
+    """
+    prose = prose_of(doctrine).lower()
+    missing = [side for side in ("consumer", "provider") if side not in prose]
+    assert not missing, (
+        f"{doctrine} governs a dependency this project does not own but never names "
+        f"{' and '.join(missing)}, so its rules cannot be scoped to the side the "
+        "reader is on and the prohibition applies to the consumer case as well"
+    )
+
+
+@pytest.mark.parametrize("doctrine", SHARED_DEPENDENCY_DOCTRINE)
+def test_shared_dependency_doctrine_grants_the_consumers_join(doctrine: str) -> None:
+    """A consumer must be told, positively, that joining the provider's network is expected.
+
+    The failure this prevents is a correction that only removes a prohibition and never
+    grants the alternative. A reader who is told what not to do, and not told what to do
+    instead, keeps the old behaviour or invents a private stack to satisfy the letter of
+    the rule. The grant has to be explicit and has to name the mechanism — declaring the
+    network external — because "join it" without that reads as permission to create or
+    rename it.
+    """
+    prose = prose_of(doctrine).lower()
+    assert "external" in prose, (
+        f"{doctrine} scopes its shared-dependency rules but never says that a consumer "
+        "declares the provider's network external, so the grant is missing the part "
+        "that keeps it from mutating a network it does not own"
+    )
+
+
+@pytest.mark.parametrize("doctrine", SHARED_DEPENDENCY_DOCTRINE)
+def test_no_unscoped_prohibition_against_reaching_a_shared_dependency(doctrine: str) -> None:
+    """The first draft's unscoped sentences must not come back.
+
+    These are quoted verbatim from the version that produced private stacks in the
+    projects the doctrine was written for. A description of the defect could be
+    satisfied by a reworded sentence carrying the same claim, so the guard matches the
+    text that was actually wrong.
+    """
+    prose = prose_of(doctrine).lower()
+    found = [sentence for sentence in UNSCOPED_PROHIBITIONS if sentence in prose]
+    assert not found, (
+        f"{doctrine} contains an unscoped prohibition against reaching a shared "
+        f"dependency ({'; '.join(found)}). Restate it as the rule for the provider "
+        "side, and state what a consumer does instead"
     )
 
 
