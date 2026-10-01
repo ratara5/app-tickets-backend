@@ -23,6 +23,9 @@ An agent working in this repository is expected to load, in this order:
 5. `ai-specs/agents/<persona>.md` — the role, if a persona is in play.
 6. This document, when extending the harness itself.
 
+Before implementing or applying a change, run `/pipeline-preflight`, which runs the
+gates in §7 plus the manual checks that cannot be automated.
+
 Standards that are *not* in this repository: the frontend (React Native) is a
 separate project and consumes `docs/api-spec.yml` as its contract. Do not look for
 frontend sources here.
@@ -37,8 +40,16 @@ frontend sources here.
 | Skills | `ai-specs/skills/<name>/SKILL.md` | `.opencode/skills/<name>/`, `.claude_example/skills/<name>/` | symlink |
 | Agents | `ai-specs/agents/<name>.md` | `.claude_example/agents/<name>.md` (gitignored, see §5) | symlink |
 | Specs | `openspec/changes/<name>/` in flight, `openspec/specs/` shipped | none (read directly) | real files |
+| Cross-project doctrine | `ai-specs/skills/<name>/SKILL.md`, marked cross-project in the declared tree | `.opencode/skills/<name>/` | symlink; guards in `tests/test_skill_agnosticism.py` |
 | Deployment doctrine | `ai-specs/skills/deploying-backend-vps/SKILL.md` | vendored copy in the sibling project | see §6 |
+| Gates | `Makefile` targets | none (invoked directly) | real file; `gate` is what CI runs |
+| Workflow commands | `.opencode/commands/pipeline-preflight.md` | none (invoked directly) | real file, authored here |
+| Vendor commands | written by the OpenSpec CLI | `.opencode/commands/opsx-*` | see §5 |
 | Harness map | `ai-specs/harness-ia.md` (this file) | none | real file |
+
+Two command surfaces exist and the distinction matters when editing:
+`opsx-*` is CLI output and must never be hand-edited, while `pipeline-preflight.md`
+is authored here and must be. Nothing else is allowed in `commands/`.
 
 ## 3. The entry point is the README, and that is deliberate
 
@@ -146,26 +157,136 @@ concrete container name, database name, role name, or domain concept into the sh
 text. The per-project instances live in each project's own `infra/` directory, where
 they can be concrete without becoming wrong elsewhere.
 
-## 7. Known gaps
+## 7. Quality gates, and the one command that matters
 
-Recorded rather than fixed here, so the next agent does not rediscover them. All
-measured on 2026-09-27.
+`Makefile` is the executable form of `ai-specs/skills/defining-project-quality-gates`.
+Two rules make it the authority rather than a convenience:
 
-- **`docs/base-standards.md` §5 contradicts `.gitignore`.** It instructs you to
-  expose new agents and skills through `.claude_example`, which `.gitignore:10`
-  excludes. A symlink created there is never committed, so the instruction cannot
-  be satisfied in a way that survives a clone. Either the folder is un-ignored and
-  becomes a real second surface, or §5 stops naming it. This is a policy decision,
-  not a mechanical one, and it is unresolved.
-- **The vendor copies in `.claude_example/` are two OpenSpec versions behind** (see
-  §5). Local cleanup, not a repository change.
-- `openspec/specs/` did not exist. Changes carried delta specs and nothing had been
-  synced, so the harness had no statement of shipped behaviour to check against.
-- The `ai_specs_structure` block in `openspec/config.yaml` listed
-  `openspec-sync-specs` as canonical — it is vendor output and not in `ai-specs/` —
-  and omitted `deploying-backend-vps`. Corrected, along with the addition of this
-  file to the declared tree.
-- `infra/schema.sql` is generated, and a generated file only stays correct if
-  someone regenerates it. Its header carries the regeneration command and
-  `tests/test_deploy_assets.py` guards the contract.
+- **`make gate` is exactly what CI runs.** `gate-ci` delegates to it rather than
+  duplicating it. If CI ever runs something else, the pipeline becomes a second
+  unguarded copy of the rules and it is that copy which drifts.
+- **Each gate fails loudly and stops at the first failure.** A gate reporting many
+  problems at once gets them fixed in batches, and the later ones are forgotten.
+
+| Tier | Target | Time | What it protects |
+|---|---|---|---|
+| 0 | `make setup`, `make check-env` | minutes, once | the environment is usable at all |
+| 1 | `make harness` | seconds | the harness itself — exposure, declared tree, skill portability |
+| 1 | `make contracts` | seconds | OpenSpec artifacts, and the exported OpenAPI specification is not stale |
+| 1 | `make test` | minutes | the unit tier |
+| 2 | `make gate` | minutes | all of the above, in order |
+
+Two implementation details that are easy to get wrong and produce a target that
+looks broken for unrelated reasons:
+
+- **pytest runs as `python -m pytest`, never as the `pytest` script.** The script
+  form puts pytest's own directory on `sys.path`, not the project root, so
+  `import app` fails in `tests/conftest.py`.
+- **`export_openapi.py --check` needs `PYTHONPATH=.`** for the same reason: running a
+  file inside `scripts/` puts `scripts/` on the path instead of the root.
+
+`docs/api-spec.json` and `docs/api-spec.yml` are generated artifacts. `--check`
+exists so a gate can fail on staleness; without it the script would rewrite the
+file and exit zero, which is a gate with no way to fail.
+
+## 8. OpenSpec workflows, and where they are decided
+
+The `opsx-*` commands and `openspec-*` skills are written by the OpenSpec CLI, and
+**which** ones it writes is decided by a machine-global file:
+
+```
+~/.config/openspec/config.json     ← custom_workflows, outside this repository
+```
+
+That is a real reproducibility gap, and it is worth stating plainly rather than
+papering over: a fresh clone on a new machine will regenerate a different command
+surface unless someone has already configured theirs. Two consequences:
+
+- `.opencode/workflows.txt` records the set this repository requires, so a
+  divergence is visible instead of silent.
+- `tests/test_harness_integrity.py` asserts the installed commands cover that set,
+  so the gap is caught when it happens rather than discovered when a command
+  refuses to run.
+
+The fix is a project-level config the CLI can read, which the CLI does not currently
+support. Until it does, the honest position is: **the repository pins what it needs
+and guards it; it cannot yet pin how it is installed.** Do not describe the command
+surface as reproducible.
+
+## 9. Gaps: resolved and open
+
+Resolved, so nobody re-diagnoses them. All in the 2026-10-01 pass.
+
+- **`docs/base-standards.md` referenced `opsx:continue` and `opsx:ff`, which did not
+  exist.** Enabled and regenerated them; recorded in `.opencode/workflows.txt` and
+  guarded (§8).
+- **`ai_specs_structure` listed `openspec-sync-specs` as canonical** — it is vendor
+  output, not in `ai-specs/` — and omitted `deploying-backend-vps`, `scripts/`, and
+  every skill added since. Corrected, and now guarded by a test that fails on drift.
+- **`ai-specs/agents/` had no committed exposure.** `.claude_example/agents/` is
+  gitignored (§5), so the personas were reachable on exactly one machine. Exposed
+  through `.opencode/agent/` as relative symlinks.
+- **Nothing guarded the harness.** Added `tests/test_harness_integrity.py`: exposure,
+  relative symlinks, declared tree, vendor ownership, frontmatter quality, local
+  references, and rejection of authored copies or untracked exposure surfaces.
+- **Two skills were pointers, not procedures.** `meta-prompt` was a prompt template
+  and `update-docs` a 13-line stub; `code-auditing` had the description
+  "Task-focused project skill", which states nothing about when to load it. All three
+  rewritten, and the frontmatter and body are now asserted by the harness guard.
+- **`docs/api-spec.json` was stale** — two implemented endpoints were missing from it.
+  Regenerated, and `--check` added so a gate can catch the next occurrence (§7).
+- **There was no CI, no pre-commit, and no gate command at all.** `make gate` is now
+  the single entry point, and `pipeline-preflight` runs it plus the manual checks
+  that cannot be automated.
+
+Still open. These need a decision or work outside this repository.
+
+- **`docs/base-standards.md` §5 still names `.claude_example` as an exposure path**
+  for new agents and skills, which `.gitignore:10` excludes. §5 is now partly
+  superseded by this document, which names `.opencode/` as the committed surface, but
+  the two disagree and only one is loaded automatically. Reconciling them is a
+  policy call.
+- **The OpenSpec CLI reads only machine-global configuration** (§8). Until it accepts
+  a project-level config, command installation is not reproducible from the
+  repository.
+- **`.claude_example/` is two OpenSpec versions behind** (§5). Local cleanup.
+- **No pre-commit hook, so nothing runs before a commit locally.** `make gate` is
+  manual. A hook would catch it earlier but slows every commit.
+- **Agent frontmatter is Claude-shaped** — `model: sonnet`, Claude tool names,
+  `color`. The personas are readable, but opencode will not honour those fields.
+  Needs either a portable frontmatter subset or a per-agent adapter.
+- **The VPS compose file builds on the target and uses mutable tags**
+  (`infra/vps/docker-compose.yml`). `promoting-a-build` describes the fix; adopting
+  it means producing an image on one host and running that artifact on another, which
+  needs registry or image-transfer infrastructure this estate does not have yet.
+- **No health or readiness endpoints.** `app/main.py` has none, so the functional
+  gate in `verifying-a-deployment` currently has nothing to call. `observability-and-slo`
+  specifies the two that must not be conflated.
+- **No staging environment.** The substitute is running the built image locally with
+  production settings, as `dev-environment-parity` describes.
+- **Frontend and shared-infrastructure adoption is deferred** — see §10.
+
+## 10. Deferred adoption, and what unblocks it
+
+Two consumers of this doctrine are deliberately not yet using it. Both are recorded
+here so the deferral is a decision with a condition rather than a silent omission.
+
+**The frontend** (the sibling React Native repository) consumes
+`docs/api-spec.yml` as its contract but does not yet adopt the cross-project skills.
+Unblocked when the frontend is opened for harness work: symlink the same
+`ai-specs/skills/` set into its own agent folders, run
+`tests/test_skill_agnosticism.py` there, and keep `docs/api-spec.yml` as the single
+generated contract on both sides.
+
+**The shared infrastructure** — one PostgreSQL and one MinIO serving several
+applications — currently lives in concrete form under `core/`. The doctrine is
+already written for it (`deploying-backend-vps` covers tenancy, roles and media), but
+the split between the estate's own artifacts and this project's instance of them has
+not been made. Unblocked when the estate is extracted: canonicalise the shared
+provisioning doctrine, keep the per-instance names in the estate's own `infra/`, and
+leave the application repositories holding only a vendored copy with a recorded sha
+(§6).
+
+Neither deferral blocks the backend, and neither should be started speculatively —
+both need the other repository to be open anyway.
 
