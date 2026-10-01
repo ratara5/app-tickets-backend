@@ -5,8 +5,7 @@
 > and not from the models.**
 >
 > `init.sql` is retired. It declares a foreign key PostgreSQL refuses (`TICKET-008`),
-> needs an extension stock PostgreSQL does not ship (`TICKET-007`), and omitted
-> `token_blacklist`, which every authenticated request queries (`TICKET-017`).
+> and omitted `token_blacklist`, which every authenticated request queries (`TICKET-017`).
 > `bootstrap.sh` ran `psql` without `-v ON_ERROR_STOP=1`, so it printed
 > `✓ init.sql executed` even when the load failed.
 >
@@ -39,16 +38,97 @@ uvicorn app.main:app --reload --reload-dir app
 ## RUN: NEXT TIME  
 ```bash
 # Start DB
-cd ~/Documents/GoogleCloudProjects #The container is built it from ~/Documents/GoogleCloudProjects/docker-compose.yml, in its db gmail tk are received
+cd ~/Documents/GoogleCloudProjects # The container is built from ~/Documents/GoogleCloudProjects/docker-compose.yml, in its db gmail tk are received
 docker compose up -d postgres-gci  
 
 # Start MINIO
-cd ~/Documents/python_scripts/app-tickets-backend
+cd ~/Documents/GoogleCloudProjects/gci-companies/gci-empresa-a/assync # In order to ilustrate that is possible either one minio for each app or one minio for all apps. Default credentials (both user and pass): minioadmin
 docker compose up -d minio-acme 
 
 # Serve API
 uvicorn app.main:app --reload --reload-dir app
 ```
+
+### WHAT THE MINIO CONTAINER CHANGE CHANGED
+
+`minio-acme` now publishes its ports on **loopback only**
+(`127.0.0.1:9000`, `127.0.0.1:9001`) instead of on every interface. Two
+consequences, both load-bearing:
+
+1. **The VPS stack cannot reach it yet.** `infra/vps/docker-compose.yml` dials
+   `minio-acme` by container name on `my-dopamine-network`. Moving MinIO into its own
+   compose project did **not** move it onto `my-dopamine-network` — it came up on that
+   project's own prefixed network, `assync_as-sync-acme-network`. Compose cannot
+   attach a container it does not own, so the attach is a manual step, already
+   written into docs/deployment-guide.md §1 and repeated in the compose file:
+
+   ```bash
+   docker network connect infra-net minio-acme
+   docker network inspect infra-net --format '{{range .Containers}}{{.Name}} {{end}}'
+   ```
+
+   Skip it and the API starts and reports healthy, then every upload and every
+   photo download fails on DNS resolution. Nothing warns you at boot.
+
+2. **A phone on the LAN can no longer load media.** Presigned URLs are signed
+   with `MINIO_PUBLIC_ENDPOINT`, and with the S3 port bound to loopback there is
+   no longer a listener at any LAN address. For local device testing, pick one:
+   publish the S3 port on the LAN again (`"9000:9000"` in the MinIO compose), or
+   forward it with an `alpine/socat` tunnel as `provider-portal-minio-dev-tunnel`
+   does, or point the app at Caddy. For the VPS this is a non-issue: Caddy is the
+   only public listener and terminates TLS for `MEDIA_DOMAIN`.
+
+   `MINIO_PUBLIC_ENDPOINT` in `.env` was `192.168.10.30`, which is not this host
+   (`192.168.10.31`) and does not answer on the LAN at all, so every URL the API
+   handed out was dead on arrival. The LAN-correct value is the machine's mDNS
+   name, `ratara5-SVT15115CLS.local`, which avahi publishes and a phone on the
+   same LAN resolves directly. A name rather than an address, because this key is
+   signed into every URL and must not move when a DHCP lease rotates.
+
+   `.env` currently holds `MINIO_PUBLIC_ENDPOINT=127.0.0.1`, which is correct
+   *only* while the app runs in a simulator or another on-host client that shares
+   this host's loopback namespace — that is why photos render there. It is not a
+   LAN value: all of `127.0.0.0/8` is unreachable from any other device, so
+   `127.0.0.1` or `127.0.0.2` signed into a URL fails on a real handset every
+   time. Set this key to `ratara5-SVT15115CLS.local` (or a DHCP-reserved LAN
+   address) before testing on a physical device.
+
+### THE BUCKET AND ITS VOLUME ARE A SEPARATE PROBLEM
+
+The port binding was necessary but not sufficient. `minio-acme` now runs under
+the `assync` compose project, so its volume is `assync_acme_minio_data`, which is
+**empty**. The 34 objects uploaded before the move are in
+`infrastructure-companies-v2_acme_minio_data`, under the bucket
+`acme-uploads-own-api`. A fresh `minio-acme` therefore serves no photos, and no
+port binding changes that.
+
+`.env` names `tecfrio-uploads-own-api` as `MINIO_DEFAULT_BUCKET`. That bucket did
+not exist on the new volume, so the API failed its startup bucket check with
+`AccessDenied` until the bucket and a service account scoped to it were created
+(`tecfrio_access_key`, policy limited to that single bucket — not root
+credentials, per `.env.example`).
+
+Before this carries real traffic, decide which of these is true, because they are
+not equivalent:
+
+- **the historical objects are wanted** — attach the volume that holds them
+  (`infrastructure-companies-v2_acme_minio_data`) and set
+  `MINIO_DEFAULT_BUCKET=acme-uploads-own-api`
+- **the new empty bucket is wanted** — nothing to migrate, but every photo
+  referenced by an existing `photos` row is then a dead link that needs clearing
+  or re-uploading <<<==== THIS OPTION WAS SELECTED!! 
+
+Check with `mc ls local/<bucket> --recursive | wc -l`, never with a bucket
+existence test: an empty bucket satisfies every check the API makes.
+
+### TWO ORIGINS, TWO RUN MODES — DO NOT MIX THEM
+
+`MINIO_ENDPOINT` is where *this process* dials the store; `MINIO_PUBLIC_ENDPOINT`
+is the origin baked into presigned URLs, which the phone must resolve. They are
+deliberately different values in the VPS stack, and `infra/vps/docker-compose.yml`
+now pins both for the container instead of inheriting them from `.env`, because
+`.env` is the host-run file where `MINIO_ENDPOINT=127.0.0.1` is correct and
+`127.0.0.1` inside a container is the container itself.
 
 ## API USAGE  
 ```bash
