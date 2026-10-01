@@ -142,7 +142,7 @@ services:
   #
   # CREDENTIALS. This job needs schema-modification rights, so it cannot use the
   # application's runtime credentials — the runtime role holds DML only and is
-  # deliberately never given ownership (deploy/provision/README.md). It has no
+  # deliberately never given ownership (infra/provision/README.md). It has no
   # `env_file` for that reason: the elevated values must be passed explicitly, by
   # hand, so that an elevated credential is never a default in a file that also
   # configures the running service. Run it as, for example:
