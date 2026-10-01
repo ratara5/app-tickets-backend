@@ -292,6 +292,55 @@ def sign_maintenance(db: Session, maintenance_id: UUID7, current_user):
     return _serialize_maintenance_item(maintenance)
 
 
+def pause_maintenance(db: Session, maintenance_id: UUID7, payload: PauseRequest, current_user):
+    """Pause a maintenance now, without editing the worksheet.
+
+    A maintenance has no status column, so "paused" is two facts: a `pauses`
+    row carrying the reason, and the owning ticket being PAUSED. Both are
+    written in one commit, so a maintenance can never carry a pause the ticket
+    does not know about.
+
+    This is deliberately not the save path. `PATCH /maintenances/{id}`
+    *replaces* the pause list (the mobile form re-sends its whole current list)
+    and infers PAUSED from whether the save introduced a new row. Reusing that
+    would make "pause now" impossible to express: you could not pause without
+    editing the worksheet, and re-saving would delete the pause.
+
+    Preconditions:
+    - The maintenance exists (404) and belongs to the caller (403).
+    - The owning ticket is IN PROGRESS. PAUSED is an idempotent retry that
+      returns the current state and appends no second row; every other ticket
+      status is 422. Resuming is a separate concern, out of scope here.
+    """
+    maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
+    if not maintenance:
+        raise HTTPException(404, "Maintenance not found")
+    assert_ownership(maintenance, current_user, db)
+
+    ticket = maintenance.ticket
+    if ticket is None:
+        raise HTTPException(404, "Ticket not found")
+
+    if ticket.status == TicketStatus.paused:
+        # Idempotent retry: return the current state without adding a row, so a
+        # retried request cannot inflate the pause history.
+        return _serialize_maintenance_item(maintenance)
+
+    # Raises 422 unless the owning ticket is IN PROGRESS.
+    ticket_svc.validate_transition(ticket.status, TicketStatus.paused)
+
+    # No commit inside either call: one transaction, one commit below.
+    maintenance_repo.add_pause(
+        db, maintenance.maintenance_id, payload, current_user, commit=False
+    )
+    ticket.status = TicketStatus.paused
+    db.commit()
+
+    db.expire_all()
+    maintenance = maintenance_repo.get_maintenance_by_id(db, maintenance_id, current_user)
+    return _serialize_maintenance_item(maintenance)
+
+
 # Helpers
 def assert_ownership(mnt: Maintenance, current_user: CurrentUser, db: Session):
     if current_user.user_role == UserRole.director:

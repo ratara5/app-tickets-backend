@@ -71,6 +71,16 @@ async def update_maintenance(
         db, maintenance_id, data, current_user, files, initial_photo_action
     )
 
+@router.patch("/{maintenance_id}/pause", response_model=MaintenanceItemResponse)
+def pause_maintenance(
+    maintenance_id: UUID7,
+    payload: PauseRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    return maintenance_svc.pause_maintenance(db, maintenance_id, payload, current_user)
+
+
 @router.delete("/{maintenance_id}/photos/{photo_id}", response_model=MaintenanceItemResponse)
 def delete_maintenance_photo(
     maintenance_id: UUID7,

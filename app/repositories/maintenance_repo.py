@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 from pydantic import UUID7
 
@@ -134,13 +134,36 @@ def add_maintenance_technician(db, maintenance_id, t):
     ))
     db.commit()
 
-def add_pause(db, maintenance_id, p):
+def add_pause(db, maintenance_id, p, current_user=None, commit: bool = True):
+    """Append one pause row.
+
+    `commit=False` is the transactional path used by the pause endpoint: the
+    caller owns the commit so the pause row and the ticket's PAUSED status land
+    in the same transaction, as the design note in tickets.py requires.
+
+    `created_at` falls back to server time when the payload carries none, which
+    is the pause endpoint's case — the client states *why*, never *when*. The
+    mobile form's pauses do carry a device timestamp and keep using it.
+    `created_at` is set explicitly rather than left to the column's server
+    default, because the ORM model declares no default and the value is part of
+    the response (`PauseOut.created_at` is a required datetime).
+    """
+    created_at = getattr(p, "created_at", None) or datetime.now(timezone.utc)
+    user_id = current_user.user_id if current_user is not None else None
+
     db.add(Pause(
         maintenance_id=maintenance_id,
         pause_reason=p.pause_reason,
-        created_at=p.created_at
+        created_at=created_at,
+        updated_at=created_at,
+        created_by=user_id,
+        updated_by=user_id,
     ))
-    db.commit()
+    if commit:
+        # Legacy path: own transaction.
+        db.commit()
+    else:
+        db.flush()
 
 
 def replace_maintenance_spares(db, maintenance_id, spares, current_user):

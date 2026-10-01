@@ -5,11 +5,12 @@ import pytest
 from datetime import datetime
 
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from app.models.master import Market, Equipment, Technician
 from app.models.ticket import Ticket
-from app.models.maintenance import Maintenance
+from app.models.maintenance import Maintenance, Pause
 from app.models.worksheet import Worksheet
 from app.models.fsm_user import FSMUser
 from app.core.security import hash_password
@@ -295,18 +296,12 @@ def test_update_maintenance_new_pause_marks_ticket_paused_when_updated_at_bumped
     assert ticket_row.status == "CLOSED"
 
 
-# Pausing has no endpoint. TICKET-023 tracks the missing route: PauseRequest is
-# imported and the design is written down in tickets.py, but neither the route nor
-# a service function was ever written, so these two tests have always been hitting
-# a 404. Strict xfail keeps the suite green and makes the day someone adds the
-# route a test that has to pass. Drop the marker in that commit.
-PENDING_PAUSE_ENDPOINT = pytest.mark.xfail(
-    strict=True,
-    reason="PATCH /maintenances/{maintenance_id}/pause is not registered; see TICKET-023",
-)
+# Pausing is a first-class endpoint: PATCH /maintenances/{id}/pause.
+# It appends a pauses row and drives the owning ticket to PAUSED in one commit.
+# There is no `status` on a maintenance — the assertion is on `ticket_status`,
+# the owning ticket's status, which is the only place a pause is observable.
 
 
-@PENDING_PAUSE_ENDPOINT
 def test_pause_maintenance_success(
     client: TestClient, auth_headers: dict,
     test_market: Market, test_equipment: Equipment,
@@ -318,12 +313,120 @@ def test_pause_maintenance_success(
         json={"pause_reason": "Test pause"},
         headers=auth_headers
     )
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
     data = response.json()
-    assert data["status"] == "PAUSED"
+    assert data["ticket_status"] == "PAUSED"
+    assert [p["pause_reason"] for p in data["pauses"]] == ["Test pause"]
 
 
-@PENDING_PAUSE_ENDPOINT
+def test_pause_maintenance_persists_the_reason(
+    client: TestClient, auth_headers: dict, db_session: Session, test_user: dict,
+    test_market: Market, test_equipment: Equipment,
+    test_technician: Technician
+) -> None:
+    """The pause row is stored, not just echoed: the reason, a time and the author."""
+    _ticket_id, maintenance_id = _create_assigned_started_ticket(client, auth_headers)
+    response = client.patch(
+        f"/maintenances/{maintenance_id}/pause",
+        json={"pause_reason": "Awaiting part"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+
+    rows = db_session.query(Pause).filter(
+        Pause.maintenance_id == uuid.UUID(maintenance_id)
+    ).all()
+    assert len(rows) == 1
+    assert rows[0].pause_reason == "Awaiting part"
+    assert rows[0].created_at is not None
+    assert rows[0].created_by == test_user["user_id"]
+
+
+def test_pause_maintenance_appends_to_existing_pauses(
+    client: TestClient, auth_headers: dict,
+    test_market: Market, test_equipment: Equipment,
+    test_technician: Technician
+) -> None:
+    """Pausing is an append, never a replace: the earlier pauses are kept.
+
+    PATCH /maintenances/{id} replaces the whole pause list because the mobile
+    form re-sends it. The pause endpoint expresses "pause now" and has no
+    opinion about history, so it must not drop what is already there.
+    """
+    _ticket_id, maintenance_id = _create_assigned_started_ticket(client, auth_headers)
+    for reason in ("Awaiting part", "Site closed"):
+        response = client.patch(
+            f"/maintenances/{maintenance_id}/pause",
+            json={"pause_reason": reason},
+            headers=auth_headers,
+        )
+        # The second call is the idempotent-retry case, so it adds no row.
+        assert response.status_code == 200, response.text
+
+    pauses = response.json()["pauses"]
+    assert [p["pause_reason"] for p in pauses] == ["Awaiting part"], (
+        "re-pausing must not append a duplicate row for the same PAUSED state"
+    )
+
+
+def test_pause_maintenance_is_idempotent_when_already_paused(
+    client: TestClient, auth_headers: dict,
+    test_market: Market, test_equipment: Equipment,
+    test_technician: Technician
+) -> None:
+    """A second pause returns 200 with the same state, not a 409."""
+    _ticket_id, maintenance_id = _create_assigned_started_ticket(client, auth_headers)
+    first = client.patch(
+        f"/maintenances/{maintenance_id}/pause",
+        json={"pause_reason": "Awaiting part"},
+        headers=auth_headers,
+    )
+    second = client.patch(
+        f"/maintenances/{maintenance_id}/pause",
+        json={"pause_reason": "Awaiting part"},
+        headers=auth_headers,
+    )
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert second.json()["ticket_status"] == "PAUSED"
+    assert second.json()["pauses"] == first.json()["pauses"]
+
+
+def test_pause_maintenance_requires_a_reason(
+    client: TestClient, auth_headers: dict,
+    test_market: Market, test_equipment: Equipment,
+    test_technician: Technician
+) -> None:
+    _ticket_id, maintenance_id = _create_assigned_started_ticket(client, auth_headers)
+    response = client.patch(
+        f"/maintenances/{maintenance_id}/pause",
+        json={},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422
+
+
+def test_pause_maintenance_rejects_a_closed_ticket(
+    client: TestClient, auth_headers: dict, db_session: Session,
+    test_market: Market, test_equipment: Equipment,
+    test_technician: Technician
+) -> None:
+    """Only IN PROGRESS may be paused; a CLOSED maintenance is 422, not 409."""
+    ticket_id, maintenance_id = _create_assigned_started_ticket(client, auth_headers)
+    ticket_row = db_session.query(Ticket).filter(Ticket.ticket_id == ticket_id).one()
+    ticket_row.status = "CLOSED"
+    db_session.commit()
+
+    response = client.patch(
+        f"/maintenances/{maintenance_id}/pause",
+        json={"pause_reason": "Too late"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 422, response.text
+    db_session.refresh(ticket_row)
+    assert ticket_row.status == "CLOSED", "a rejected pause must not move the ticket"
+
+
 def test_pause_maintenance_unauthorized(
     client: TestClient
 ) -> None:
@@ -337,12 +440,118 @@ def test_pause_maintenance_unauthorized(
 def test_pause_maintenance_not_found(
     client: TestClient, auth_headers: dict
 ) -> None:
+    # `_ABSENT_UUID7`, not a nil UUID: a nil id is not a v7, so the route's path
+    # binding rejects it with 422 before the handler can answer 404. While the
+    # route did not exist at all, this test 404'd for the wrong reason and the
+    # wrong id shape hid that.
     response = client.patch(
-        "/maintenances/00000000-0000-0000-0000-000000000099/pause",
+        f"/maintenances/{_ABSENT_UUID7}/pause",
         json={"pause_reason": "Test"},
         headers=auth_headers
     )
     assert response.status_code == 404
+
+
+def test_pause_maintenance_commits_the_pause_and_the_status_once(
+    client: TestClient, auth_headers: dict,
+    test_market: Market, test_equipment: Equipment,
+    test_technician: Technician
+) -> None:
+    """The pause row and the ticket's PAUSED status must be ONE transaction.
+
+    Two commits would leave a window where a maintenance carries a pause the
+    ticket has not accepted, and where a failure after the first commit orphans
+    the pause row entirely. Counting commits is the only way to catch that here:
+    the happy path looks identical either way, and a failed second commit is not
+    something the HTTP surface can express.
+    """
+    from sqlalchemy.orm import Session as OrmSession
+
+    _ticket_id, maintenance_id = _create_assigned_started_ticket(client, auth_headers)
+
+    commits: list[int] = []
+
+    def _count_commit(_session) -> None:
+        commits.append(1)
+
+    # Class-level listener, because the route runs on its own session from the
+    # get_db override, not on the `db_session` this test would see. Only the
+    # window around the request is counted, so the setup commits are excluded.
+    # Note: an engine-level "commit" event does NOT fire for `Session.commit()`
+    # in SQLAlchemy 2.0 — that only fires for `engine.commit()` — so it silently
+    # counts zero and the test would fail against correct code.
+    event.listen(OrmSession, "after_commit", _count_commit)
+    try:
+        response = client.patch(
+            f"/maintenances/{maintenance_id}/pause",
+            json={"pause_reason": "Awaiting part"},
+            headers=auth_headers,
+        )
+    finally:
+        event.remove(OrmSession, "after_commit", _count_commit)
+
+    assert response.status_code == 200, response.text
+    assert len(commits) == 1, f"expected 1 commit, got {len(commits)}"
+
+
+def test_pause_maintenance_forbidden_for_other_technician(
+    client: TestClient, auth_headers: dict, db_session: Session,
+    test_market: Market, test_equipment: Equipment,
+    test_technician: Technician
+) -> None:
+    """A technician who is not the ticket's assignee gets 403, not a silent pause.
+
+    Same shape as test_sign_maintenance_forbidden_ownership: the maintenance
+    belongs to a different technician, and the caller is `test_user`.
+    """
+    other = FSMUser(
+        email="other-technician@example.com",
+        user_name="Other Technician",
+        passwd=hash_password("password123"),
+        user_role="TECHNICIAN",
+    )
+    db_session.add(other)
+    db_session.commit()
+    db_session.refresh(other)
+    other_tech = Technician(user_id=other.user_id)
+    db_session.add(other_tech)
+    db_session.commit()
+    db_session.refresh(other_tech)
+
+    ticket = Ticket(
+        ticket_date=datetime.fromisoformat(_WEEKDAY),
+        ticket_description="Other technician's ticket",
+        priority="NORMAL",
+        status="IN PROGRESS",
+        market_id=test_market.market_id,
+        equipment_id=test_equipment.equipment_id,
+        assigned_to=other_tech.technician_id,
+        created_by=other.user_id,
+        updated_by=other.user_id,
+    )
+    db_session.add(ticket)
+    db_session.commit()
+    db_session.refresh(ticket)
+
+    maintenance = Maintenance(
+        ticket_id=ticket.ticket_id,
+        maintenance_date=datetime.fromisoformat(_WEEKDAY),
+        created_by=other.user_id,
+        updated_by=other.user_id,
+    )
+    db_session.add(maintenance)
+    db_session.commit()
+    db_session.refresh(maintenance)
+
+    response = client.patch(
+        f"/maintenances/{maintenance.maintenance_id}/pause",
+        json={"pause_reason": "Not mine"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 403, response.text
+    assert db_session.query(Pause).filter(
+        Pause.maintenance_id == maintenance.maintenance_id
+    ).count() == 0, "a refused pause must not leave a row behind"
 
 
 def test_delete_maintenance_success(
