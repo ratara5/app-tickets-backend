@@ -1,0 +1,5 @@
+unit,magnitude,uom_description,ref_unit,factor_conversion
+PCS,,Local Unit Piece,,1
+HR,,Local Unit Hour,,1
+BOX,PCS,Local Unit Box,PCS,10
+PAL,PCS,Local Unit Pallet,PCS,120

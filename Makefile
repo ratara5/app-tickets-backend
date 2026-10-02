@@ -54,6 +54,7 @@ setup:
 	@test -d "$(VENV)" || python3.12 -m venv "$(VENV)"
 	$(PIP) install --quiet --upgrade pip
 	$(PIP) install --quiet -r requirements.txt
+	$(PIP) install --quiet -r requirements-dev.txt
 	@echo "Environment ready."
 
 ## check-env: Fail if the environment is not usable
@@ -103,12 +104,89 @@ gate: harness contracts test
 .PHONY: gate-ci
 gate-ci: gate
 
+# ── Local environment ───────────────────────────────────────────────────────
+
+## gate-local: Prove the local environment works end to end against the core
+#
+# Unlike `gate`, this one needs a running local environment: `make setup-local`
+# first, and the core's containers must already be running because they are owned
+# by another project. Fails at the first failure, like every other target here.
+.PHONY: gate-local
+gate-local:
+	@bash infra/local/scripts/gate-local.sh
+
+## setup-local: Bring this project's local environment up in one command
+.PHONY: setup-local
+setup-local:
+	@bash infra/local/setup.sh $(ARGS)
+
+## local-down: Remove this project's local environment, leaving the core alone
+#
+# `docker compose down` cannot remove a network that still holds an attachment to
+# a container it does not own, so the core's containers are detached from our
+# network FIRST. Without that order the network is left behind, still connected to
+# somebody else's container — and a leftover attachment is invisible until the
+# next bring-up silently re-uses it.
+#
+# Nothing here stops, restarts or removes the core's containers. Only its
+# membership of OUR network is changed.
+.PHONY: local-down
+local-down:
+	@set -eu; \
+	EXPECTED="app-tickets-local-net"; \
+	NET="$$(awk '/^networks:/{f=1;next} f && /^    name:/{print $$2; exit}' infra/local/docker-compose.yml)"; \
+	if [ -z "$$NET" ]; then \
+	  echo "could not read the network name from infra/local/docker-compose.yml" >&2; exit 1; \
+	fi; \
+	if [ "$$NET" != "$$EXPECTED" ]; then \
+	  echo "compose declares '$$NET' but teardown detaches from '$$EXPECTED'." >&2; \
+	  echo "Rename both together; refusing to detach the wrong network." >&2; exit 1; \
+	fi; \
+	echo "==> Detaching the shared core from $$EXPECTED"; \
+	for c in postgres-gci minio-acme; do \
+	  if [ -z "$$(docker inspect --format '{{range $$n, $$_ := .NetworkSettings.Networks}}{{$$n}} {{end}}' "$$c" 2>/dev/null | tr ' ' '\n' | grep -Fx "$$EXPECTED" || true)" ]; then \
+	    echo "    $$c is not attached to $$EXPECTED — nothing to detach"; \
+	  else \
+	    docker network disconnect app-tickets-local-net "$$c"; \
+	    echo "    detached $$c from $$EXPECTED"; \
+	  fi; \
+	done; \
+	echo "==> Removing this project's compose project"; \
+	docker compose -f infra/local/docker-compose.yml down; \
+	echo "==> Local environment removed. The shared core was not touched."
+
 # ── Manual and operational targets ──────────────────────────────────────────
 
-## run: Start the API locally with reload
+## run: Start the API in Docker against the shared core, with reload
+#
+# `--reload-dir app` is not a preference. Without it the watcher follows venv/, so
+# the number of open watches scales with the number of installed packages; the
+# watch limit is then hit minutes later, on the next reload, with no apparent
+# relation to the `pip install` that caused it. The reload process dies with a
+# watch-count error and the developer is left guessing. `--reload-exclude` covers
+# what remains outside `app/`.
 .PHONY: run
 run:
-	$(VENV)/bin/uvicorn app.main:app --reload
+	$(VENV)/bin/uvicorn app.main:app --reload --reload-dir app \
+		--reload-exclude 'venv/.*' --reload-exclude '\.pytest_cache/.*' \
+		--reload-exclude '\.coverage'
+
+## run-native: Start the API from venv/ for the edit-reload inner loop
+#
+# Uses the loopback values from `.env` — DB_HOST=127.0.0.1, DB_PORT=5435,
+# MINIO_ENDPOINT=127.0.0.1 — which reach the same shared core the containers do,
+# through the ports the core publishes. No container is started and none is
+# touched, which is what makes this the fast loop.
+#
+# This target is for ITERATION. It is not the gate: it proves the code starts, and
+# nothing about the image, the provisioning, or the round trip through the object
+# store. `make gate-local` is the gate, and it runs against the built image.
+.PHONY: run-native
+run-native:
+	@echo "Iteration only — 'make gate-local' is the gate."
+	@$(VENV)/bin/uvicorn app.main:app --reload --reload-dir app \
+		--reload-exclude 'venv/.*' --reload-exclude '\.pytest_cache/.*' \
+		--reload-exclude '\.coverage'
 
 ## shell: Open a Python shell with the app importable
 .PHONY: shell
