@@ -175,3 +175,46 @@ normally. That procedure is now in `docs/deployment-guide.md` §2.2.
   One canonical account here, one there, and an explicit link between them — the lesson is
   shared, the repository is not.
 ---
+
+## 7. A Shared Dependency's Shape Is Not Its Interface
+
+- **A network name is a decision, not a contract. The container names and ports are the
+  contract.** A shared core can be composed four ways — everything in one compose, split per
+  application, grouped by layer, inverted — so its network layout is free to change without
+  anything about the dependency having changed. Consuming it correctly means depending on
+  `postgres-gci:5432` and `minio-acme:9000`, and on nothing else. An earlier draft of the
+  local stack declared two `external: true` networks to reach both, which was not cautious:
+  it made this repository break on a rename it had no stake in, and the failure it bought in
+  exchange was a DNS error that the API's own healthcheck passes straight through.
+- **`network connect` state lives inside the container, so recreate is not restart.** A plain
+  `docker restart` keeps a container's network attachments; re-creating it drops every one,
+  silently. The network then still exists, still looks correct, and still has no members on
+  the side that matters. This was observed directly: another application's network on the
+  developer's host had no members because the core had been recreated. Any bring-up that
+  attaches must therefore be idempotent and re-run every time, and must report which
+  attachments it made — an attachment silently lost to a recreate is otherwise
+  indistinguishable from one that was never made.
+- **A find-and-replace that renames one half of a coupled pair is a routing change that
+  reports success.** A rename of the deployed network name updated `name:` but left the
+  network key and all five internal references alone. Compose resolves services through the
+  *key*, so the file stayed valid, `docker compose config` passed, and the result was that
+  Caddy, the API and the migration job would have been placed on another tenant's bridge — a
+  public TLS entrypoint and the media origin, from an edit that looked complete. Two rules
+  came out of it: a value that silently changes routing must never be changed by a tool that
+  reports success, and the file's own comment two lines above had already warned against
+  exactly that network.
+- **A runtime attachment is a cache, and the provider owns the durable copy.** Attaching a
+  shared container to a consumer's network with `docker network connect` puts the fact in the
+  container, where the next recreate erases it with no log line and no error. The idempotent
+  re-run every bring-up is the mitigation, not the fix: it makes the loss recoverable on demand
+  and leaves the window open until someone runs the command. The fix belongs in the file the
+  provider owns — each new application's network declared `external: true` on the core's own
+  service — so the attachment is declarative and a recreate reproduces it. The direction is the
+  lesson: a consumer must never edit the provider's compose to get this, and a provider who has
+  not declared a consumer's network yet is the ordinary state, not a defect.
+- **Read the provider's procedure; do not infer the provider's design.** The arrangement this
+  project settled on was already documented by the project that operates the core, and the
+  first draft here reasoned its way to a *different* answer by inspecting the host's networks
+  and never opened that README. Inferring a shared dependency's intended shape from the
+  accident of how a mirror is laid out is how two projects end up disagreeing about a system
+  they are both running correctly.

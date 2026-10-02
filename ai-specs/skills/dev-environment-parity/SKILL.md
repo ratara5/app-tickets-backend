@@ -239,21 +239,77 @@ reasonable shortcut:
 | reuse the shared container's name | which container a name resolves to depends on the network, so the answer changes without anything being restarted |
 | take the shared container's data volume | starting the "local" database is starting the shared one, on someone else's data |
 | restart a shared container to make your own environment work | every other consumer of that instance stops, for a problem that was yours |
+| declare your own network `external` *and* hand-create it in the script | compose then neither creates nor owns it, so `down` cannot remove it; both halves read as the cautious choice, which is why the contradiction survives review |
+| hard-code the provider's network name as `external` | you copied a decision you do not own; when they reorganise, your service resolves nothing and still reports healthy |
+| rely on a runtime `network connect` as the only attachment | it lives in the container, so the provider's next recreate drops it silently and the consumer fails at first request |
+| make the consumer edit the provider's compose to add its network | the one file the consumer must never touch becomes the thing it has to change, and the edit is invisible to the provider |
+
+**The provider's shape is a free choice, and that is the premise for everything below.** A
+shared core can be composed any of these ways, and all four are legitimate:
+
+| # | Database | Object store | Networks |
+|---|---|---|---|
+| 1 | one server | one server | **one** — both in a single compose |
+| 2 | one per app/web/unit | one per app/web/unit | one per unit |
+| 3 | one grouping all apps | one for all apps | one, if both are declared together |
+| 4 | one for all apps | one grouping all apps | one, if both are declared together |
+
+Only arrangement 1 makes one network inevitable. Arrangements 2–4 each produce as many
+networks as there are groupings, and a mirror of the provider on a developer's machine may
+not even match: splitting one arrangement across two compose files in two directories is a
+property of how the mirror is *laid out*, not a topology you should reproduce.
+
+**Which arrangement is deployed is the owner's statement, not yours to infer.** You can
+verify the consequence — that the deployed stack resolves both dependencies across one
+network — from the deployed compose file. You usually cannot verify the cause, which lives in
+a directory on another machine and may not even be the same directory name. So record the two
+separately: cite the file that proves the consequence, attribute the arrangement to the owner,
+and do not send a reader hunting for a folder that is not in your tree.
+
+So a consumer has no contract to depend on. What it can rely on is the container names, the
+in-container ports, and the doctrine below — its own database, role and bucket, never shared.
+A provider that wants consumers to have an easy time exposes one network (arrangement 1);
+everything else pushes the provider's layout into every consumer's configuration.
 
 The rules, by side:
 
 **For a consumer:**
 
-- **Prefer the deployed topology.** If deployment reaches a shared core, local reaches the
-  same one, by the same names and the same network. Deviating buys isolation that was not
-  needed and spends the fidelity that was the point.
+- **Prefer the deployed shape, not the provider's network name.** If deployment reaches a
+  shared core, local reaches the same one, by the same container names, in-container ports
+  and topology. Copy the *shape*; do not copy a *name*. A network name belongs to whoever
+  declared it, and the provider is free to reorganise it — a consumer that hard-codes it has
+  coupled itself to a decision it does not own, and its failure mode is a DNS error that its
+  own healthcheck passes straight through. Deviating buys isolation that was not needed and
+  spends fidelity that was the point; hard-coding the name spends correctness.
 - **Isolate by tenant object, not by instance.** Its own database, its own least-privilege
   role, its own bucket, its own user, its own credentials. The database is never shared.
   That is the whole of the isolation, and it is the same isolation the deployed environment
   uses.
-- **Join the shared network, declared external.** That is how a consumer resolves the
-  provider's names. Declare it `external` so your file creates and changes nothing, and
-  never create, rename or remove a network you did not declare.
+- **Own your network, and connect the running core to it.** Declare one network, create it,
+  and have your bring-up command `docker network connect` each already-running core
+  container to it. Reachability is then by container name across your own network.
+
+  Do **not** declare the provider's network `external`, and do **not** hand-create a network
+  you declared `external`. Both were observed in the same answer, because `external` reads as
+  the cautious choice: "declared external so my file creates nothing", then
+  `docker network create` in the script anyway, justified as failing fast rather than timing
+  out on DNS. It is self-contradictory and nobody notices, because both halves are individually
+  defensible. If your script creates the network, the network is yours and it is not external.
+
+  Why this beats `external`: a provider's network layout is a free choice among several
+  arrangements — everything in one compose; split per app; grouped by layer; inverted — so the
+  name is not a contract. And `network connect` state lives *inside* the container: a plain
+  `restart` keeps the attachment, a **recreate drops it silently**, so the connect must be
+  idempotent and re-run at every bring-up regardless.
+
+  The cost, accepted explicitly: you are mutating another project's running containers. It is
+  additive — never `start`, `stop`, `restart`, `rm` or `compose up` one you do not own — and
+  your teardown **must** `docker network disconnect` before `compose down`, because `compose
+  down` cannot remove a network that still holds an attachment to a container it did not create.
+  A local stack has no operator to run the create step, so ownership belongs to your bring-up
+  script; a deployed arrangement should have the network created once by the provider's
+  procedure and declared `external` there.
 - **Write nothing outside your own objects.** Provisioning creates what you need; it does
   not edit a shared configuration file to make its own work easier, and it does not restart
   a container it does not own. A missing capability is reported to the provider, not
@@ -275,6 +331,47 @@ The rules, by side:
 - **Expose one network to consumers.** If your database and your object store are on
   different networks, every consumer must attach to both to reach you. That is your
   topology leaking into every consumer's configuration, and consumers will work around it.
+  Keep everything in one compose if you can.
+- **Expect to be multi-homed, and say so.** Consumers connect their own network to your
+  containers rather than joining yours, so your containers end up attached to one network per
+  consumer and their attachments vanish whenever you recreate them. That is safe — a network
+  carries no port of its own, so extra attachments conflict only if the new consumer binds an
+  internal port **inside your container** that something already listens on. Document that your
+  containers are expected to be multi-homed.
+
+- **Declare each consumer's network in your own service, so the attachment survives a
+  recreate.** A `docker network connect` performed at runtime is state that lives in the
+  container, so the next time *your* compose recreates the container the attachment is gone
+  and nothing says so. The durable fix is on your side of the boundary: add each new
+  application's network to the service as an external network, so it is declared rather
+  than applied.
+
+  ```yaml
+  # core/compose.yml — your own service, generically named
+  services:
+    your-database-service:
+      networks:
+        - core-network           # yours
+        - my-first-app-network   # external: created by that app's deployment procedure
+        - my-second-app-network  # external: created by that app's deployment procedure
+  networks:
+    core-network:
+      driver: bridge
+    my-first-app-network:
+      external: true
+    my-second-app-network:
+      external: true
+  ```
+
+  This is a shared skill, so the names above are deliberately abstract: a concrete
+  container or database name from one estate is wrong in every other project that
+  reads it, and copying one targets the wrong server.
+
+  Note the direction this reverses: the consumer asked not to edit a shared declaration, and
+  here the *provider* is the one who must edit their own. That is not an exception to the
+  rule — it is the rule applied to the file you actually own. A consumer still connects, and
+  should still connect idempotently, because a provider who has not declared your network
+  yet is the normal case, not a mistake.
 - **Pin the versions you provide.** A provider whose version is recorded nowhere cannot
   offer parity with anything, including itself.
 
