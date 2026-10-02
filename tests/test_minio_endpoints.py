@@ -17,6 +17,7 @@ import urllib3.exceptions as urllib3_errors
 from fastapi.testclient import TestClient
 from minio import Minio
 from minio.error import S3Error
+from pydantic import ValidationError
 
 from app.core import storage
 from app.core.settings import MinioOrigin, Settings
@@ -30,12 +31,19 @@ BUCKET = "acme-uploads-own-api"
 OBJECT_NAME = "Mantenimientos/Correctivos/2026/Septiembre/MNT-1/photo.jpg"
 
 
-def _settings(**overrides: Any) -> Settings:
+def _settings(*, omit: tuple[str, ...] = (), **overrides: Any) -> Settings:
     """Build a Settings instance with every MinIO variable pinned explicitly.
 
-    The public variables default to ``None`` so that a developer's local ``.env``
-    (which legitimately sets ``MINIO_PUBLIC_ENDPOINT``) can never leak into these
-    tests. Every other setting still comes from the repository ``.env`` files.
+    The public variables are pinned rather than inherited for two reasons. A
+    developer's local `.env` legitimately sets `MINIO_PUBLIC_ENDPOINT`, so leaving
+    it to chance would let the ambient file decide what these tests assert; and
+    since 2026-10-01 all three are required, so a test that omitted one would fail
+    at construction instead of testing anything.
+
+    `omit` *removes* keys, and is the only way to test required-ness. Passing
+    `None` instead would override any default the field might carry and so would
+    keep passing if a fallback default were reinstated -- which is exactly the
+    defect these tests exist to prevent.
     """
     values: dict[str, Any] = {
         "MINIO_ENDPOINT": INTERNAL_HOST,
@@ -44,11 +52,19 @@ def _settings(**overrides: Any) -> Settings:
         "MINIO_SECRET_KEY": "test-secret-key",
         "MINIO_SECURE": False,
         "MINIO_DEFAULT_BUCKET": BUCKET,
-        "MINIO_PUBLIC_ENDPOINT": None,
-        "MINIO_PUBLIC_PORT": None,
-        "MINIO_PUBLIC_SECURE": None,
+        "MINIO_PUBLIC_ENDPOINT": PUBLIC_HOST,
+        "MINIO_PUBLIC_PORT": 9000,
+        "MINIO_PUBLIC_SECURE": False,
     }
     values.update(overrides)
+    for key in omit:
+        values.pop(key, None)
+    if omit:
+        # `_env_file=None` disables the dotenv source. Without it, omitting a
+        # key here would still be answered from the core `.env` that
+        # `ENV_PATH_CORE` points at, and the test would pass for the wrong
+        # reason -- the same silent re-supply the fallback itself relied on.
+        return Settings(_env_file=None, **values)
     return Settings(**values)
 
 
@@ -156,15 +172,34 @@ def test_presigned_url_is_signed_with_the_public_endpoint(
     assert _effective_origin(url) == f"http://{PUBLIC_HOST}:9000"
 
 
-def test_presigned_url_falls_back_to_the_internal_endpoint(
+def test_presigned_url_fails_when_the_public_origin_is_omitted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _use_settings(monkeypatch, MINIO_ENDPOINT="minio-acme")
-    _record_http_calls(monkeypatch)
+    """An omitted public origin must stop the process, not sign with a dial target.
 
-    url = storage.get_presigned_url(OBJECT_NAME, expires=timedelta(hours=1))
+    This asserted the opposite until 2026-10-01: with the public values unset, a
+    presigned URL was produced naming the internal endpoint. The failure that
+    caused was invisible in every signal the running service emits - the process
+    started, the healthcheck passed, and only a phone failed to load a photo,
+    against a host the phone cannot resolve.
 
-    assert _effective_origin(url) == "http://minio-acme:9000"
+    Reinstating the fallback to keep this test green would undo the fix in
+    `split-minio-internal-and-public-endpoints`, so the assertion is inverted
+    rather than deleted.
+    """
+    for key in ("MINIO_PUBLIC_ENDPOINT", "MINIO_PUBLIC_PORT", "MINIO_PUBLIC_SECURE"):
+        monkeypatch.delenv(key, raising=False)
+
+    with pytest.raises(ValidationError) as raised:
+        _settings(
+            MINIO_ENDPOINT="minio-acme",
+            omit=("MINIO_PUBLIC_ENDPOINT", "MINIO_PUBLIC_PORT", "MINIO_PUBLIC_SECURE"),
+        )
+
+    assert "MINIO_PUBLIC_ENDPOINT" in str(raised.value), (
+        "the error must name the missing key: a developer shown one validation error "
+        "listing every unset variable has no way to tell which one to fix first"
+    )
 
 
 def test_presigned_url_uses_the_public_scheme_and_port(
@@ -204,14 +239,36 @@ def test_public_origin_is_resolved_independently_of_the_internal_one(
     assert configured.minio_internal.origin == "http://minio-acme:9000"
 
 
-def test_public_origin_falls_back_to_the_internal_values(
+def test_public_origin_is_never_derived_from_the_internal_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    configured = _use_settings(
-        monkeypatch, MINIO_ENDPOINT="minio-acme", MINIO_PORT=9001, MINIO_SECURE=True
-    )
+    """No public component may come from its internal counterpart.
 
-    assert configured.minio_public == MinioOrigin("minio-acme", 9001, True)
+    The fallback this replaces was component-wise, so a partial configuration
+    resolved to a mixture - a public host on the internal port, or a dial target
+    behind the public scheme. Both parse cleanly, so neither was ever reported.
+
+    The internal values are deliberately unlike the public ones (port 9001, TLS on)
+    so that a fallback would produce a visibly different origin rather than one
+    that happened to coincide.
+    """
+    for key in ("MINIO_PUBLIC_ENDPOINT", "MINIO_PUBLIC_PORT", "MINIO_PUBLIC_SECURE"):
+        monkeypatch.delenv(key, raising=False)
+
+    with pytest.raises(ValidationError) as raised:
+        _settings(
+            MINIO_ENDPOINT="minio-acme",
+            MINIO_PORT=9001,
+            MINIO_SECURE=True,
+            omit=("MINIO_PUBLIC_ENDPOINT", "MINIO_PUBLIC_PORT", "MINIO_PUBLIC_SECURE"),
+        )
+
+    message = str(raised.value)
+    for key in ("MINIO_PUBLIC_ENDPOINT", "MINIO_PUBLIC_PORT", "MINIO_PUBLIC_SECURE"):
+        assert key in message, (
+            f"{key} must be required. Internal values must never stand in for a "
+            f"missing public component:\n{message}"
+        )
 
 
 def test_uploads_dial_the_internal_endpoint_while_urls_sign_the_public_one(
