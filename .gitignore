@@ -9,3 +9,14 @@ prompts/
 
 **/.claude_example/
 **/openspec_example/
+
+# Test and coverage artifacts. `.coverage` was tracked before this change, so
+# running the suite rewrote a committed binary file and left the working tree
+# permanently dirty -- which defeats step 16.5's "no unexpected file in git
+# status". It is untracked from here.
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
