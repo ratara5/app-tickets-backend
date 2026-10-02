@@ -62,19 +62,27 @@ FROM python:3.12.12-slim-bookworm AS runtime
 # `app.main:app` unresolvable and the container would never start.
 WORKDIR /srv
 
-# Runtime system libraries:
-#   libpq5          psycopg2 runtime (libpq-dev only ships headers)
+# Fixed identity for the runtime user. Stated here as ENV so there is one source
+# of truth for it, consumed by the useradd below and read by infra/local/ to
+# chown CHUNK_DIR. A literal repeated in both places would drift silently, and
+# the drift surfaces as a permissions error on the first chunked upload.
+#
+# Outside the 100-999 system range on purpose: uids there belong to accounts that
+# other packages may already define.
+ENV APP_UID=10001 \
+    APP_GID=10001
+
+# Runtime system libraries. Everything here is needed to RUN the service:
+#   libpq5           psycopg2 runtime
 #   libpango*,
 #   libharfbuzz0b,
 #   libopenjp2-7,
-#   libjpeg62-turbo WeasyPrint (app/services/worksheet_service.py
-#                   imports it at module load, so a missing library
-#                   aborts the whole API, not only PDF generation)
-#   fonts-dejavu-core  glyphs for the generated PDF reports
-#   curl            container healthcheck
+#   libjpeg62-turbo  WeasyPrint (app/services/worksheet_service.py imports it at
+#                    module load, so a missing library aborts the whole API, not
+#                    only PDF generation)
+#   fonts-dejavu-core glyphs for the generated PDF reports
+#   curl             container healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libpq-dev \
     libpq5 \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
@@ -85,11 +93,39 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Build toolchain, installed for pip and removed below. psycopg2-binary ships
+# wheels, so on a normal build nothing invokes a compiler - which is exactly why
+# it must not simply stay: an installed compiler nobody uses is still a compiler,
+# and the removal is what makes the final layer's package list trustworthy.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Drop the toolchain AFTER the install that may need it. `--autoremove` takes the
+# packages gcc and libpq-dev pulled in as dependencies; `libpq5` survives because
+# the layer above installed it directly, so it is marked manual and not orphaned.
+RUN apt-get purge -y --auto-remove gcc libpq-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && (command -v gcc >/dev/null && echo "gcc still present" && exit 1 || true)
+
+# A user with no login shell and no home directory: the service writes only to
+# CHUNK_DIR, and nothing in the container needs to be interactive.
+RUN groupadd --gid "$APP_GID" app \
+    && useradd --uid "$APP_UID" --gid "$APP_GID" --no-create-home \
+        --shell /usr/sbin/nologin app
+
 COPY app/ /srv/app/
+
+# Owned by the runtime user so a bind mount over it does not shadow the
+# ownership. See infra/local/docker-compose.yml, which also sets this explicitly.
+RUN mkdir -p /tmp/upload_chunks && chown "$APP_UID:$APP_GID" /tmp/upload_chunks
+
+USER app
 
 EXPOSE 8000
 
