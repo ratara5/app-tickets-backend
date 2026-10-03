@@ -503,3 +503,21 @@ curl http://localhost:8000/openapi.json -o docs/api-spec.json
 - **Migrations**: Alembic auto-generated, reviewed before apply
 - **API contract**: OpenAPI 3.1 via FastAPI, exported to `docs/`
 - **Frontend**: React Native (separate project, communicates via this API)
+
+## Deferred Work
+
+### Master data bulk load routes (deferred)
+Routes for loading master/reference data in bulk have been deferred (not implemented). Planned scope:
+- POST /admin/master-data/upload (multipart CSV) — validate against allowlists, dry-run/report, atomic load with rollback; authZ: admin/director
+- GET /admin/master-data/templates/{entity} — download Spanish CSV templates
+- POST /admin/master-data/import-preview and POST /admin/master-data/import-commit (two-step)
+
+Constraints: header order enforced; FK validation; numeric fidelity; uom self-reference ordering. Business values fixed per entity. Spanish locale.
+
+### PDF template management (deferred)
+Routes for managing worksheet/PDF templates have been deferred:
+- GET/POST/PUT/DELETE /admin/pdf-templates
+- GET /admin/pdf-templates/{id}/preview
+
+Fields: name, locale (es), sections/fields, business values fixed (branding, numbering, signatures), storage (MinIO or repo), versioning.
+

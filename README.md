@@ -57,7 +57,7 @@ the running containers on the network it owns.
 
 ### WHAT THE MINIO CONTAINER CHANGE CHANGED
 
-`minio-acme` now publishes its ports on **loopback only**
+`minio-acme` now publishes its ports on **loopback (this host (Linux-Physical-Machine) to itself) only**
 (`127.0.0.1:9000`, `127.0.0.1:9001`) instead of on every interface. Two
 consequences, both load-bearing:
 
@@ -69,8 +69,8 @@ consequences, both load-bearing:
    written into docs/deployment-guide.md §1 and repeated in the compose file:
 
    ```bash
-   docker network connect infra-net minio-acme
-   docker network inspect infra-net --format '{{range .Containers}}{{.Name}} {{end}}'
+   docker network connect <infra-net-name> minio-acme
+   docker network inspect <infra-net-name> --format '{{range .Containers}}{{.Name}} {{end}}'
    ```
 
    Skip it and the API starts and reports healthy, then every upload and every
@@ -87,9 +87,12 @@ consequences, both load-bearing:
    `MINIO_PUBLIC_ENDPOINT` in `.env` was `192.168.10.30`, which is not this host
    (`192.168.10.31`) and does not answer on the LAN at all, so every URL the API
    handed out was dead on arrival. The LAN-correct value is the machine's mDNS
-   name, `ratara5-SVT15115CLS.local`, which avahi publishes and a phone on the
-   same LAN resolves directly. A name rather than an address, because this key is
-   signed into every URL and must not move when a DHCP lease rotates.
+   name, `ratara5-SVT15115CLS.local`, which avahi (It open-source-software allows 
+   computers and network devices to automatically discover and communicate with 
+   each other on a local network (LAN) without manual IP configuration or DNS setup) 
+   publishes and a phone on the same LAN resolves directly. A name rather than an 
+   address, because this key is signed into every URL and must not move when a DHCP 
+   lease rotates.
 
    `.env` currently holds `MINIO_PUBLIC_ENDPOINT=127.0.0.1`, which is correct
    *only* while the app runs in a simulator or another on-host client that shares
@@ -255,7 +258,7 @@ git push
 ```  
 
 ### API USAGE IN POSTMAN  
-The use of POSTMAN DESKTOP APP is REQUIRED.
+It's possible use POSTMAN DESKTOP.
 **There, import `app-tickets-backend.postman_collection.json`**  
 
 ### DB USAGE
@@ -303,8 +306,3 @@ python3.12 -m scripts.export_openapi
 ```
 
 `scripts/export_openapi` must exist
-
-
-
-
-

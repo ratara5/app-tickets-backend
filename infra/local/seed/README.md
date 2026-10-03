@@ -48,3 +48,15 @@ header row in each file is what it matches, so a reordered column is a load erro
 rather than a silent mis-assignment. `uom` must load parent-before-child: a row
 whose `ref_unit` names a unit absent from the file is refused, because
 `ref_unit` is a self-reference and an unresolvable one is a cycle.
+
+## Seeds (expanded, Spanish)
+
+- uom.csv: expanded with realistic units (m, g, l, u, kg, mg, cm, mm, km, ml, cl, hl, caja, paquete, bolsa, paleta, rollo, tambor). Descriptions in Spanish.
+- markets.csv: expanded to 52 markets (Spanish cities/names).
+- equipments.csv: expanded to 52 equipments (Spanish names).
+- spares.csv: 50 spare parts (Spanish names). Columns match schema: spare_id, spare_name, unit, price.
+- technicians.csv: 10 technicians (9201..9210) mapped to user_ids 9003..9012.
+- fsm_users: generated at bring-up from infra/local/data/fsm_users_plain.csv (Spanish). See README_SEED_PASSWORDS.txt for raw passwords (admin/director + 10 técnicos). Hashes are generated with bcrypt (rounds=12) via etl/get_hash.py; no hashes committed.
+
+### User/password mapping (raw)
+See README_SEED_PASSWORDS.txt in this folder for the full mapping (12 users total).
