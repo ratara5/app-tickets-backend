@@ -301,6 +301,13 @@ support. Until it does, the honest position is: **the repository pins what it ne
 and guards it; it cannot yet pin how it is installed.** Do not describe the command
 surface as reproducible.
 
+### Required opsx workflows (pinned)
+
+This repo requires the workflows listed in `.opencode/workflows.txt`:
+`propose, explore, apply, sync, archive, continue, ff, verify`
+
+The committed command surface under `.opencode/commands/` must cover `opsx-*` for each (plus `pipeline-preflight.md` authored here). See `tests/test_harness_integrity.py` for enforcement.
+
 ## 9. Gaps: resolved and open
 
 Resolved, so nobody re-diagnoses them. All in the 2026-10-01 pass.

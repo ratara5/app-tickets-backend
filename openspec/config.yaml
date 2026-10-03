@@ -4,16 +4,16 @@
 
 context: |
   Tech stack: Python 3.12+, FastAPI 0.124.4, SQLAlchemy 2.0.40, PostgreSQL 16, pytest 8.2.1
+  Infrastructure provider: Google Cloud Projects (GCP) — shared core (Postgres/MinIO), consumer/provider model, least privilege, backups to off-host storage
   Architecture: FastAPI with Domain-Driven Design (DDD), layered architecture (Presentation, Application, Domain, Infrastructure)
   Database: PostgreSQL with Alembic migrations, UUID v7 for distributed IDs
   Testing: pytest with async support, httpx for endpoint testing, factory_boy for test data, pytest-cov for coverage
   Authentication: JWT tokens (python-jose), password hashing (passlib + bcrypt)
-  Storage: MinIO S3-compatible object storage, WeasyPrint for PDF generation
+  Storage: MinIO S3-compatible object storage (shared core), WeasyPrint for PDF generation
   Backend domain: FSM (Field Service Management) — tickets, maintenance work, technicians, spare parts, PDF worksheets
   Frontend domain: React Native mobile app (SEPARATE PROJECT) — consumes this backend via docs/api-spec.yml
   All code, comments, documentation, and technical artifacts must be in English
   Conventional commits required (commit messages in English)
-
 standards: |
   Project specs (single source of truth): All artifact creation and implementation MUST follow the project's technical context in docs/ and ai-specs/. Read and apply these when creating, updating, or implementing:
   

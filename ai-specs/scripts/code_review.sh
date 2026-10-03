@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Vendored: repo=app-tickets-backend path=ai-specs/scripts/code_review.sh sha=7104197f610b6443c33ff0f8c5077c7ef85620d8 copied=2026-10-02
+# Purpose: Basic code review report via agent CLI
 # code_review.sh - Basic code review report
 
 set -euo pipefail
