@@ -1,62 +1,37 @@
 ---
-description: This document contains all development rules and guidelines for this project, applicable to all AI agents (Claude, Cursor, Codex, Gemini, etc.).
-alwaysApply: true
+description: Where this repository's agent rules come from, and the standards specific to it.
+alwaysApply: false
 ---
 
-## 1. Core Principles
+# Base standards
 
-- **Small tasks, one at a time**: Always work in baby steps, one at a time. Never go forward more than one step.
-- **Test-Driven Development**: Start with failing tests for any new functionality (TDD), according to the task details.
-- **Type Safety**: All code must be fully typed (Python type hints, mypy-valid).
-- **Clear Naming**: Use clear, descriptive names for all variables and functions.
-- **Incremental Changes**: Prefer incremental, focused changes over large, complex modifications.
-- **Question Assumptions**: Always question assumptions and inferences.
-- **Pattern Detection**: Detect and highlight repeated code patterns.
+The general rules this repository's agents follow are **generated** from the
+harness into the entrypoints: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `codex.md`
+and `.cursor/rules/agent.mdc`. Every one of them carries a `GENERATED` header.
 
-## 2. Language Standards
-- **English Only**: All technical artifacts must always use English, including:
-    - Code (variables, functions, classes, comments, error messages, log messages)
-    - Documentation (README, guides, API docs)
-    - Jira tickets (titles, descriptions, comments)
-    - Data schemas and database names
-    - Configuration files and scripts
-    - Git commit messages
-    - Test names and descriptions
+Do not edit a generated entrypoint or anything under `.claude/`, `.opencode/`,
+`.cursor/`, `.codex/` or `.gemini/`. Change the harness, or change `.agentic.yaml`
+and run `agentic sync`; the next sync overwrites the rest. `agentic sync --check`
+is the drift gate.
 
-## 3. Specific standards
+This file is for what is **specific to this repository**, and it is safe to edit.
 
-For detailed standards and guidelines specific to different areas of the project, refer to:
+## This repository's standards
 
-- [Backend Standards](./docs/backend-standards.md) - API development, database patterns, testing, security and backend best practices
-- [Frontend Standards](./docs/frontend-standards.md) - React Native components, UI/UX guidelines, and mobile architecture (SEPARATE PROJECT)
-- [Documentation Standards](./docs/documentation-standards.md) - Technical documentation structure, formatting, and maintenance guidelines, including AI standards like this document
-- [OpenSpec Tasks Mandatory Steps](./docs/openspec-tasks-mandatory-steps.md) - Required checklist and execution rules when creating or updating OpenSpec `tasks.md` files
+- [Backend standards](backend-standards.md) — API, database, testing and security
+  conventions for this service.
+- [Frontend standards](frontend-standards.md) — the mobile client.
+- [Documentation standards](documentation-standards.md) — how the documents here
+  are structured and maintained.
+- [OpenSpec mandatory steps](openspec-tasks-mandatory-steps.md) — required steps
+  when creating or updating an OpenSpec `tasks.md`.
+- [Data model](data-model.md) — entities, relationships and ownership.
 
-## 4. Project Skills
+## A note on what changed
 
-- Skills live in `ai-specs/skills`.
-- When a request matches a skill, load and follow the corresponding `SKILL.md` automatically before continuing.
-- Also load any referenced files in the skill folder (for example, `references/*.md`) when the skill requires them.
-
-## 5. Symlink Integrity and Multi-Agent Portability
-
-- **Canonical Source**: Keep reusable artifacts in `ai-specs` as the canonical source. Agent-specific paths (such as `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `codex.md`) reference `docs/base-standards.md` through symlinks.
-- **Update Safety**: Whenever a file is renamed, moved, or its suffix changes, verify and update all symlinks that target it before considering the change complete.
-- **New Artifact Linking**: Whenever creating a new artifact that requires multi-agent exposure (for example new agents or skills in `ai-specs`), expose it from the agent folders with **relative** symlinks. The committed exposure path is `.opencode/skills/`. Note that `.gitignore` excludes `**/.claude_example/` and `**/openspec_example/`, so a symlink placed there is never committed and cannot survive a clone — treat those folders as local, untracked copies, and do not rely on them as the exposure path.
-- **External Customization Review**: Whenever customization is introduced outside `ai-specs`, evaluate whether it should be moved into `ai-specs` and replaced with symlinks from the original locations.
-- **Completion Gate**: A change is incomplete if it leaves broken symlinks, stale targets, or duplicated canonical artifacts across agent-specific folders.
-- **Harness Map**: The full topology — what is canonical, what is a pointer, the read order, and the procedure for adding a skill, agent, or command — is in [`ai-specs/harness-ia.md`](../ai-specs/harness-ia.md). Read it before changing anything in `ai-specs`, `.opencode`, or `.claude_example`.
-- **Declared Tree Is a Claim**: The `ai_specs_structure` block in `openspec/config.yaml` declares the `ai-specs` tree. If it disagrees with the filesystem, the declaration is the defect; fix the declaration.
-
-## 6. Mandatory OpenSpec Artifact Updates for Post-Apply Changes
-
-When a new fix/change request appears after `opsx:apply` (or `/apply`) and before `opsx:archive` (or `/archive`), agents must treat it as a spec update first, not as an informal "fix this quickly".
-
-Required order:
-
-1. Update the current OpenSpec change artifacts that are affected (for example: scenarios, requirements/specs, and `tasks.md`). Don't add tasks as "bugfixes" but as part of the initial design, thus in the proper section
-2. If artifact regeneration is needed, run the corresponding OpenSpec step (`opsx:continue`, `opsx:ff`, or equivalent) before coding.
-3. Implement code only after artifacts reflect the new request.
-4. Re-run verification against the updated artifacts before archiving.
-
-Do not apply direct code-only fixes in this window without updating OpenSpec artifacts.
+This repository used to keep reusable agent artifacts in `ai-specs/` and expose
+them to each agent tool with relative symlinks. The harness replaced that: the
+projection writes real files into each target's directory, records a sha256 for
+each in `.agentic.lock`, and refuses to write through a symlink. There are no
+agent symlinks left, and `ai-specs/` is gone. Upgrade and rollback are an edit to
+`harness:` in `.agentic.yaml` followed by `agentic sync`.
