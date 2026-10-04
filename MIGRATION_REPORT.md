@@ -79,18 +79,34 @@ second contradicts the harness, which refuses to write through a symlink.
 | Symlinks in the committed tree | none |
 | `ai-specs/` | gone |
 
+## The CI gate, and what it caught
+
+`.github/workflows/agentic-check.yml` fetches the pinned harness and runs
+`agentic sync --check`. Getting it green found four things no local run could,
+which is the argument for the gate existing at all:
+
+1. **The harness is private, the consumer is public.** The job cloned the harness
+   anonymously and failed with `could not read Username for 'https://github.com'`
+   — a message that reads as a wrong URL, not a missing credential. Fixed by the
+   `HARNESS_TOKEN` secret and a template that teaches git to use it.
+2. **The template never installed PyYAML**, the harness CLI's own dependency, so
+   the job died on `agentic: PyYAML is required` after cloning correctly.
+3. **`{{CONSUMER_DOCS}}` rendered an absolute path**, so the committed entrypoint
+   held the directory of whoever ran the sync. CI regenerated it under its own
+   path and reported drift no local run reproduced. Fixed in harness **1.6.1**
+   (relative `docs`), which is why the consumer pins 1.6.1 rather than 1.6.0.
+4. **A bare `prompts/` in `.gitignore` shadowed `.codex/prompts/`**, so the codex
+   projection was written but never committed. CI saw it `missing` on a fresh
+   clone while it passed locally, where the file sat untracked. Fixed by anchoring
+   the ignore to `/prompts/`.
+
+The gate is green on the final commit.
+
 ## Rollback
 
 ```sh
 git reset --hard pre-agentic-layer    # discard the whole migration on this branch
 ```
 
-or revert commits 1–4 individually. The tag and a bundle backup exist in the
-consumer.
-
-## Before this PR can merge
-
-The harness must be pushed with its tag: the consumer CI workflow
-`.github/workflows/agentic-check.yml` fetches `v1.6.1` from the published
-repository and runs `agentic sync --check`. Until the tag is on `origin`, that job
-cannot resolve the pin.
+or revert the migration commits individually. The tag and a bundle backup exist in
+the consumer.
