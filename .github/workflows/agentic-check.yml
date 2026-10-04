@@ -21,6 +21,12 @@ env:
   # consumer pins. The default is the published harness, which is what a consumer
   # gets by adopting it at all.
   HARNESS_REPO: https://github.com/ratara5/multi-agentic-layer
+  # A public harness needs nothing here. A private harness needs a token that can
+  # read it: set the repository secret HARNESS_TOKEN to a read-only token, and the
+  # step below teaches git to use it. Without it the clone fails with
+  # `could not read Username for 'https://github.com'`, which reads as a wrong URL
+  # rather than as a missing credential.
+  HARNESS_TOKEN: ${{ secrets.HARNESS_TOKEN }}
 
 jobs:
   projection:
@@ -31,6 +37,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.8'
+
+      - name: Authenticate to a private harness
+        if: ${{ env.HARNESS_TOKEN != '' }}
+        run: |
+          set -eu
+          git config --global \
+            url."https://x-access-token:${HARNESS_TOKEN}@github.com/".insteadOf \
+            "https://github.com/"
 
       - name: Read the pinned harness version
         id: pin
