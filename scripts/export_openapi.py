@@ -8,7 +8,7 @@ Run without arguments to regenerate. Run with `--check` to fail when the
 committed files differ from what the code currently produces, which is what a gate
 should do — a gate that rewrites the artifact and exits zero has no way to fail,
 and a generated file that only gets refreshed when someone remembers is the
-failure mode `ai-specs/skills/update-docs` describes.
+failure mode `.opencode/skills/update-docs` describes.
 """
 
 import json

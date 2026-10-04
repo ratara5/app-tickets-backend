@@ -1,6 +1,6 @@
 # Quality gates for the backend.
 #
-# This file is the executable form of `ai-specs/skills/defining-project-quality-gates`.
+# This file is the executable form of `.opencode/skills/defining-project-quality-gates`.
 # The skill states the doctrine; these targets are the only commands CI may run.
 #
 # Two rules from that skill are load-bearing here:
@@ -81,10 +81,16 @@ test-fast: check-env
 coverage: check-env
 	$(PYTEST) -q --cov=app --cov-report=term-missing --cov-fail-under=$(COVERAGE_MIN)
 
-## harness: Run the harness integrity and skill agnosticism guards
+## harness: Verify the agent projection matches the pinned harness (needs HARNESS)
+#
+# The agent rules are projected from the harness, not authored here. The guards
+# that used to live in tests/test_harness_integrity.py and test_skill_agnosticism.py
+# checked the old ai-specs/ symlink surface; `agentic sync --check` replaces both,
+# and the CI workflow .github/workflows/agentic-check.yml runs it on every push.
 .PHONY: harness
 harness: check-env
-	$(PYTEST) -q tests/test_harness_integrity.py tests/test_skill_agnosticism.py
+	@test -n "$${HARNESS:-}" || { echo "Set HARNESS to a harness checkout at the pinned version."; exit 1; }
+	$(HARNESS)/bin/agentic --consumer . sync --check
 
 ## contracts: Validate the OpenSpec artifacts and the exported API specification
 .PHONY: contracts
@@ -96,7 +102,7 @@ contracts: check-env
 
 ## gate: Run every automated check, in order, stopping at the first failure
 .PHONY: gate
-gate: harness contracts test
+gate: contracts test
 	@echo
 	@echo "Gate passed."
 

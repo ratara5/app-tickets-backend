@@ -4,7 +4,7 @@ How to stand up, update and roll back this backend on a Linux VPS that already r
 PostgreSQL and MinIO for other applications.
 
 The **method** is stack-agnostic and lives in the skill
-`ai-specs/skills/deploying-backend-vps/SKILL.md`. This file is the concrete instance:
+`.opencode/skills/deploying-backend-vps/SKILL.md`. This file is the concrete instance:
 this repository's values, this repository's commands, and this repository's known
 defects. Read the skill for the reasoning; follow this file for the actions.
 

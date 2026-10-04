@@ -1,5 +1,14 @@
 # Harness IA
 
+> **Historical.** This document describes the pre-migration topology, in which
+> `ai-specs/` was canonical and each agent folder held symlinks into it. The
+> harness replaced that: the projection writes real files, `ai-specs/` is gone, and
+> sync refuses to write through a symlink. The current map is the harness's
+> `docs/ARCHITECTURE.md`, and this file is kept only as the record of how the
+> repository used to work. References below to `ai-specs/`,
+> `tests/test_harness_integrity.py` and `.opencode/workflows.txt` are part of that
+> history.
+
 The map of this agent harness: what is canonical, what is a pointer, and what an
 agent is expected to read in what order. This document exists so the harness can be
 extended without inventing a second copy of something.

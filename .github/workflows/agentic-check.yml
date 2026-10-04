@@ -1,0 +1,76 @@
+# Copy this into your own repository as .github/workflows/agentic-check.yml.
+#
+# Not projected by `agentic sync`, deliberately: a workflow decides what runs on
+# every push, and a tool that installs one silently is a tool that can take over a
+# repository's CI. Copying it is the opt-in.
+#
+# There is exactly one thing to edit below -- HARNESS_REPO. Everything else is
+# derived: the version comes from .agentic.yaml, the OpenSpec pin comes from the
+# harness at that version. Two copies of a version number, each checked only by a
+# failure somebody reads too late, is how a consumer ends up running a CLI the
+# catalog never meant it to run.
+name: agentic check
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+env:
+  # The only line to edit, and only if you pin a fork: the harness repository this
+  # consumer pins. The default is the published harness, which is what a consumer
+  # gets by adopting it at all.
+  HARNESS_REPO: https://github.com/ratara5/multi-agentic-layer
+
+jobs:
+  projection:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+
+      - name: Read the pinned harness version
+        id: pin
+        run: |
+          set -eu
+          PIN=$(python3 - <<'PY'
+          import re
+          text = open(".agentic.yaml", encoding="utf-8").read()
+          found = re.search(r"^\s*harness:\s*(\S+)", text, re.M)
+          if not found:
+              raise SystemExit("no `harness:` line in .agentic.yaml")
+          print(found.group(1))
+          PY
+          )
+          echo "version=$PIN" >> "$GITHUB_OUTPUT"
+          # The harness is distributed by tag. A tag is what makes two consumers
+          # pinning the same version receive the same bytes; a branch name would
+          # not, which is the whole reason this indirection exists.
+          echo "tag=v$PIN" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch the harness at that tag
+        run: |
+          set -eu
+          git clone --depth 1 --branch "${{ steps.pin.outputs.tag }}" \
+            "$HARNESS_REPO" "$RUNNER_TEMP/harness"
+          echo "PINNED=$(python3 -c "
+          import re
+          text = open('$RUNNER_TEMP/harness/manifest.yaml', encoding='utf-8').read()
+          print(re.search(r'^openspec:\s*[\"\']?(\S+?)[\"\']?\s*$', text, re.M).group(1))
+          ")" >> "$GITHUB_ENV"
+
+      - name: Install the pinned OpenSpec CLI
+        run: npm install -g "@fission-ai/openspec@${PINNED}"
+
+      - name: Check the projection matches the harness pin
+        run: |
+          set -eu
+          python3 "$RUNNER_TEMP/harness/bin/agentic" sync --check \
+            --from "${{ steps.pin.outputs.tag }}" --remote "$HARNESS_REPO" || {
+            echo "::error::the projection does not match harness ${{ steps.pin.outputs.tag }}."
+            echo "Run 'agentic sync --from ${{ steps.pin.outputs.tag }}' locally and commit the result."
+            exit 1
+          }

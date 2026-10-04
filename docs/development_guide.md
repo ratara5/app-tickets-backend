@@ -132,7 +132,7 @@ Before changing any file that declares the shared core, establish which project
 owns it. Ask the container engine which compose project created the running
 container — do not assume the nearest file in this repository is the one in use.
 The standing procedure is
-`ai-specs/skills/dev-environment-parity/SKILL.md` §"Establish what is actually
+`.opencode/skills/dev-environment-parity/SKILL.md` §"Establish what is actually
 live"; follow it there rather than a second copy of the rule kept here, which
 would drift.
 

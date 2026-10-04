@@ -47,7 +47,11 @@ BASELINE_COMMIT = "e830c24f334c05d428bb82b30be51b8a70adfcd4"
 NO_TOUCH_FILES: dict[str, str] = {
     "infra/vps/docker-compose.yml": "the VPS deploy contract; this change only consumes it",
     "infra/vps/Caddyfile": "the VPS TLS edge; the local stack declares no TLS edge",
-    "docs/deployment-guide.md": "the VPS procedure; a local section belongs in the development guide",
+    # `docs/deployment-guide.md` was here for the local-stack change. The harness
+    # migration is the separate change this guard anticipated: it updated the
+    # document's `deploying-backend-vps` reference from the removed `ai-specs/` tree
+    # to the projected `.opencode/skills/` path. Removed from the set rather than
+    # re-baselined, so the other five stay protected.
     "infra/schema.sql": "a pg_dump of the live database; generated, so an edit is silently discarded",
     "infra/provision/001-create-application-roles.sql": (
         "the least-privilege role definition, reused locally with substituted "

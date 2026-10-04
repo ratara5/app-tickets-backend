@@ -1,5 +1,11 @@
 # Harness Assembler (Meta)
 
+> **Historical.** This describes the assembler that produced the old `ai-specs/`
+> harness. Its content became the harness catalog (`manifest.yaml`), and the
+> `legacy-seed-removal` skill removed the seed. Kept as the record of how the
+> repository used to be assembled; references to `ai-specs/` and
+> `.opencode/workflows.txt` are part of that history.
+
 This is a meta-document for assembling/maintaining the agent harness. It defines archetypes, minimal surfaces, and role→skills mapping. Agents do not need to load this on every run; maintainers use it when creating/extending harnesses.
 
 ## Archetypes

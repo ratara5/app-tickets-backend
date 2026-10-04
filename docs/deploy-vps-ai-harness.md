@@ -1,7 +1,7 @@
 # AI-Harness Deployment Prompt — VPS Backend Runbook
 
 > **This file is a pointer, not a second runbook.** The executable procedure now lives in the
-> `deploying-backend-vps` skill (`ai-specs/skills/deploying-backend-vps/`, exposed to agents as
+> `deploying-backend-vps` skill (`.opencode/skills/deploying-backend-vps/`, exposed to agents as
 > `.opencode/skills/deploying-backend-vps`). The commands live in
 > `docs/deployment-guide.md` §2. Do not paste a copy of the runbook into a chat: a stale copy
 > is how a deployment ends up running commands that were fixed months ago.
@@ -52,7 +52,7 @@
   head` nor `prisma migrate deploy` creates a database, and no single command does
   both the database and its tables. The database is an admin-plane action, created
   once, deliberately separate from the migration job. See the two-plane doctrine in
-  `ai-specs/skills/deploying-backend-vps/SKILL.md` §Phase 2 and
+  `.opencode/skills/deploying-backend-vps/SKILL.md` §Phase 2 and
   `docs/deployment-guide.md` §2.1
 - run `docker compose exec api alembic …` to migrate — it requires the app to already
   be running, so it migrates after the code needing the new column is serving
