@@ -10,7 +10,7 @@ venv/
 **/__pycache__/
 **/data/*
 !**/data/.gitkeep
-prompts/
+/prompts/
 
 **/.claude_example/
 **/openspec_example/
