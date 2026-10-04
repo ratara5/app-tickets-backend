@@ -4,11 +4,19 @@ This is a meta-document for assembling/maintaining the agent harness. It defines
 
 ## Archetypes
 
-| Archetype | Projects | Primary agents | Notes |
+| Archetype | Projects | Personas | Notes |
 |---|---|---|---|
 | Backend-only | app-tickets-backend | backend-developer, infrastructure-developer (optional), product-strategy-analyst (optional) | Focus on NestJS/FastAPI + DB + APIs |
 | Fullstack-monorepo | dopamine-ecosystem/customer-portal | backend-developer, frontend-developer, infrastructure-developer (optional) | Both packages in same repo; keep contracts explicit |
 | Infra-provider | GoogleCloudProjects | infrastructure-developer | Shared PG/MinIO, tenancy, backups, ops gates; OpenSpec surface still useful |
+
+These are personas, not conversational modes, so the column is not called *primary
+agents*. Every persona is exposed with `mode: subagent`: it is selected by matching its
+description against a request, invoked with `Task`, and returns a plan to the primary that
+called it. A user cycling with `Tab` is choosing who is speaking for the whole
+conversation, and a persona's prompt **replaces** the main one rather than running beside
+it. That is why `frontend-developer`, which forbids implementation, must not be
+reachable that way. `Tab` therefore offers only `Build` and `Plan`.
 
 ## Minimal harness surface per archetype
 

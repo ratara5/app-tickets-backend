@@ -329,6 +329,38 @@ def test_canonical_agents_are_exposed_to_the_committed_surface() -> None:
         )
 
 
+def test_persona_declares_the_role_it_is_selected_by() -> None:
+    """A persona is selected by its description and invoked with `Task`.
+
+    opencode does not infer that. A markdown agent with no `mode` defaults to `all`,
+    which counts as a primary, so it joins the `Tab` cycle and its prompt *replaces*
+    the main one instead of running beside it. Nothing failed when that happened here:
+    the personas were correctly named, correctly symlinked and fully guarded by
+    `test_canonical_agents_are_exposed_to_the_committed_surface`, and still the cycle
+    offered `frontend-developer`, whose own prompt forbids implementation. Exposure
+    is a different claim from role, so it needs its own assertion.
+
+    A persona that legitimately has to be a primary is a change of doctrine, not a
+    workaround: change `harness-ia.md` §"the personas" and this assertion together.
+    """
+    agents = sorted((AI_SPECS / "agents").glob("*.md"))
+    assert agents, f"no agents found under {AI_SPECS / 'agents'}"
+    for agent in agents:
+        frontmatter = agent.read_text(encoding="utf-8").split("---", 2)[1]
+        match = re.search(r"^mode:\s*(\S+)", frontmatter, re.MULTILINE)
+        assert match, (
+            f"{agent.name} declares no `mode`. opencode defaults it to `all`, so it "
+            "becomes a primary agent and appears in the `Tab` cycle as if a user had "
+            "chosen it. Declare `mode: subagent`; see ai-specs/harness-ia.md §4."
+        )
+        assert match.group(1) == "subagent", (
+            f"{agent.name} declares `mode: {match.group(1)}`. The personas are "
+            "triggered by a request and produce a plan for the caller, which is the "
+            "subagent contract; `primary` and `all` both put the persona in the `Tab` "
+            "cycle where it would replace the main prompt."
+        )
+
+
 # ── 4. The declared tree is a claim ─────────────────────────────────────────
 
 

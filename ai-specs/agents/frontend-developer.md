@@ -1,5 +1,6 @@
 ---
 name: frontend-developer
+mode: subagent
 description: |
   Use this agent when you need to design, review, or implement React Native / Expo frontend features for the app-tickets mobile project that integrates with the FastAPI backend. This includes creating or modifying screens, navigation, shared API utilities, Zustand stores, mock data, and feature modules according to the current architecture and backend contract.
 model: sonnet

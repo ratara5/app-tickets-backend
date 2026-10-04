@@ -1,6 +1,11 @@
 .env
 TODO.md
 
+# Personal study notes. Deliberately not project documentation: AGENTS.md §2
+# requires every technical artifact in this repository to be in English, and
+# these are untranslated reading notes, not a spec or a guide.
+.notes/
+
 venv/
 **/__pycache__/
 **/data/*

@@ -74,7 +74,10 @@ also alters what an agent is instructed to do, and say so in the commit.
 
 1. Author it under `ai-specs/` (`ai-specs/skills/<name>/SKILL.md` or
    `ai-specs/agents/<name>.md`). Never author it inside `.opencode/` or
-   `.claude_example/`.
+   `.claude_example/`. A persona's frontmatter declares `mode: subagent`: a persona is
+   invoked by a primary that selected it, not chosen as a conversational mode, and
+   `mode` is the field that makes the difference. Omitting it does not fail — opencode
+   defaults it to `all`, which is a primary, and §9 records what that cost.
 2. Expose it to each agent with a **relative** symlink from the agent's folder:
    `.opencode/skills/<name> -> ../../ai-specs/skills/<name>`, or
    `.opencode/agent/<name>.md -> ../../ai-specs/agents/<name>.md`. The committed
@@ -333,6 +336,16 @@ Resolved, so nobody re-diagnoses them. All in the 2026-10-01 pass.
 - **There was no CI, no pre-commit, and no gate command at all.** `make gate` is now
   the single entry point, and `pipeline-preflight` runs it plus the manual checks
   that cannot be automated.
+- **Every persona was silently a conversational mode.** `ai-specs/agents/*.md`
+  declared no `mode`, and opencode defaults that to `all`, which counts as a primary.
+  So `Tab` offered `frontend-developer` and `backend-developer` next to `Build` and
+  `Plan`. Exposure did not catch it: the files were correctly named, correctly
+  symlinked, and fully guarded, while the cycle offered a persona whose own prompt
+  forbids implementation — and a primary's prompt replaces the main one instead of
+  running beside it. `mode: subagent` is now declared on all four, `Tab` offers only
+  `Build` and `Plan`, `harness-assembler.md` §Archetypes no longer calls personas
+  "primary agents", and the role is asserted by
+  `test_persona_declares_the_role_it_is_selected_by`.
 
 Still open. These need a decision or work outside this repository.
 
@@ -347,9 +360,15 @@ Still open. These need a decision or work outside this repository.
 - **`.claude_example/` is two OpenSpec versions behind** (§5). Local cleanup.
 - **No pre-commit hook, so nothing runs before a commit locally.** `make gate` is
   manual. A hook would catch it earlier but slows every commit.
-- **Agent frontmatter is Claude-shaped** — `model: sonnet`, Claude tool names,
-  `color`. The personas are readable, but opencode will not honour those fields.
-  Needs either a portable frontmatter subset or a per-agent adapter.
+- **The rest of the persona frontmatter is still Claude-shaped** — `model: sonnet`,
+  Claude tool names in `tools:`, `color`. `mode` was the one field whose absence
+  changed behaviour, which is why it was fixed alone; the others are declared but not
+  honoured by opencode, so the effective permission set of a persona is opencode's
+  default rather than what the file claims to grant. `tools:` is deprecated in favour
+  of `permission:` and cannot express an allow-list anyway. Migrating it changes real
+  permissions and needs its own reasoning and its own verification, so it is
+  deliberately not bundled with the `mode` fix. Needs either a portable frontmatter
+  subset or a per-agent adapter.
 - **The VPS compose file builds on the target and uses mutable tags**
   (`infra/vps/docker-compose.yml`). `promoting-a-build` describes the fix; adopting
   it means producing an image on one host and running that artifact on another, which
