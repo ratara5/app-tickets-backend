@@ -10,7 +10,159 @@ Ensure you have the following installed:
 - **Git**
 - **pip** (Python package manager)
 
+## Run locally
+
+Two commands. Every step between them is written down below; there is no
+undocumented step in this path.
+
+```bash
+make setup-local    # bring up: create, provision, migrate, seed, start, print endpoints
+make gate-local     # prove it: authenticate, read, write, upload, verify, clean up
+```
+
+`make setup-local` is idempotent — run it again after a `git pull`, after a
+reboot, or after the shared core restarts. `make local-down` stops only this
+project's API container and detaches this project from the shared core's
+network; it never stops the core.
+
+Before the first run, and only the first run:
+
+```bash
+python3 -m venv venv
+venv/bin/pip install -r requirements-dev.txt
+```
+
+And `.env` must carry the local keys documented in `.env.example`:
+`CORE_COMPOSE_COMMAND`, the core's admin credentials under
+`CORE_DB_ADMIN_*` / `CORE_MINIO_ROOT_*`, and the seed account under
+`SEED_USER_*`. `setup-local` stops and names the missing key rather than
+guessing a value.
+
+### The shared core is a precondition, not a step
+
+This project does not start the shared PostgreSQL and MinIO. They are started
+by the project that owns them, and `make setup-local` refuses to run if they are
+not up. See "Not self-contained" below for what that means and why.
+
+### This is not a staging environment
+
+The local stack exercises the API's own code paths against a real database and a
+real object store. It deliberately does **not** exercise: TLS or the reverse
+proxy; the estate network topology or its external network declarations; the VPS
+compose file; real mobile clients; or any behaviour that depends on a
+production-shaped dataset. The seeded rows are synthetic and exist to make
+writes and foreign keys work — they are not a fixture set that reproduces
+production. Treat `make gate-local` as "the local environment is coherent and
+the main flows work", never as "this build is releasable". Release gates live in
+`docs/deployment-guide.md`.
+
+### The reload watcher is scoped to `app/`
+
+`make run` and `make run-native` both pass `--reload-dir app`, which makes
+`uvicorn` watch `app/` and nothing else.
+
+This is not a preference. With the watcher left at the repository root, the
+number of watched files scales with the number of installed packages, so an
+ordinary `pip install` into `venv/` can push the process past the inotify watch
+limit. The failure then surfaces on the *next* reload — minutes after the
+install that caused it — as an `ENOSPC`-style watch error with no visible
+connection to what the developer just did. The same applies to the editor's own
+watcher, which is why `.vscode/settings.json` excludes `venv/`,
+`.pytest_cache/` and `.coverage/` from `files.watcherExclude`.
+
+### Blast radius
+
+Files shared between development and the VPS, and the decision taken for each.
+Anything marked "no edit" is covered by a guard test that must keep passing.
+
+| File | Shared with | Decision |
+| --- | --- | --- |
+| `Dockerfile` | VPS build (`infra/vps/docker-compose.yml`) | **Edited.** Added `USER`, removed dev tooling. Risk and rollback recorded in `tasks.md` §5. |
+| `requirements.txt` | both image stages, VPS runtime | **Split.** `requirements-dev.txt` added; the runtime image stops installing test packages. Risk: the `migrate` stage must keep `alembic`. |
+| `app/core/settings.py` | every process in every environment | **Edited.** Environment-varying defaults removed. Risk: a deployed `.env` missing a key now aborts at boot instead of defaulting. Rollback: restore the defaults. |
+| `.env.example` | template for both environments | **Edited.** Local section documented. It is a template; a deployed `.env` is a copy, so no deployed value changed. |
+| `Makefile` | development only | **Edited.** `--reload-dir app` plus the local targets. |
+| `infra/schema.sql` | VPS `docs/deployment-guide.md` §2.2 and the local schema | **No edit.** Guard test asserts it still loads cleanly for both. |
+| `infra/provision/001-create-application-roles.sql` | VPS §2.1 and the local role | **No edit.** Local provisioning reuses it with substituted placeholders, so local holds the same least-privilege role. |
+| `alembic/` | VPS `migrate` job | **No edit.** |
+| `tests/test_deploy_assets.py`, `tests/test_provisioning.py`, `tests/test_skill_agnosticism.py` | read `Dockerfile`, `infra/vps/` and skill prose | **No edit.** New sibling assertions were added; all must keep passing. |
+| `infra/vps/**`, `docs/deployment-guide.md`, root `docker-compose.yml`, `bootstrap.sh`, `core/**`, `etl/**` | deployed environment / other projects | **No edit.** |
+
+`docs/api-spec.yml`, `docs/api-spec.json` and `docs/data-model.md` are
+unchanged: this change adds no endpoint and changes no schema. The local
+compose file is new and additive.
+
+### Which file is authoritative for the local topology
+
+`infra/local/docker-compose.yml` is authoritative for local runs. It is the
+declaration the local stack actually uses.
+
+`core/compose.yml` in this repository is **not** authoritative for anything. It
+is a copy that has drifted from the compose file it was forked from in the
+sibling project, and it is not what the running containers were created from. A
+developer who reads it and concludes that MinIO does not exist, or that the
+database has a different configuration, is wrong — MinIO and the reverse proxy
+are declared in *other* projects' compose files. This note exists because the
+drifted copy is easy to find and actively misleading; the fix is to ignore it,
+not to reconcile it here.
+
+### How the topology was inventoried
+
+The procedure, stated so it can be repeated: search every file in this
+repository that declares a container, network, port or volume, then search the
+sibling project that owns the shared core; for each dependency found, confirm
+against the container engine which declaration actually created the running
+container. A dependency that is not found in the tree is *located*, not assumed
+absent — absence from this repository is not evidence of absence from the
+estate. Estate deployment names and host addresses belong in
+`docs/deployment-guide.md` and are deliberately not duplicated into this guide.
+
+### Stopped containers still own their ports
+
+This host can hold stopped containers that own ports, volumes and networks for
+infrastructure that other projects declare and own. **A stopped container is not
+a free port.** Under the shared-core design this no longer drives local port
+selection — the core's published ports are used as they are — but it is the
+reason a developer's machine can hold infrastructure this project neither owns
+nor declared, and the reason bring-up must never restart it to "make room".
+
+### Changing a shared dependency's declaration
+
+Before changing any file that declares the shared core, establish which project
+owns it. Ask the container engine which compose project created the running
+container — do not assume the nearest file in this repository is the one in use.
+The standing procedure is
+`.opencode/skills/dev-environment-parity/SKILL.md` §"Establish what is actually
+live"; follow it there rather than a second copy of the rule kept here, which
+would drift.
+
+### Not self-contained
+
+The local environment is **not** self-contained. It requires the shared core, and
+the data it creates is *this project's* data on a shared instance other projects
+also use — not a disposable private copy. Anything you drop, you recreate for
+yourself; you cannot drop the core.
+
+Safe to drop and recreate, because they belong to this project alone: this
+project's database, its application role, its bucket, and its credentials.
+
+Never to be dropped, altered or restarted for this project's benefit: the
+shared core's database server, its roles, its buckets, its configuration
+files, or the other projects' data on it.
+
+### The isolation rule
+
+Your database, your role, your bucket, your credentials. Never another
+project's — and never a change to a shared configuration file to make your own
+work. If your work seems to need one of those, the design is wrong, not the
+rule.
+
 ## Quick Start
+
+> Superseded for local work by [Run locally](#run-locally) above. This section
+> is retained as written and is listed as stale prose in `tasks.md` §11.4; it
+> predates the local stack and still describes hand-provisioning against the
+> core by hand.
 
 ```bash
 # 1. Clone and enter project
@@ -351,3 +503,21 @@ curl http://localhost:8000/openapi.json -o docs/api-spec.json
 - **Migrations**: Alembic auto-generated, reviewed before apply
 - **API contract**: OpenAPI 3.1 via FastAPI, exported to `docs/`
 - **Frontend**: React Native (separate project, communicates via this API)
+
+## Deferred Work
+
+### Master data bulk load routes (deferred)
+Routes for loading master/reference data in bulk have been deferred (not implemented). Planned scope:
+- POST /admin/master-data/upload (multipart CSV) — validate against allowlists, dry-run/report, atomic load with rollback; authZ: admin/director
+- GET /admin/master-data/templates/{entity} — download Spanish CSV templates
+- POST /admin/master-data/import-preview and POST /admin/master-data/import-commit (two-step)
+
+Constraints: header order enforced; FK validation; numeric fidelity; uom self-reference ordering. Business values fixed per entity. Spanish locale.
+
+### PDF template management (deferred)
+Routes for managing worksheet/PDF templates have been deferred:
+- GET/POST/PUT/DELETE /admin/pdf-templates
+- GET /admin/pdf-templates/{id}/preview
+
+Fields: name, locale (es), sections/fields, business values fixed (branding, numbering, signatures), storage (MinIO or repo), versioning.
+

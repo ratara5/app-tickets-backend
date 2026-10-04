@@ -1,0 +1,322 @@
+# ==============================================================================
+# LOCAL STACK — this application only
+# ==============================================================================
+#
+# What this file is: the two services this repository owns, running against the
+# shared core that other projects in this estate already operate.
+#
+# What this file is NOT: a miniature of production. There is no PostgreSQL here,
+# no MinIO here, and no Caddy. Those belong to the core, and re-declaring any of
+# them would produce a second instance that shares nothing with the real one —
+# a local environment that passes and a deployed one that fails.
+#
+# ALWAYS pass this file explicitly:
+#
+#     docker compose -f infra/local/docker-compose.yml up -d
+#
+# The root `docker-compose.yml` is deliberately a no-service file and stays that
+# way. A bare `docker compose up` at the repository root must never start
+# anything, so it cannot be the way this stack is reached.
+#
+# ==============================================================================
+# THE NETWORK — one, ours, carrying both dependencies
+# ==============================================================================
+#
+# THE CORE CAN BE COMPOSED FOUR WAYS, so none of them is a contract
+# ==============================================================================
+#
+# A shared core can be built any of these ways, and all four are legitimate:
+#
+#   #   database                 object store            networks
+#   1   one server              one server              ONE — both in one compose
+#   2   one per app/web/unit    one per app/web/unit    one per unit
+#   3   one grouping all apps   one for all apps        one, if declared together
+#   4   one for all apps        one grouping all apps   one, if declared together
+#
+# Only (1) makes a single network inevitable. (2)-(4) each produce as many networks as
+# there are groupings, and a mirror of the core on a developer's machine may not match
+# the VPS at all: splitting one arrangement across two compose files in two directories
+# is a property of how the mirror is LAID OUT, not a topology to reproduce.
+#
+# What this mirror actually shows, and it is arrangement (3)'s sharing ratio rather
+# than a second candidate design — postgres shared by several applications, object
+# store per application:
+#
+#   ~/Documents/GoogleCloudProjects/core/compose.yml
+#       postgres-gci, pgadmin-gci                -> gci-db-network
+#   ~/Documents/GoogleCloudProjects/gci-companies/gci-empresa-a/assync/docker-compose.yml
+#       minio-acme, api-acme, postgrest-acme     -> as-sync-acme-network
+#
+# ...which is why this machine shows two networks where the VPS shows one. On the VPS
+# both core containers are created by a single compose in a folder named `core/`.
+#
+#   CAREFUL: that `core/` is NOT the mirror's `core/` above, which holds only the
+#   database. Same folder name, different machine, different content. Do not look for
+#   the VPS's `core/` in this repository — it is not here, and it will not be here.
+#
+#   What this repository can show you about the VPS is only the consequence: the
+#   deployed stack requires ONE network with both dependencies attached
+#   (infra/vps/docker-compose.yml:205-209) and connects both core containers to it
+#   (docs/deployment-guide.md:46-47). That both come from ONE compose in `core/` is
+#   the estate owner's statement, recorded in openspec/changes/local-stack/design.md.
+#   Treat the arrangement as documented, not as something to verify locally.
+#
+# The consequence for this file, and it is the whole argument: a consumer has NO
+# network name it may depend on. Depending on either name above encodes another
+# repository's internal layout as a requirement of this one — rename it there and this
+# stack breaks with a DNS error while the API keeps passing its healthcheck, the
+# failure already recorded at infra/vps/docker-compose.yml:210-226.
+#
+# Also observed, and deliberately not used:
+#   core_gci-db-network   a stale duplicate of the PostgreSQL network, carrying no
+#                         members. core/compose.yml:105 declares `gci-db-network`,
+#                         but the root orchestrator produced the prefixed name, so
+#                         the unprefixed one survives as an empty leftover.
+#   the estate's per-app networks (`my-<app>-network`, below). Another application's
+#                         is present on this machine with NO members and no owning
+#                         compose project, because its attachments were lost when the
+#                         core's containers were recreated. Being unlabelled and empty
+#                         it is eligible for `docker network prune`. Noted to record
+#                         that this repository depends on none of them: a container's
+#                         attachment to a network dies with the container, so a network
+#                         owned elsewhere is not somewhere this project can stand.
+#
+# THE PATTERN THAT REMAINS — and it is the estate's, not this file's invention.
+#
+# The owning project documents it per application (provider-portal/README.md,
+# Infrastructure §1):
+#
+#   docker network create my-<app>-network
+#   docker network connect my-<app>-network postgres-gci
+#   docker network connect my-<app>-network minio-acme
+#
+# One dedicated network per application, with the same two shared core containers
+# attached to it. Applied to this app, the DEPLOYED network is my-tickets-network:
+# the same shape as every other application's, and a distinct network, created once
+# by the deployment procedure and declared external by infra/vps/docker-compose.yml.
+# That file is no-touch for this change, so the deployed rename lives in its own
+# change — recorded in openspec/changes/local-stack/tasks.md §17.11-17.13.
+#
+# The sequence, and why each step is where it is:
+#
+#   1. The core's containers are started by the project that owns them. Not by us.
+#   2. A project declares a network of its own.
+#   3. Its bring-up command connects the already-running containers to that
+#      network, idempotently, after confirming they are running.
+#   4. Reachability is by container name across that network.
+#   5. Its teardown command detaches them before the project is removed.
+#
+# This file is step 2 only. Locally the network is `app-tickets-local-net`, the
+# local instance of the same pattern: created and destroyed here rather than by an
+# operator, because on a laptop there is no deployed network to join and nobody to
+# run the create step. That also makes it re-runnable, which matters because —
+#
+# Step 3's state lives INSIDE the container, so a recreated container loses the
+# attachment silently. That is why the connect is idempotent and re-runnable, and
+# why `make setup-local` reports which attachments it made. Step 5 is not
+# optional: `docker compose down` cannot remove a network that still holds an
+# attachment to a container it does not own.
+#
+# The attachment is therefore a CACHE, and only the provider can make it durable:
+# the core's own compose would declare this network `external: true` on
+# `postgres-gci` and `minio-acme`, so a recreate of those containers reproduced the
+# attachment instead of erasing it. That file is the core's project's to edit, not
+# ours, so the re-run stays — recorded as tasks.md §17.16. Locally the weaker remedy
+# is the only one available; it is a constraint, not a preference.
+#
+# This is also the shape production has — infra/vps/docker-compose.yml joins a
+# single network with both dependencies attached — so local is a rehearsal of the
+# deployed topology rather than a variant of it.
+#
+# ==============================================================================
+name: app-tickets-local
+
+networks:
+  # Explicit `name:` so the network is `app-tickets-local-net` rather than
+  # `app-tickets-local_<key>`. The bring-up command has to name this network when
+  # it connects the core's containers, and a name that changed with a key rename
+  # would make that string a second place to keep in sync.
+  local-core-net:
+    name: app-tickets-local-net
+    driver: bridge
+
+services:
+  # ---------------------------------------------------------------------------
+  # api — this project's HTTP surface
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      # The default stage is already `runtime`; it is named here so the intent is
+      # readable and so a future reorder of the Dockerfile cannot silently change
+      # which image this service gets.
+      target: runtime
+    image: app-tickets-backend:local
+    restart: unless-stopped
+
+    # The only published port in this file. Bound to loopback because there is
+    # no TLS edge here (see the Caddy note below) and nothing outside this
+    # machine should reach a development API. `127.0.0.1:8000` on the left is the
+    # host address; `8000` on the right is the container port, which is what the
+    # image binds (`gunicorn --bind 0.0.0.0:8000`).
+    ports:
+      - "127.0.0.1:8000:8000"
+
+    # Single source of truth for configuration, exactly as
+    # infra/vps/docker-compose.yml:54-61 does it: `env_file` supplies everything
+    # and `environment:` states only the values that MUST differ inside a
+    # container. `environment:` outranks `env_file:`, which is why an unset
+    # variable interpolated here once overrode the correct DB_HOST from .env with
+    # an empty string and the API started with no database host at all. Every
+    # value below is therefore a literal, never an unexpanded variable.
+    env_file:
+      - ../../.env
+    environment:
+      # 127.0.0.1 INSIDE A CONTAINER IS THE CONTAINER.
+      #
+      # `.env` above is the host-run configuration, where DB_HOST and
+      # MINIO_ENDPOINT are loopback because there the API shares the host with
+      # the core's published ports. Inherited unchanged into a container, that
+      # points every query, every upload and the startup bucket probe at the API
+      # container itself. It still starts, still passes its healthcheck, and fails
+      # on first use. Documented at infra/vps/docker-compose.yml:71-80 and in
+      # docs/post-mortems/2026-09-29-minio-endpoint-lease-outage.md.
+      #
+      # The values below are therefore the core's own container names and their
+      # in-container ports — byte-for-byte what the VPS api service resolves,
+      # which is what makes this a rehearsal rather than a variant.
+      DB_HOST: postgres-gci
+      DB_PORT: "5432"
+
+      # Inside the image the application root is /srv (Dockerfile WORKDIR).
+      TEMPLATES_DIR: /srv/app/templates/reports
+      # Owned by uid 10001 in the image (Dockerfile chowns it in the layer that
+      # creates it), so the non-root runtime user can write. No volume is mounted
+      # over it: this stack has no state to protect, and a bind mount here would
+      # mean a host directory whose ownership silently drifts away from the
+      # container's uid — the exact EACCES that reads as a storage outage.
+      CHUNK_DIR: /tmp/upload_chunks
+
+      MINIO_ENDPOINT: minio-acme
+      MINIO_PORT: "9000"
+      MINIO_SECURE: "false"
+
+      # The public origin is what gets SIGNED into every presigned URL, so it is
+      # not the dial target. Locally there is no TLS edge (see below) and no
+      # public name to sign, so it is the core's published loopback S3 API — the
+      # one address a phone or a browser on this machine can actually fetch from.
+      # These three are deliberately NOT the VPS values: production signs
+      # MEDIA_DOMAIN over TLS on 443, and reusing that here would sign URLs that
+      # resolve to nothing locally, which is a false failure rather than a true
+      # one. Only the internal dial target has to match the VPS.
+      MINIO_PUBLIC_ENDPOINT: "127.0.0.1"
+      MINIO_PUBLIC_PORT: "9000"
+      MINIO_PUBLIC_SECURE: "false"
+
+    networks:
+      - local-core-net
+
+    # No `depends_on` on anything. The dependencies are not declared here, so a
+    # depends_on would name a service that does not exist in this project, and
+    # compose would either reject it or wait on nothing while implying it waited
+    # on something. Readiness is a bring-up concern, not a compose concern: the
+    # setup command probes both dependencies with a real query before this
+    # service is started.
+
+  # ---------------------------------------------------------------------------
+  # migrate — ONE-SHOT JOB, never a service
+  # ---------------------------------------------------------------------------
+  # Invoke as:
+  #
+  #   docker compose -f infra/local/docker-compose.yml run --rm \
+  #     -e DB_USER=<owner> -e DB_PASSWORD=<owner-password> migrate
+  #
+  # `run --rm` is the whole point. This entry is never started with `up`, and
+  # `restart: "no"` is not optional: a supervised migration would restart-loop and
+  # re-attempt DDL against `postgres-gci`, which is shared with other
+  # applications. One failure must stop, not become an outage for other tenants.
+  #
+  # It builds the `migrate` target of the SAME Dockerfile as `api`, so the
+  # migration always runs the same app/models the API will run.
+  #
+  # It publishes no port and declares no healthcheck: a job has no traffic to
+  # receive and no uptime to supervise.
+  migrate:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      target: migrate
+    image: app-tickets-backend:migrate-local
+    restart: "no"
+
+    # NO env_file, deliberately. This job needs schema-modification rights, and
+    # the runtime role holds DML only. An elevated credential must be typed per
+    # invocation, never defaulted from a file that also configures the running
+    # service — that is the rule at infra/vps/docker-compose.yml:143-153 and
+    # infra/provision/README.md.
+    #
+    # The consequence, stated rather than hidden: every remaining required
+    # setting is supplied per invocation too, because `app.core.settings`
+    # validates the whole object at import. `alembic/env.py` reads its DSN from
+    # those settings, so the job cannot start with a partial environment. The
+    # bring-up script therefore passes the full set explicitly, with the elevated
+    # DB credential overriding the runtime one. Duplicating the non-secret
+    # business configuration (company name, contractor identity, JWT settings)
+    # into this file instead would put deployment data into topology, where it
+    # would drift from .env without anything noticing.
+    environment:
+      DB_HOST: postgres-gci
+      DB_PORT: "5432"
+      TEMPLATES_DIR: /srv/app/templates/reports
+      CHUNK_DIR: /tmp/upload_chunks
+      MINIO_ENDPOINT: minio-acme
+      MINIO_PORT: "9000"
+      MINIO_SECURE: "false"
+      MINIO_PUBLIC_ENDPOINT: "127.0.0.1"
+      MINIO_PUBLIC_PORT: "9000"
+      MINIO_PUBLIC_SECURE: "false"
+
+    networks:
+      - local-core-net
+
+# ==============================================================================
+# WHAT IS DELIBERATELY ABSENT
+# ==============================================================================
+#
+# Caddy / TLS. There is no TLS edge here, and that is not an omission to be
+# fixed: Caddy's job is to terminate TLS for a public origin, and locally there
+# is no public origin — nothing outside this machine reaches the API, which is
+# bound to loopback. A Caddyfile mounted into this stack would issue certificates
+# for a name that resolves nowhere, or worse, succeed against the core's real
+# domain and quietly put a development stack on a production name.
+#
+# The gate (infra/local/scripts/gate-local.sh) replaces it: it exercises the
+# image end to end and prints what it could NOT check, which is precisely the
+# TLS edge and the public DNS name. A release note that pastes the gate's output
+# carries its own caveats with it.
+#
+# No volume of any kind. There is no local data to protect, because the database,
+# the bucket and the uploaded objects all belong to the core. The one thing this
+# stack writes to disk is in-flight upload chunks, and those are disposable by
+# definition: losing a restart's worth of them loses an upload the client can
+# retry, which is not the same as losing committed records whose rows survive.
+#
+# One network, and it is ours. Compose creates `app-tickets-local-net`, the
+# bring-up command connects the core's already-running containers to it, and the
+# teardown command detaches them before `docker compose down`. Nothing here
+# references a network belonging to the core or to another project, so a network
+# renamed over there cannot break this stack — and `docker compose down` has
+# nothing of anyone else's to remove.
+#
+# No container_name anywhere. A fixed name detaches a container from its compose
+# project label, and `docker compose down` acts by label — so a fixed name is how
+# a teardown aimed at this project ends up acting on someone else's container.
+# Service names are already DNS-resolvable on the local network, which is why
+# `postgres-gci` and `minio-acme` resolve here without being declared.
+#
+# No `docker restart`, `docker stop`, `docker rm` or `docker start` anywhere.
+# Every container the core owns is not ours to act on, in either direction:
+# starting what is not ours couples us to its lifecycle, and stopping what is not
+# ours is an outage for another tenant. The one thing we do to a core container is
+# attach it to our network, and that happens in `make setup-local`, not here.

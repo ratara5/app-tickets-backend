@@ -44,7 +44,7 @@ When updating documentation:
 | `docs/learned-lessons.md` | Failures that cost time here, recorded so they are not repeated |
 | `docs/documentation-standards.md` | This file — documentation rules |
 | `docs/openspec-tasks-mandatory-steps.md` | Mandatory steps for OpenSpec task generation |
-| `ai-specs/skills/deploying-backend-vps/` | Deployment skill: preflight, database bootstrap, verification gates, stop conditions |
+| `.opencode/skills/deploying-backend-vps/` | Deployment skill: preflight, database bootstrap, verification gates, stop conditions |
 
 ## AI specs
 

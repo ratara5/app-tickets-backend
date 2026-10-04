@@ -206,6 +206,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /tickets/{ticket_id}/reset:
+    patch:
+      summary: Reset
+      operationId: reset_tickets__ticket_id__reset_patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: ticket_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Ticket Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicketItemResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /tickets/{ticket_id}/addwkd:
     patch:
       summary: Create Add Wkd
@@ -406,6 +432,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /maintenances/{maintenance_id}/pause:
+    patch:
+      summary: Pause Maintenance
+      operationId: pause_maintenance_maintenances__maintenance_id__pause_patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: maintenance_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid7
+          title: Maintenance Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PauseRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceItemResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /maintenances/{maintenance_id}/photos/{photo_id}:
     delete:
       summary: Delete Maintenance Photo
@@ -479,7 +538,7 @@ paths:
               $ref: '#/components/schemas/UploadInitRequest'
         required: true
       responses:
-        '200':
+        '201':
           description: Successful Response
           content:
             application/json:
@@ -507,6 +566,7 @@ paths:
         required: true
         schema:
           type: string
+          format: uuid7
           title: Upload Id
       - name: chunk_index
         in: query
@@ -555,6 +615,7 @@ paths:
         required: true
         schema:
           type: string
+          format: uuid7
           title: Upload Id
       responses:
         '200':
@@ -583,6 +644,7 @@ paths:
         required: true
         schema:
           type: string
+          format: uuid7
           title: Upload Id
       responses:
         '200':
@@ -1193,6 +1255,7 @@ components:
       properties:
         upload_id:
           type: string
+          format: uuid7
           title: Upload Id
         chunk_index:
           type: integer
@@ -1214,6 +1277,7 @@ components:
       properties:
         upload_id:
           type: string
+          format: uuid7
           title: Upload Id
         received_chunks:
           type: integer
@@ -1429,6 +1493,25 @@ components:
       - pause_reason
       - created_at
       title: Pause
+    PauseRequest:
+      properties:
+        pause_reason:
+          type: string
+          title: Pause Reason
+      type: object
+      required:
+      - pause_reason
+      title: PauseRequest
+      description: "Body of PATCH /maintenances/{maintenance_id}/pause.\n\nDeliberately\
+        \ standalone rather than a subclass of `MaintenanceUpdate`.\n`MaintenanceUpdate`\
+        \ is the mobile form's full-row save and requires\n`maintenance_description`,\
+        \ plus the spares/technicians/pauses collections\nthat the save path *replaces*.\
+        \ Inheriting it would have forced the pause\nendpoint to accept \u2014 and\
+        \ then silently discard \u2014 the entire form payload,\nand made a bare `{\"\
+        pause_reason\": ...}` body a 422.\n\nThe pause is the only thing this endpoint\
+        \ accepts, so it is the only thing\nit models. There is no maintenance status:\
+        \ a pause is observable as this\nrow plus the owning ticket's status, never\
+        \ as a field on a maintenance."
     PhotoOut:
       properties:
         photo_id:
@@ -1672,6 +1755,7 @@ components:
       properties:
         upload_id:
           type: string
+          format: uuid7
           title: Upload Id
         chunk_size:
           type: integer

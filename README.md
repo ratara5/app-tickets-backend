@@ -20,38 +20,44 @@
 > See `TICKET-019`.
 
 ```bash
-export ROOT_PATH=/path/to/your/python/projects/api-tickets-backend
+# One time only: the development interpreter and its dev/test dependencies.
+python3 -m venv venv
+venv/bin/pip install -r requirements-dev.txt
 
-# Provision once, as admin. This creates the DATABASE, not its tables.
-#   docker exec postgres-gci createdb -U postgres db_gestiket_acme
-#
-# Then build the schema, as the app role. This creates the TABLES.
-#   docker exec -i postgres-gci psql -v ON_ERROR_STOP=1 -U postgres \
-#       -d db_gestiket_acme < infra/schema.sql
-#
-# Two separate steps on purpose. Neither one creates both.
-# Full procedure: docs/deployment-guide.md §2.
+# Fill in the local keys in .env (see .env.example): CORE_COMPOSE_COMMAND,
+# CORE_DB_ADMIN_*, CORE_MINIO_ROOT_*, SEED_USER_*.
 
-uvicorn app.main:app --reload --reload-dir app
+# Then bring the local stack up. Idempotent, and safe to re-run.
+make setup-local
 ```
 
-## RUN: NEXT TIME  
+`make setup-local` creates this project's network, attaches it to the running
+shared core, provisions this project's role, database, bucket and credentials,
+applies `infra/schema.sql` plus `alembic upgrade head`, loads synthetic seed
+rows, starts the API, and prints the resolved endpoints. It does **not** start
+the shared PostgreSQL or MinIO: those belong to another project, which starts
+them.
+
+## RUN: NEXT TIME
 ```bash
-# Start DB
-cd ~/Documents/GoogleCloudProjects # The container is built from ~/Documents/GoogleCloudProjects/docker-compose.yml, in its db gmail tk are received
-docker compose up -d postgres-gci  
+# Bring up (idempotent — this is also all you need after a reboot)
+make setup-local
 
-# Start MINIO
-cd ~/Documents/GoogleCloudProjects/gci-companies/gci-empresa-a/assync # In order to ilustrate that is possible either one minio for each app or one minio for all apps. Default credentials (both user and pass): minioadmin
-docker compose up -d minio-acme 
+# Prove the environment is coherent
+make gate-local
 
-# Serve API
-uvicorn app.main:app --reload --reload-dir app
+# Serve the API with reload for the edit loop
+make run-native
 ```
+
+The core's location is **not** hardcoded here. It arrives through
+`CORE_COMPOSE_COMMAND` in `.env`, which names the compose file of the project
+that owns it. This project never edits or starts that file; it only attaches to
+the running containers on the network it owns.
 
 ### WHAT THE MINIO CONTAINER CHANGE CHANGED
 
-`minio-acme` now publishes its ports on **loopback only**
+`minio-acme` now publishes its ports on **loopback (this host (Linux-Physical-Machine) to itself) only**
 (`127.0.0.1:9000`, `127.0.0.1:9001`) instead of on every interface. Two
 consequences, both load-bearing:
 
@@ -63,8 +69,8 @@ consequences, both load-bearing:
    written into docs/deployment-guide.md §1 and repeated in the compose file:
 
    ```bash
-   docker network connect infra-net minio-acme
-   docker network inspect infra-net --format '{{range .Containers}}{{.Name}} {{end}}'
+   docker network connect <infra-net-name> minio-acme
+   docker network inspect <infra-net-name> --format '{{range .Containers}}{{.Name}} {{end}}'
    ```
 
    Skip it and the API starts and reports healthy, then every upload and every
@@ -81,9 +87,12 @@ consequences, both load-bearing:
    `MINIO_PUBLIC_ENDPOINT` in `.env` was `192.168.10.30`, which is not this host
    (`192.168.10.31`) and does not answer on the LAN at all, so every URL the API
    handed out was dead on arrival. The LAN-correct value is the machine's mDNS
-   name, `ratara5-SVT15115CLS.local`, which avahi publishes and a phone on the
-   same LAN resolves directly. A name rather than an address, because this key is
-   signed into every URL and must not move when a DHCP lease rotates.
+   name, `ratara5-SVT15115CLS.local`, which avahi (It open-source-software allows 
+   computers and network devices to automatically discover and communicate with 
+   each other on a local network (LAN) without manual IP configuration or DNS setup) 
+   publishes and a phone on the same LAN resolves directly. A name rather than an 
+   address, because this key is signed into every URL and must not move when a DHCP 
+   lease rotates.
 
    `.env` currently holds `MINIO_PUBLIC_ENDPOINT=127.0.0.1`, which is correct
    *only* while the app runs in a simulator or another on-host client that shares
@@ -249,7 +258,7 @@ git push
 ```  
 
 ### API USAGE IN POSTMAN  
-The use of POSTMAN DESKTOP APP is REQUIRED.
+It's possible use POSTMAN DESKTOP.
 **There, import `app-tickets-backend.postman_collection.json`**  
 
 ### DB USAGE
@@ -297,8 +306,3 @@ python3.12 -m scripts.export_openapi
 ```
 
 `scripts/export_openapi` must exist
-
-
-
-
-

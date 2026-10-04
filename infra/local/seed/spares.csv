@@ -1,0 +1,51 @@
+spare_id,spare_name,unit,price
+9301,"Repuesto Junta Tórica",caja,16.50
+9302,"Repuesto Arandela",paquete,28.00
+9303,"Repuesto Tuerca Hexagonal",bolsa,39.50
+9304,"Repuesto Tornillo M10",u,51.00
+9305,"Repuesto Rodamiento",caja,62.50
+9306,"Repuesto Retén",paquete,74.00
+9307,"Repuesto Correa",bolsa,82.00
+9308,"Repuesto Filtro",u,93.50
+9309,"Repuesto Empaque",caja,105.00
+9310,"Repuesto Válvula",paquete,116.50
+9311,"Repuesto Sellador",bolsa,128.00
+9312,"Repuesto Manguito",u,139.50
+9313,"Repuesto Acople",caja,151.00
+9314,"Repuesto Polea",paquete,9.00
+9315,"Repuesto Cadena",bolsa,20.50
+9316,"Repuesto Piñón",u,32.00
+9317,"Repuesto Engranaje",caja,43.50
+9318,"Repuesto Cojinete",paquete,55.00
+9319,"Repuesto Resorte",bolsa,66.50
+9320,"Repuesto Diafragma",u,78.00
+9321,"Repuesto Membrana",caja,86.00
+9322,"Repuesto Boquilla",paquete,97.50
+9323,"Repuesto Inyector",bolsa,109.00
+9324,"Repuesto Bujía",u,120.50
+9325,"Repuesto Rele",caja,132.00
+9326,"Repuesto Contactor",paquete,143.50
+9327,"Repuesto Fusible",bolsa,155.00
+9328,"Repuesto Termopar",u,13.00
+9329,"Repuesto Presostato",caja,24.50
+9330,"Repuesto Electrodo",paquete,36.00
+9331,"Repuesto Cable",bolsa,47.50
+9332,"Repuesto Conector",u,59.00
+9333,"Repuesto Goma",caja,70.50
+9334,"Repuesto Guarnición",paquete,82.00
+9335,"Repuesto Pistón",bolsa,90.00
+9336,"Repuesto Anillo",u,101.50
+9337,"Repuesto Camisa",caja,113.00
+9338,"Repuesto Asiento",paquete,124.50
+9339,"Repuesto Disco",bolsa,136.00
+9340,"Repuesto Placa",u,147.50
+9341,"Repuesto Lamela",caja,9.00
+9342,"Repuesto Malla",paquete,17.00
+9343,"Repuesto Tela Filtrante",bolsa,28.50
+9344,"Repuesto Tubo",u,40.00
+9345,"Repuesto Codo",caja,51.50
+9346,"Repuesto Te",paquete,63.00
+9347,"Repuesto Niple",bolsa,74.50
+9348,"Repuesto Brida",u,86.00
+9349,"Repuesto Tapón",caja,94.00
+9350,"Repuesto Casquillo",paquete,105.50

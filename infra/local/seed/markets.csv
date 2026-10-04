@@ -1,0 +1,53 @@
+market_id,market_name,city,transport_cost
+9001,"Mercado 01",Madrid,23.25
+9002,"Mercado 02",Barcelona,31.50
+9003,"Mercado 03",Valencia,16.00
+9004,"Mercado 04",Sevilla,24.25
+9005,"Mercado 05",Zaragoza,32.50
+9006,"Mercado 06",Málaga,17.00
+9007,"Mercado 07",Murcia,25.25
+9008,"Mercado 08",Palma,33.50
+9009,"Mercado 09",Las Palmas,18.00
+9010,"Mercado 10",Bilbao,26.25
+9011,"Mercado 11",Alicante,34.50
+9012,"Mercado 12",Córdoba,19.00
+9013,"Mercado 13",Valladolid,27.25
+9014,"Mercado 14",Vigo,35.50
+9015,"Mercado 15",Gijón,20.00
+9016,"Mercado 16",LHospitalet,28.25
+9017,"Mercado 17",A Coruña,36.50
+9018,"Mercado 18",Granada,21.00
+9019,"Mercado 19",Vitoria,29.25
+9020,"Mercado 20",Tarragona,17.50
+9021,"Mercado 21",Oviedo,22.00
+9022,"Mercado 22",Jaén,30.25
+9023,"Mercado 23",Santa Cruz,18.50
+9024,"Mercado 24",Pamplona,23.00
+9025,"Mercado 25",León,31.25
+9026,"Mercado 26",Almería,19.50
+9027,"Mercado 27",Toledo,24.00
+9028,"Mercado 28",Logroño,32.25
+9029,"Mercado 29",Cádiz,20.50
+9030,"Mercado 30",Santiago,25.00
+9031,"Mercado 31",Castellón,33.25
+9032,"Mercado 32",Huelva,21.50
+9033,"Mercado 33",Cáceres,26.00
+9034,"Mercado 34",Albacete,34.25
+9035,"Mercado 35",Badajoz,22.50
+9036,"Mercado 36",Salamanca,27.00
+9037,"Mercado 37",Segovia,35.25
+9038,"Mercado 38",Lleida,23.50
+9039,"Mercado 39",Teruel,28.00
+9040,"Mercado 40",Cuenca,16.25
+9041,"Mercado 41",Ávila,24.50
+9042,"Mercado 42",Soria,29.00
+9043,"Mercado 43",Guadalajara,17.25
+9044,"Mercado 44",Ceuta,25.50
+9045,"Mercado 45",Melilla,30.00
+9046,"Mercado 46",Santander,18.25
+9047,"Mercado 47",Burgos,26.50
+9048,"Mercado 48",Ciudad Real,31.00
+9049,"Mercado 49",Zamora,19.25
+9050,"Mercado 50",Ourense,27.50
+9051,"Mercado 51",Pontevedra,32.00
+9052,"Mercado 52",Lugo,20.25

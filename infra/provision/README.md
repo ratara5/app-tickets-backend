@@ -197,5 +197,5 @@ the reason this file cites it rather than substituting a grant for it.
 ## See also
 
 - `docs/deployment-guide.md` §2 for the operational sequence.
-- `ai-specs/skills/deploying-backend-vps/SKILL.md` for the general procedure;
+- `.opencode/skills/deploying-backend-vps/SKILL.md` for the general procedure;
   this directory is a concrete instance of it.
