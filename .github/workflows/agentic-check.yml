@@ -46,6 +46,9 @@ jobs:
             url."https://x-access-token:${HARNESS_TOKEN}@github.com/".insteadOf \
             "https://github.com/"
 
+      - name: Install the harness CLI's dependency
+        run: python3 -m pip install --quiet pyyaml
+
       - name: Read the pinned harness version
         id: pin
         run: |

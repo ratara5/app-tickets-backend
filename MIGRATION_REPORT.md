@@ -1,10 +1,10 @@
 # Migration report — legacy seed removal
 
-Consumer: `app-tickets-backend`. Harness: `v1.6.0`. Base: `pre-agentic-layer`
+Consumer: `app-tickets-backend`. Harness: `v1.6.1`. Base: `pre-agentic-layer`
 (`01d098a`). Branch: `feature/agentic-bootstrap`.
 
 The consumer was migrated from the hand-maintained `ai-specs/` symlink seed to the
-harness projection. Four commits, each ending `Agentic-Layer: 1.6.0`:
+harness projection. Four commits, each ending `Agentic-Layer: 1.6.1`:
 
 1. `2a438c3` projection + lock (symlink replacement)
 2. `dde1a38` salvage
@@ -54,12 +54,14 @@ second contradicts the harness, which refuses to write through a symlink.
    also projects was reported `IDENTICAL` (deletable); and a seed symlink path that
    became a projected directory raised `IsADirectoryError`. Both now report
    `PROJECTED`. Harness commits `ce27910` and `73ca57d`.
-3. **`{{CONSUMER_DOCS}}` renders an absolute path into the committed entrypoint.**
-   `AGENTS.md` line 134 contains
-   `/home/ratara5/Documents/python_scripts/app-tickets-backend/docs`. A teammate
-   cloning at a different path reads a stale path. This is a harness defect
-   (`templates/opencode/AGENTS.md` + the CLI renderer); not fixed here because it
-   is outside the migration and would need a re-tag and re-sync.
+3. **`{{CONSUMER_DOCS}}` rendered an absolute path into the committed entrypoint.**
+   Found by running this consumer's CI for real: the job regenerated the
+   entrypoint under its own path, so `sync --check` reported drift no local run
+   could reproduce. **Fixed in harness 1.6.1** — the renderer now emits the
+   relative `docs`, with a regression test. This is why the consumer pins 1.6.1
+   rather than 1.6.0.
+6. **The CI template installed OpenSpec but not PyYAML**, so the check died on
+   `agentic: PyYAML is required` after cloning correctly. **Fixed in 1.6.1.**
 4. **`openspec/config.yaml` still declares `ai_specs_structure`** for the removed
    tree. Left untouched: `sync` never writes `openspec/`, and the migration's own
    verification requires it byte-identical to the base.
@@ -70,7 +72,7 @@ second contradicts the harness, which refuses to write through a symlink.
 
 | Check | Result |
 |---|---|
-| `agentic sync --check` | exits 0 — 322 files match `v1.6.0` |
+| `agentic sync --check` | exits 0 — 322 files match `v1.6.1` |
 | Consumer tests | 426 passed; 4 failed |
 | The 4 failures | `tests/test_worksheets.py` PDF tests — **pre-existing**, confirmed failing at `pre-agentic-layer` |
 | `git diff pre-agentic-layer -- openspec` | empty |
@@ -89,6 +91,6 @@ consumer.
 ## Before this PR can merge
 
 The harness must be pushed with its tag: the consumer CI workflow
-`.github/workflows/agentic-check.yml` fetches `v1.6.0` from the published
+`.github/workflows/agentic-check.yml` fetches `v1.6.1` from the published
 repository and runs `agentic sync --check`. Until the tag is on `origin`, that job
 cannot resolve the pin.
