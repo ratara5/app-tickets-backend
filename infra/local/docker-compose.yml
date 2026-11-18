@@ -254,7 +254,7 @@ services:
     # the runtime role holds DML only. An elevated credential must be typed per
     # invocation, never defaulted from a file that also configures the running
     # service — that is the rule at infra/vps/docker-compose.yml:143-153 and
-    # infra/provision/README.md.
+    # README.md, INFRASTRUCTURE.
     #
     # The consequence, stated rather than hidden: every remaining required
     # setting is supplied per invocation too, because `app.core.settings`

@@ -26,8 +26,27 @@ import pytest
 
 PROVISION_DIR = Path(__file__).resolve().parents[1] / "infra" / "provision"
 PROVISION_SQL = PROVISION_DIR / "001-create-application-roles.sql"
-PROVISION_README = PROVISION_DIR / "README.md"
+ROOT_README = Path(__file__).resolve().parents[1] / "README.md"
 DEPLOYMENT_GUIDE = Path(__file__).resolve().parents[1] / "docs" / "deployment-guide.md"
+
+
+def _provisioning_readme() -> str:
+    """The INFRASTRUCTURE section of the root README.
+
+    The former `infra/provision/README.md` was moved there verbatim. The section
+    is extracted rather than reading the whole document so that these assertions
+    stay scoped to the text they guard: the other sections of README.md are a
+    different subject, and a phrase appearing there must neither satisfy nor
+    break a check written for this one.
+    """
+    text = ROOT_README.read_text(encoding="utf-8")
+    match = re.search(r"^## INFRASTRUCTURE\b.*?(?=^## |\Z)", text, re.S | re.MULTILINE)
+    assert match, (
+        "README.md has no `## INFRASTRUCTURE` section. The provisioning prose "
+        "lives there since infra/provision/README.md was moved; restore the "
+        "section rather than repointing these tests at another file."
+    )
+    return match.group(0)
 
 # Comments are stripped for the grant assertions: the file documents the
 # privileges it withholds as prominently as the ones it grants, so a substring
@@ -132,7 +151,7 @@ def test_the_readme_says_why_there_is_no_migration_role() -> None:
     separate assertion from the one above because prose is the thing being
     checked, not SQL.
     """
-    readme = PROVISION_README.read_text(encoding="utf-8").lower()
+    readme = _provisioning_readme().lower()
     assert "no migration role" in readme
 
 
@@ -371,7 +390,7 @@ def test_no_document_tells_the_operator_to_append_the_pg_hba_rule() -> None:
     """
     documents = {
         "provisioning script": PROVISION_SQL.read_text(encoding="utf-8"),
-        "provisioning README": PROVISION_README.read_text(encoding="utf-8"),
+        "provisioning README": _provisioning_readme(),
         "deployment guide": DEPLOYMENT_GUIDE.read_text(encoding="utf-8"),
     }
     for label, text in documents.items():
@@ -580,7 +599,7 @@ def test_readme_states_the_execution_order() -> None:
     objects and ALTER DEFAULT PRIVILEGES only covers later ones. The network rule
     goes last because a role with no privileges is harmless until reachable.
     """
-    readme = PROVISION_README.read_text(encoding="utf-8")
+    readme = _provisioning_readme()
     create_db = readme.index("Create the database")
     load_schema = readme.index("Load the schema of record")
     create_roles = readme.index("Create the roles and grant privileges")
@@ -590,14 +609,14 @@ def test_readme_states_the_execution_order() -> None:
 
 def test_readme_forbids_automated_provisioning() -> None:
     """A shared instance's credentials must not be created by compose up."""
-    readme = PROVISION_README.read_text(encoding="utf-8")
+    readme = _provisioning_readme()
     assert "docker compose up" in readme
     assert "never executed by" in readme.lower() or "never executed" in readme.lower()
 
 
 def test_readme_documents_the_verification_matrix() -> None:
     """The file ships with checks; the README says which results to expect."""
-    readme = PROVISION_README.read_text(encoding="utf-8")
+    readme = _provisioning_readme()
     for check in ("CREATE TABLE", "DROP TABLE", "ALTER TABLE", "CREATE INDEX", "SELECT"):
         assert check in readme
     assert "fails" in readme and "succeeds" in readme
@@ -609,7 +628,7 @@ def test_readme_explains_why_the_migration_role_was_removed() -> None:
     The reason has to be here, with the mechanism, or the next person adds one
     back believing they are closing a gap.
     """
-    readme = PROVISION_README.read_text(encoding="utf-8").lower()
+    readme = _provisioning_readme().lower()
     assert "no migration role" in readme
     assert "ownership" in readme
     assert "create" in readme and "alter" in readme and "drop" in readme
@@ -622,5 +641,5 @@ def test_readme_says_the_final_check_must_come_from_another_host() -> None:
     different code path than the one a real attacker or a misconfigured peer
     would take.
     """
-    readme = PROVISION_README.read_text(encoding="utf-8")
+    readme = _provisioning_readme()
     assert "different host" in readme.lower()

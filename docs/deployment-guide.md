@@ -55,8 +55,9 @@ published ports are untouched, so the other applications are unaffected.
 
 ### 2.1 Dedicated role and database
 
-**The role is created by [`infra/provision/`](../infra/provision/README.md), not
-here.** That directory is the single place role creation lives, and
+**The role is created by the [INFRASTRUCTURE section of the root
+README](../README.md#infrastructure), not here.** That section is the single
+place role creation lives, and
 `tests/test_provisioning.py` pins the privilege boundaries it establishes. This
 section states the order; the commands live there.
 
@@ -64,11 +65,11 @@ section states the order; the commands live there.
 > `CREATE ROLE`/`CREATE DATABASE` block, and it was wrong in three ways.
 >
 > 1. **`CREATE DATABASE db_gestiket_acme OWNER gestiket_app` made the running
->    service the owner of its own database.** `infra/provision/README.md`
->    requires the opposite — the database is created empty by an administrator
->    and is *not* owned by the application role — because an owner can alter the
->    database's ACL, rename it and drop it, and "the runtime role owns nothing"
->    is the load-bearing rule of that design.
+>    service the owner of its own database.** `README.md`, INFRASTRUCTURE
+>    section, requires the opposite — the database is created empty by an
+>    administrator and is *not* owned by the application role — because an
+>    owner can alter the database's ACL, rename it and drop it, and "the
+>    runtime role owns nothing" is the load-bearing rule of that design.
 > 2. **`REVOKE ALL ON DATABASE postgres FROM gestiket_app` was a no-op that
 >    reported success.** It revoked from the *role*, which held no explicit
 >    grants, instead of from `PUBLIC`, which is where `CONNECT` actually comes
@@ -81,7 +82,7 @@ section states the order; the commands live there.
 > 3. **It duplicated role creation in two files**, so the two drifted. They had
 >    already drifted: the guide's version had no `pg_hba.conf` step at all.
 
-The order, which matters (see `infra/provision/README.md` for why):
+The order, which matters (see `README.md`, INFRASTRUCTURE section, for why):
 
 ```bash
 # 1. The database, empty, owned by the administrator. CREATE DATABASE cannot run
