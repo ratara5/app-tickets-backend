@@ -1,5 +1,9 @@
 # Harness adoption — app-tickets-backend
 
+> **Archived.** This runbook describes the 1.14.0 upgrade path. The consumer moved
+> to harness 1.15.0 on 2026-11-18; the canonical procedure is `docs/ADOPTION.md`
+> in the harness checkout. Kept as the record of the 1.14.0 plan.
+
 Consumer: `/home/ratara5/Documents/python_scripts/app-tickets-backend`
 Harness: `/home/ratara5/Documents/python_scripts/agentic-layer` (v1.14.0)
 Canonical procedure: `docs/ADOPTION.md` in the harness checkout.

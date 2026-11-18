@@ -27,8 +27,8 @@ the fingerprints so the procedure could not delete them:
 
 | File | New home | Why |
 |---|---|---|
-| `ai-specs/harness-ia.md` | `docs/harness-ia.md` | the consumer's old topology map (historical) |
-| `ai-specs/harness-assembler.md` | `docs/harness-assembler.md` | its content became the harness catalog (historical) |
+| `ai-specs/harness-ia.md` | `docs/legacy/harness-ia.md` | the consumer's old topology map (historical) |
+| `ai-specs/harness-assembler.md` | `docs/legacy/harness-assembler.md` | its content became the harness catalog (historical) |
 | `ai-specs/scripts/code_review.sh` | `scripts/code_review.sh` | depends on an unpinned external binary |
 
 `docs/base-standards.md` was rewritten. It was the target of all four entrypoint
